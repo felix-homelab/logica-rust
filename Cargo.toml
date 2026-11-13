@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/protocols", "crates/drivers", "crates/fileio"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+logica-core = { path = "crates/core" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+cast_possible_truncation = "warn"
+cast_lossless = "warn"
+
+# Test builds are optimised so the 5e9-sample scale test runs in plain `cargo test` (doc 10).
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.bench]
+debug = 1
