@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::Sample;
 
+/// The segment list of a capture without gaps: one segment of `count` samples.
+pub fn whole(count: Sample) -> Vec<Range<Sample>> {
+    std::iter::once(0..count).collect()
+}
+
 /// Where a capture came from.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

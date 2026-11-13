@@ -292,6 +292,21 @@ impl CaptureStore {
         Ok(())
     }
 
+    /// Declares that `slot` keeps its level up to `end` (for example a block a file leaves out).
+    pub fn extend(&mut self, slot: usize, end: Sample) -> StoreResult<()> {
+        self.check_writable()?;
+        check_slot(slot, self.channels.len())?;
+        let mut done = Vec::new();
+        self.channels[slot].fill_to(end, &mut done);
+        self.after_write(slot, done)
+    }
+
+    /// Where the data of `slot` ends so far.
+    pub fn written_to(&self, slot: usize) -> StoreResult<Sample> {
+        check_slot(slot, self.channels.len())?;
+        Ok(self.channels[slot].written_to)
+    }
+
     /// Declares that every channel is known up to `end`: channels without data there keep their
     /// level.
     pub fn advance_to(&mut self, end: Sample) -> StoreResult<()> {
