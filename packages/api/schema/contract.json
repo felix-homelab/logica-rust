@@ -3277,6 +3277,7 @@
           "type": "string"
         },
         "from": {
+          "description": "First sample; the person's view when absent.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -3285,6 +3286,7 @@
           ]
         },
         "to": {
+          "description": "End sample (exclusive); the person's view, or the whole capture, when absent.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -3293,7 +3295,7 @@
           ]
         },
         "width": {
-          "description": "Pixels (default 1200).",
+          "description": "Pixels (default 1200, 320 to 4000).",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -3309,6 +3311,11 @@
     },
     "RenderOut": {
       "properties": {
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "height": {
           "format": "uint32",
           "minimum": 0,
@@ -3317,6 +3324,18 @@
         "pngBase64": {
           "description": "The PNG, base64-encoded.",
           "type": "string"
+        },
+        "rows": {
+          "description": "What the picture shows, top to bottom: the time axis, channels, decoder rows, markers.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
         },
         "width": {
           "format": "uint32",
@@ -3327,7 +3346,10 @@
       "required": [
         "pngBase64",
         "width",
-        "height"
+        "height",
+        "from",
+        "to",
+        "rows"
       ],
       "type": "object"
     },

@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+crc32fast = "1"
+miniz_oxide = "0.9.1"
 logica-core.workspace = true
 logica-drivers.workspace = true
 logica-fileio.workspace = true

@@ -172,7 +172,25 @@ async fn the_agent_scenario(mode: ClientLifecycleMode) {
     )
     .await;
     assert!(t.starts_with("The person now sees marker m"), "{t}");
+
     assert!(t.contains(&format!("(sample {}", logica_protocols::format::int(at as f64))), "{t}");
+
+    // a picture around the marker, with the rows named
+    let rendered = call(&client, "render", json!({ "capture": c, "from": at, "to": at + 400 })).await;
+    let rt = text(&rendered);
+    assert!(
+        rt.contains("Rows from the top: time axis")
+            && rt.contains("channel CH4")
+            && rt.contains("calibration date"),
+        "{rt}"
+    );
+    let image = rendered.content.iter().find_map(|c| c.as_image()).expect("an image");
+    assert_eq!(image.mime_type, "image/png");
+    assert!(image.data.starts_with("iVBORw0KGgo"), "a base64 PNG");
+    assert!(
+        rendered.structured_content.as_ref().unwrap().get("pngBase64").is_none(),
+        "the PNG is not sent twice"
+    );
 
     // a decoder change, undone through run_command
     let (t, _) =

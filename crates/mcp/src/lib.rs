@@ -20,9 +20,18 @@ use serde_json::Value;
 pub use server::Logica;
 pub use shared::Shared;
 
-/// The text that goes with a rendered picture.
+/// The text that goes with a rendered picture: what its rows show.
 fn render_note(out: &Value) -> String {
-    format!("A {}×{} pixel picture of the range follows.", out["width"], out["height"])
+    let rows: Vec<&str> =
+        out["rows"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+    format!(
+        "A {}×{} pixel picture of samples {} to {} follows. Rows from the top: {}.",
+        out["width"],
+        out["height"],
+        out["from"],
+        out["to"],
+        rows.join("; ")
+    )
 }
 
 /// Serves one client over stdin and stdout until it disconnects (`logica mcp --headless`).

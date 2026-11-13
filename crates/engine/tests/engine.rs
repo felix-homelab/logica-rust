@@ -1,6 +1,9 @@
 //! The engine through its command API, as every client uses it (doc 10, "Engine and API"):
 //! commands in-process, undo and redo of every mutating command, leases, events.
 
+// the base64 helper slices bits on purpose
+#![allow(clippy::cast_possible_truncation)]
+
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
@@ -371,6 +374,79 @@ fn a_synthetic_capture_appears_and_decodes() {
     let s = session(&mut e);
     let c2 = capture(&s, o["id"].as_str().unwrap());
     assert_eq!(c2["state"], "aborted");
+}
+
+/// Decodes the standard base64 of `render` (test helper).
+fn unbase64(s: &str) -> Vec<u8> {
+    const A: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    for q in s.as_bytes().chunks(4) {
+        let v: Vec<u32> = q.iter().filter_map(|&c| A.find(c as char).map(|i| i as u32)).collect();
+        let n = v.iter().enumerate().fold(0u32, |n, (i, x)| n | x << (18 - 6 * i));
+        for i in 0..v.len().saturating_sub(1) {
+            out.push((n >> (16 - 8 * i)) as u8);
+        }
+    }
+    out
+}
+
+#[test]
+fn render_draws_the_view_or_a_range_as_png() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "mystery_C.demo");
+    run(
+        &mut e,
+        &agent(),
+        "decoder.add",
+        json!({ "capture": c, "protocol": "i2c", "roles": { "scl": 5, "sda": 4 } }),
+    );
+    run(&mut e, &agent(), "marker.add", json!({ "capture": c, "at": 6_600_000, "label": "EEPROM read" }));
+    // without a range: the person's view (here the whole capture)
+    let o = run(&mut e, &agent(), "render", json!({ "capture": c }));
+    assert_eq!(
+        (o["from"].as_u64(), o["to"].as_u64(), o["width"].as_u64()),
+        (Some(0), Some(10_000_008), Some(1200))
+    );
+    let png = unbase64(o["pngBase64"].as_str().unwrap());
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    assert_eq!(
+        u32::from_be_bytes([png[20], png[21], png[22], png[23]]),
+        o["height"].as_u64().unwrap() as u32
+    );
+    let rows: Vec<&str> = o["rows"].as_array().unwrap().iter().map(|r| r.as_str().unwrap()).collect();
+    assert!(rows[0].starts_with("time axis, samples 0 to 10000008"), "{rows:?}");
+    assert!(rows.contains(&"channel CH4") && rows.contains(&"channel CH5"), "{rows:?}");
+    assert!(
+        rows.iter().any(|r| r.starts_with("decoder i2c")) && rows.iter().any(|r| r.contains("EEPROM read")),
+        "{rows:?}"
+    );
+
+    // a range, and widths kept within limits
+    run(&mut e, &Actor::User, "view.set", json!({ "capture": c, "from": 6_600_000, "to": 6_600_400 }));
+    let o = run(&mut e, &agent(), "render", json!({ "capture": c, "width": 10 }));
+    assert_eq!(
+        (o["from"].as_u64(), o["to"].as_u64(), o["width"].as_u64()),
+        (Some(6_600_000), Some(6_600_400), Some(320))
+    );
+    assert!(o["rows"][0].as_str().unwrap().contains("660.00 ms to 660.04 ms"), "{}", o["rows"][0]);
+    let o = run(
+        &mut e,
+        &agent(),
+        "render",
+        json!({ "capture": c, "from": 0, "to": 99_000_000, "width": 100_000 }),
+    );
+    assert_eq!((o["to"].as_u64(), o["width"].as_u64()), (Some(10_000_008), Some(4000)));
+
+    // a render is a query: nothing in the history
+    let before = run(&mut e, &agent(), "history.list", json!({}))["entries"].as_array().unwrap().len();
+    run(&mut e, &agent(), "render", json!({ "capture": c, "from": 5, "to": 6 }));
+    assert_eq!(run(&mut e, &agent(), "history.list", json!({}))["entries"].as_array().unwrap().len(), before);
+
+    let (code, msg) = fail(&mut e, &agent(), "render", json!({ "capture": c, "from": 500, "to": 500 }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains("The range is empty"), "{msg}");
+    let (code, _) = fail(&mut e, &agent(), "render", json!({ "capture": "c99" }));
+    assert_eq!(code, ErrorCode::NotFound);
 }
 
 #[test]

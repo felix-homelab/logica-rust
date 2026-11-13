@@ -480,10 +480,16 @@ protocol: string
 }
 export interface RenderIn {
 capture: string
+/**
+ * First sample; the person's view when absent.
+ */
 from?: (number | null)
+/**
+ * End sample (exclusive); the person's view, or the whole capture, when absent.
+ */
 to?: (number | null)
 /**
- * Pixels (default 1200).
+ * Pixels (default 1200, 320 to 4000).
  */
 width?: (number | null)
 }
@@ -1241,11 +1247,17 @@ export interface ProtocolListOut {
 protocols: ProtocolEntry[]
 }
 export interface RenderOut {
+from: number
 height: number
 /**
  * The PNG, base64-encoded.
  */
 pngBase64: string
+/**
+ * What the picture shows, top to bottom: the time axis, channels, decoder rows, markers.
+ */
+rows: string[]
+to: number
 width: number
 }
 export interface SearchOut {

@@ -6,6 +6,7 @@ pub mod cmd;
 pub mod commands;
 pub mod contract;
 pub mod engine;
+pub mod render;
 pub mod schema;
 pub mod state;
 

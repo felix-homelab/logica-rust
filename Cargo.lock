@@ -471,10 +471,12 @@ dependencies = [
 name = "logica-engine"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "logica-core",
  "logica-drivers",
  "logica-fileio",
  "logica-protocols",
+ "miniz_oxide",
  "schemars",
  "serde",
  "serde_json",

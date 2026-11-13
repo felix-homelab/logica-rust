@@ -17,6 +17,9 @@ What is done, what is next, and decisions made on the way. Newest first.
   through the binary.
 - MCP over HTTP on 127.0.0.1 (bearer token, `Origin` and `Host` checks), the lock file, and the
   `logica mcp` relay: the first `logica mcp` becomes the engine, later ones relay to it.
+- `render`: a PNG of a range (the person's view by default) with channels from the LOD, decoder
+  rows and markers, and a list naming the rows; own 5×7 font and PNG writer (zlib and CRC from
+  the crates already used for `.lacap`). Checked by eye on `mystery_C.demo` and the synthetic mix.
 - Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
   `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
   files go to a temporary folder that is removed afterwards. No new dependencies (own argument
@@ -56,7 +59,7 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- `render`; golden
+- Golden
   summaries and the manual Claude Code checklist; the Electron skeleton (spike S7) and the exit
   scenario.
 

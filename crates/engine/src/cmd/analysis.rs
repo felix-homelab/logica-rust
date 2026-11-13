@@ -675,9 +675,11 @@ pub(crate) fn remove_custom(e: &mut Engine, _: &Ctx, i: ProtocolRef) -> Result<D
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RenderIn {
     pub capture: String,
+    /// First sample; the person's view when absent.
     pub from: Option<Sample>,
+    /// End sample (exclusive); the person's view, or the whole capture, when absent.
     pub to: Option<Sample>,
-    /// Pixels (default 1200).
+    /// Pixels (default 1200, 320 to 4000).
     pub width: Option<u32>,
 }
 
@@ -688,8 +690,26 @@ pub struct RenderOut {
     pub png_base64: String,
     pub width: u32,
     pub height: u32,
+    pub from: Sample,
+    pub to: Sample,
+    /// What the picture shows, top to bottom: the time axis, channels, decoder rows, markers.
+    pub rows: Vec<String>,
 }
 
-pub(crate) fn render(_: &mut Engine, _: &Ctx, _: RenderIn) -> Result<Done, CommandError> {
-    Err(err(ErrorCode::Failed, "render is not built yet; it comes with the MCP server (M1 step 4)."))
+pub(crate) fn render(e: &mut Engine, _: &Ctx, i: RenderIn) -> Result<Done, CommandError> {
+    let c = e.capture(&i.capture)?;
+    // the person's view when no range is given
+    let from = i.from.unwrap_or(c.view.from);
+    let to = i.to.unwrap_or(if c.view.to > c.view.from { c.view.to } else { c.store.sample_count() });
+    let p = crate::render::render(c, from, to.min(c.store.sample_count()), i.width.unwrap_or(1200))
+        .map_err(|m| err(ErrorCode::InvalidInput, m))?;
+    let o = RenderOut {
+        png_base64: crate::render::base64(&p.png),
+        width: p.width,
+        height: p.height,
+        from,
+        to: to.min(c.store.sample_count()),
+        rows: p.rows,
+    };
+    Ok(Done::query(out(&o)))
 }

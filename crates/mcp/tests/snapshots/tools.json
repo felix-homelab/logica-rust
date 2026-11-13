@@ -458,6 +458,7 @@
           "type": "string"
         },
         "from": {
+          "description": "First sample; the person's view when absent.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -466,6 +467,7 @@
           ]
         },
         "to": {
+          "description": "End sample (exclusive); the person's view, or the whole capture, when absent.",
           "format": "uint64",
           "minimum": 0,
           "type": [
@@ -474,7 +476,7 @@
           ]
         },
         "width": {
-          "description": "Pixels (default 1200).",
+          "description": "Pixels (default 1200, 320 to 4000).",
           "format": "uint32",
           "minimum": 0,
           "type": [
