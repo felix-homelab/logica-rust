@@ -340,3 +340,26 @@ fn never_reads_the_saved_decoder_settings() {
         assert_eq!(without, with, "{file}");
     }
 }
+
+#[test]
+fn mystery_b_feeds_the_byte_analyser_register_values_235_and_502() {
+    let l = sample("mystery_B.demo").unwrap();
+    let r = decode(&l, &only(&l, "uart", Some(7)));
+    let a = logica_protocols::bytes::analyse_bytes(&r.packets[1].streams[0].bytes);
+    let f = a.findings.iter().find(|x| x.id == logica_protocols::bytes::FindingId::Modbus).unwrap();
+    assert!(f.body.contains("2 register value(s): 235, 502"), "{}", f.body);
+}
+
+#[test]
+fn mystery_c_clock_bytes_are_bcd_not_bit_reversed_text() {
+    let l = sample("mystery_C.demo").unwrap();
+    let r = decode(&l, &only(&l, "i2c", None));
+    let ids: Vec<_> =
+        logica_protocols::bytes::analyse_bytes(&r.packets[0].stream("Read from 0x68").unwrap().bytes)
+            .findings
+            .iter()
+            .map(|f| f.id)
+            .collect();
+    assert!(ids.contains(&logica_protocols::bytes::FindingId::Bcd));
+    assert!(!ids.contains(&logica_protocols::bytes::FindingId::TransformedText));
+}
