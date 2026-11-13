@@ -1,0 +1,74 @@
+# 09 File formats
+
+## Import
+
+| Format | Milestone | Notes |
+|---|---|---|
+| FNIRSI `.demo` | M0 | ZIP; per-channel 1-bit blocks of 8,388,608 samples; a block bitmap; saved decoders (shown for comparison, never used for detection). Known surprises are documented in Signal Detective's README |
+| sigrok `.sr` | M0 | ZIP: `version` (2), `metadata` (INI: samplerate as text with unit, unitsize 1 to 4, `probeN` = channel on bit N-1), `logic-1-N` files of packed little-endian samples, read through the device ingest path. Analog channels noted and ignored; more than 32 channels refused |
+| VCD (IEEE 1364) | M0 | Text, read in two passes in pieces; `$timescale`, scopes, `$var`; one-bit variables become channels, vectors one channel per bit; x and z read as low (counted in a note); reals skipped; sample 0 is the first timestamp and one sample is the greatest common divisor of the time steps. Extended VCD (strengths) is not handled |
+| Saleae binary export | M5 | Documented: header `<SALEAE>`, version, type; digital v0 (initial state, begin and end time, transition times as doubles) and v1 (chunks). Times are converted to sample indices at a chosen or inferred rate |
+| Saleae `.sal` | M5, best effort (owner's choice) | ZIP with `meta.json` and `digital-N.bin`; undocumented and changing between versions. Only versions we have fixtures for; otherwise tell the person to export binary from Logic 2 |
+| CSV | M5 | A time column plus one column per channel, or sample index; detect delimiter and header; rows only on change or every sample |
+| Raw binary | M5 | Packed samples with a given unitsize and rate |
+
+Every importer streams where possible, reports progress, records surprises as capture notes, and
+gives a clear message for unsupported variants ("This .sal file is from a newer Logic 2 version than
+this tool knows; export binary from Logic 2 instead"). Never a blank screen. Importers for
+third-party formats follow the clean-room rule (published specifications and our own sample files
+only, [clean-room.md](clean-room.md)) and have a `PROVENANCE.md`.
+
+Opening files: menu, command palette, drag and drop onto the window, double-click in the file
+manager (file associations for `.lacap`, `.demo`, `.sr`, `.vcd`), or `logica open <file>`.
+`logica convert <in> <out>` converts between formats without the app.
+
+## Export
+
+| Format | Notes |
+|---|---|
+| `.lacap` (native) | Everything: data, decoders with settings, markers, notes, agent annotations |
+| sigrok `.sr` | Opens in PulseView |
+| VCD | Opens in GTKWave and most tools |
+| CSV | Transitions only, or decoded packets |
+| Saleae binary v0 | For further analysis in Saleae's ecosystem |
+| Decoded data | CSV or JSON of packets per decoder |
+
+## Native format `.lacap` (ADR 0005)
+
+A single-file container of our own, not a ZIP: random access by offset, files larger than 4 GB, no
+unpacking on open. All integers are little-endian.
+
+```
+header      "LACAP\0\r\n", u16 major (1), u16 minor (0), u32 reserved                    16 bytes
+blobs …     each: u32 type, u32 flags (0), u64 payload length, payload, u32 CRC-32 of payload
+              type 1  chunk:          u32 channel, u32 kind (1 offsets, 2 bits), u64 base sample,
+                                      u8 entry level, 3 reserved, u32 transitions, then the u32
+                                      offsets or the 2 MiB of raw bits
+              type 2  LOD (fine):     u32 channel, u32 shift (8), u64 base sample, u32 buckets,
+                                      u32 reserved, u16 counts, packed start levels
+              type 3  annotations:    cached decoder output (layout defined in M1)
+              type 4  channel table:  u32 channel, u32 chunk count, u32 record size (40), u32
+                                      reserved; per chunk a record (kind, entry, exit, flags,
+                                      transitions, u64 offset and length of the chunk blob and
+                                      of the LOD blob); then for every non-quiet chunk its coarse
+                                      LOD (256 u16 counts, 32 bytes of packed start levels)
+index       raw-deflate JSON: format "lacap", version, chunk size (2^24), capture metadata
+            (channels, segments, notes, …), where each channel table blob is, and the session
+            state saved with the capture (decoder instances, markers, range notes)
+footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserved, "LACAPEND"
+```
+
+- CRC-32 is the ZIP/zlib one (polynomial 0xEDB88320). 64-bit values stay below 2^53. Opening reads
+  the footer, the index and one table per channel; chunks and fine LODs are read by offset when
+  needed, with their CRC checked; a bad one is reported by name ("Chunk 3 of channel 2 … is
+  damaged").
+- Readers refuse newer major versions with a clear message. Blobs are reached only through the
+  tables, so unknown blob types are skipped by construction.
+- Saving appends new or changed blobs, new channel tables, a new index and a new footer; old ones
+  become dead space. "Save as" writes a compact copy.
+- If saving is interrupted, the file ends in a partial append. The reader scans back for the last
+  complete footer (its magic, an index that ends right before it, and the index CRC) and opens that
+  state with a note; the next save cuts the partial append off before writing.
+- A capture being recorded or imported lives in a working `.lacap` in the data folder (doc 04);
+  saving there only appends tables, index and footer.
+- `logica inspect <file>` prints the index (the file cannot be opened with `unzip`).

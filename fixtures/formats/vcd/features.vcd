@@ -1,0 +1,49 @@
+$date
+   Written by hand for the logic-analyser tests, November 2026
+$end
+$version hand-written $end
+$comment
+   Exercises scopes, shared and multi-character identifiers, a vector,
+   x and z, a real variable and a comment between value changes.
+$end
+$timescale 10 ns $end
+$scope module top $end
+$var wire 1 ! clk $end
+$var wire 1 ! clk_copy $end
+$var wire 1 %a en $end
+$var wire 4 # nibble [3:0] $end
+$var real 64 r temp $end
+$scope module sub $end
+$var wire 1 %b en $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$dumpvars
+0!
+x%a
+b0000 #
+r21.5 r
+1%b
+$end
+#0
+#2
+1!
+0%a
+b1010 #
+#4
+0!
+b1 #
+r22.25 r
+$comment a comment between changes $end
+#6
+1!
+1%a
+z%b
+bx01 #
+#8
+0!
+0%a
+1%b
+b0110 #
+#10
+1!

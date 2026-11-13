@@ -1,0 +1,21 @@
+# Rust
+target/
+
+# Node, Electron, Playwright
+node_modules/
+dist/
+out/
+coverage/
+test-results/
+playwright-report/
+*.node
+
+# FNIRSI's example captures (I2C.demo, SPI.demo, UART.demo) are not ours to publish (doc 10).
+fixtures/captures/local/
+
+# Editors and tools
+.serena
+.idea/
+.vscode/
+*.Zone.Identifier
+*:Zone.Identifier
