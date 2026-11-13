@@ -38,13 +38,14 @@ needs to differ from them, update the doc in the same change and say why.
 
 ## Commands
 
-Available: `cargo build`, `cargo test`, `cargo fmt --all --check`,
+Available: `cargo build`, `cargo test`, `cargo bench` (numbers for `docs/benchmarks.md`),
+`cargo fmt --all --check`,
 `cargo clippy --workspace --all-targets -- -D warnings`,
 `cargo build -p logica-core -p logica-protocols --target wasm32-unknown-unknown`; `npm install`,
 `npm run build`, `npm run lint`, `npm test` (no packages until M1; they say so and succeed). The
 toolchain is pinned in `rust-toolchain.toml`.
 
-Planned: `cargo bench`; `npm run test:e2e` (Playwright against Electron),
+Planned: `npm run test:e2e` (Playwright against Electron),
 `npm start` (desktop app in development), `npm run package` (installers for this OS);
 `logica mcp` (MCP over stdio; relays to the running app, starts it if needed, or runs headless with
 `--headless`).
