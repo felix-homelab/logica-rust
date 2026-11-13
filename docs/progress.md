@@ -52,9 +52,10 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- Spike S3 (DLA feasibility on Windows) with the owner and the hardware; it also settles the USB
-  `Transport` trait, which is provisional in `core`.
-- Then M1: engine, command API, CLI and MCP.
+- M1: engine, command API, CLI and MCP, for recordings and the synthetic device; then M2, the
+  desktop app. Owner's decision after M0: the full analyser for recordings first, hardware after
+  (spike S3 moved to after M2; D9 and doc 11 updated).
+- Spike S3 then settles the USB `Transport` trait, which is provisional in `core`.
 - Packed-sample ingest is 168 MB/s, below the 200 MB/s DLA stream target: SIMD and ingest threads
   with spike S2.
 
