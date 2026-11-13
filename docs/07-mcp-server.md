@@ -20,6 +20,11 @@ MCP is the only protocol outside the app (ADR 0006).
   (stdio through WSL interop; starts the Windows app if needed), or HTTP with mirrored networking
   (doc 02, spike S8).
 - The settings window shows connected agents and a copyable setup command.
+- The lock file is `logica.lock` in the data folder (Electron's user-data folder, `Logica`; the
+  CLI computes the same path, and `LOGICA_DATA_DIR` overrides it): JSON with the process id, port,
+  token, API version and whether a windowless engine wrote it. A lock nobody answers for is stale
+  and replaced. Until the app exists (M2), the first `logica mcp` becomes the windowless engine and
+  later ones relay to it; that engine ends with the agent that started it.
 
 Protocol versions: the server speaks MCP 2026-07-28, where requests are stateless and carry their
 client information, and the earlier session-based versions that current clients use (through the

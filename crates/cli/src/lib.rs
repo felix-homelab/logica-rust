@@ -30,9 +30,10 @@ Usage:
   logica convert <in> <out>          Convert a capture (.lacap, FNIRSI .demo, sigrok .sr, VCD) to
                                      .lacap. Add --force to replace an existing <out>.
   logica mcp [--allow-outputs]       Speak MCP on stdin and stdout for an agent (for Claude Code:
-                                     claude mcp add logica -- logica mcp). Until the app exists,
-                                     this runs its own engine without a window (as with --headless);
-                                     --allow-outputs permits commands that drive device outputs.
+                                     claude mcp add logica -- logica mcp). Relays to the running
+                                     engine; without one (no app yet), becomes that engine without a
+                                     window, which other agents then share. --allow-outputs permits
+                                     commands that drive device outputs.
   logica help                        This text.
   logica version                     The version of logica and of its command API.
 
@@ -378,13 +379,16 @@ fn mcp(args: &[String]) -> Result<()> {
         return Err(Fail::Usage("mcp takes no files; agents open them with the open_file tool.".into()));
     }
     let work = WorkDir::new()?;
-    let engine = Engine::new(EngineConfig { data_dir: Some(work.0.clone()), ..EngineConfig::default() });
-    let shared = logica_mcp::Shared::new(engine, a.has("--allow-outputs"));
+    let options = logica_mcp::Options {
+        data_dir: logica_mcp::lock::data_dir(),
+        work_dir: work.0.clone(),
+        allow_outputs: a.has("--allow-outputs"),
+    };
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .map_err(|e| Fail::Failed(format!("The MCP server could not start: {e}.")))?;
-    let result = runtime.block_on(logica_mcp::serve_stdio(shared));
+    let result = runtime.block_on(logica_mcp::stdio_entry(options));
     // the engine and its working files are gone before the folder is removed
     drop(runtime);
     drop(work);

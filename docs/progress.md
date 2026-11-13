@@ -15,6 +15,8 @@ What is done, what is next, and decisions made on the way. Newest first.
   with `logica mcp` serving one agent over stdio from its own engine (no app yet, so it runs as
   `--headless` does). Tested through a real MCP client in-process, under both handshakes, and
   through the binary.
+- MCP over HTTP on 127.0.0.1 (bearer token, `Origin` and `Host` checks), the lock file, and the
+  `logica mcp` relay: the first `logica mcp` becomes the engine, later ones relay to it.
 - Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
   `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
   files go to a temporary folder that is removed afterwards. No new dependencies (own argument
@@ -38,6 +40,12 @@ What is done, what is next, and decisions made on the way. Newest first.
   elapsed time until the engine reports capture progress. `compare` (M5) and `set_output` (M3)
   wait for their commands. The `verify-expected` prompt, planned for M5, is in already: it needs
   only `get_decoded`.
+- The relay sends the standard headers of MCP 2026-07-28 (`Mcp-Method`, `Mcp-Name`) itself; the
+  SDK's helper for them is private. New direct dependencies, all already in the tree through
+  `rmcp`: `hyper`, `hyper-util`, `http`, `http-body-util`, `bytes`, `tokio-util` (MIT) and
+  `getrandom` (MIT/Apache-2.0, for the token).
+- Known limit until M2: a windowless engine ends with the agent that started it; the others then
+  get "cannot be reached" and must restart `logica mcp`.
 - History texts use "an" where a name is spoken with a vowel ("an I2C decoder").
 - TypeScript 7 (the native compiler; `tsc` as before). If M2's tooling (lint, bundler) still
   needs the TypeScript 5 programmatic API, the window packages pin that instead.
@@ -48,7 +56,7 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- MCP over HTTP (token, `Origin`), the lock file and the `logica mcp` relay; `render`; golden
+- `render`; golden
   summaries and the manual Claude Code checklist; the Electron skeleton (spike S7) and the exit
   scenario.
 

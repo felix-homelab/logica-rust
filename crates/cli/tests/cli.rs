@@ -72,45 +72,112 @@ fn help_version_and_wrong_command_lines() {
     assert!(err.contains("mcp takes no files"), "{err}");
 }
 
-#[test]
-fn logica_mcp_speaks_mcp_on_stdio_and_nothing_else() {
-    use std::io::{BufRead, BufReader, Write};
-    let mut child = Command::new(env!("CARGO_BIN_EXE_logica"))
-        .args(["mcp", "--headless"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .unwrap();
-    let mut stdin = child.stdin.take().unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-    let mut ask = |msg: Value| {
+/// A `logica mcp` process driven with raw JSON-RPC lines.
+struct Mcp {
+    child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    lines: std::io::Lines<std::io::BufReader<std::process::ChildStdout>>,
+    next: u64,
+}
+
+impl Mcp {
+    fn start(data_dir: &str, name: &str) -> Mcp {
+        use std::io::BufRead;
+        let mut child = Command::new(env!("CARGO_BIN_EXE_logica"))
+            .args(["mcp", "--headless"])
+            .env("LOGICA_DATA_DIR", data_dir)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take();
+        let lines = std::io::BufReader::new(child.stdout.take().unwrap()).lines();
+        let mut m = Mcp { child, stdin, lines, next: 1 };
+        let init = m.ask("initialize", serde_json::json!({
+            "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": name, "version": "1" } }));
+        assert_eq!(init["result"]["serverInfo"]["name"], "logica", "{init}");
+        m.send(serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
+        m
+    }
+
+    fn send(&mut self, msg: Value) {
+        use std::io::Write;
+        let stdin = self.stdin.as_mut().unwrap();
         writeln!(stdin, "{msg}").unwrap();
         stdin.flush().unwrap();
-    };
-    ask(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "cli-test", "version": "1" } } }));
-    let init: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
-    assert_eq!(init["result"]["serverInfo"]["name"], "logica", "{init}");
-    assert!(init["result"]["instructions"].as_str().unwrap().contains("session tool"));
-    ask(serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
-    let path = fixture("captures/mystery_C.demo");
-    ask(serde_json::json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
-        "name": "open_file", "arguments": { "path": path } } }));
-    let r: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
-    assert_eq!(r["id"], 2, "{r}");
-    let text = r["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.starts_with("Opened c1 \"mystery_C.demo\""), "{text}");
-    // closing stdin ends the server, and its working files go with it
-    drop(stdin);
-    let pid = child.id();
-    assert_eq!(child.wait().unwrap().code(), Some(EXIT_OK));
-    let leftovers = std::fs::read_dir(std::env::temp_dir())
+    }
+
+    /// Sends a request and returns its answer (skipping notifications).
+    fn ask(&mut self, method: &str, params: Value) -> Value {
+        let id = self.next;
+        self.next += 1;
+        self.send(serde_json::json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        loop {
+            let v: Value = serde_json::from_str(&self.lines.next().expect("an answer").unwrap()).unwrap();
+            if v["id"] == id {
+                return v;
+            }
+        }
+    }
+
+    /// The text of a tool call.
+    fn tool(&mut self, name: &str, args: Value) -> String {
+        let r = self.ask("tools/call", serde_json::json!({ "name": name, "arguments": args }));
+        r["result"]["content"][0]["text"].as_str().unwrap_or_else(|| panic!("{r}")).to_string()
+    }
+
+    /// Closes stdin and waits: (exit code, process id).
+    fn finish(mut self) -> (Option<i32>, u32) {
+        drop(self.stdin.take());
+        let pid = self.child.id();
+        (self.child.wait().unwrap().code(), pid)
+    }
+}
+
+fn leftovers(pid: u32) -> usize {
+    std::fs::read_dir(std::env::temp_dir())
         .unwrap()
         .flatten()
         .filter(|e| e.file_name().to_string_lossy().starts_with(&format!("logica-cli-{pid}-")))
-        .count();
-    assert_eq!(leftovers, 0);
+        .count()
+}
+
+#[test]
+fn logica_mcp_speaks_mcp_on_stdio_and_nothing_else() {
+    let s = Scratch::new("mcp-stdio");
+    let mut m = Mcp::start(&s.0.display().to_string(), "cli-test");
+    let text = m.tool("open_file", serde_json::json!({ "path": fixture("captures/mystery_C.demo") }));
+    assert!(text.starts_with("Opened c1 \"mystery_C.demo\""), "{text}");
+    // while it runs, its lock file lets other agents find it
+    assert!(s.0.join("logica.lock").exists());
+    // closing stdin ends the server; its lock and working files go with it
+    let (code, pid) = m.finish();
+    assert_eq!(code, Some(EXIT_OK));
+    assert_eq!(leftovers(pid), 0);
+    assert!(!s.0.join("logica.lock").exists());
+}
+
+#[test]
+fn a_second_logica_mcp_relays_to_the_first_engine() {
+    let s = Scratch::new("mcp-two");
+    let dir = s.0.display().to_string();
+    let mut first = Mcp::start(&dir, "claude");
+    first.tool("open_file", serde_json::json!({ "path": fixture("captures/mystery_A.demo") }));
+    let mut second = Mcp::start(&dir, "codex");
+    // the same engine: the second agent sees the first one's capture and actions
+    let session = second.tool("session", serde_json::json!({}));
+    assert!(session.contains("mystery_A.demo") && session.contains("agent:claude opened"), "{session}");
+    let text =
+        second.tool("show_user", serde_json::json!({ "capture": "c1", "at": 5, "label": "from codex" }));
+    assert!(text.starts_with("The person now sees marker"), "{text}");
+    let session = first.tool("session", serde_json::json!({}));
+    assert!(session.contains("by agent:codex"), "{session}");
+    // the relay ends cleanly; the engine runs on for the first agent
+    assert_eq!(second.finish().0, Some(EXIT_OK));
+    assert!(first.tool("session", serde_json::json!({})).contains("from codex"));
+    assert_eq!(first.finish().0, Some(EXIT_OK));
+    assert!(!s.0.join("logica.lock").exists());
 }
 
 #[test]
