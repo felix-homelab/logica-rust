@@ -434,9 +434,14 @@ mod tests {
         };
         sink.begin(&[ch(0), ch(3)], &[Level::Low, Level::High], 1e6).unwrap();
         sink.block(Block::Transitions { slot: 0, edges: &[10, 20] }).unwrap();
-        sink.block(Block::Packed { start: 0, unit_size: 1, data: &[], bits: &[0, 1] }).unwrap();
+        assert!(
+            sink.block(Block::Packed { start: 0, unit_size: 1, data: &[0], bits: &[0, 1] }).is_err(),
+            "out of order"
+        );
         sink.block(Block::Advance { end: 30 }).unwrap();
-        sink.block(Block::Bits { slot: 1, start: 30, words: &[0], count: 10 }).unwrap();
+        // samples 30 and 31: slot 0 on bit 0, slot 1 on bit 1
+        sink.block(Block::Packed { start: 30, unit_size: 1, data: &[0b01, 0b10], bits: &[0, 1] }).unwrap();
+        sink.block(Block::Bits { slot: 1, start: 32, words: &[0], count: 8 }).unwrap();
         sink.block(Block::Advance { end: 40 }).unwrap();
         let (store, meta) = sink
             .finish(
@@ -446,8 +451,8 @@ mod tests {
             )
             .unwrap();
         assert_eq!(store.sample_count(), 40);
-        assert_eq!(store.edges_in(0, 0, 40).unwrap(), vec![10, 20]);
-        assert_eq!(store.edges_in(1, 0, 40).unwrap(), vec![30]);
+        assert_eq!(store.edges_in(0, 0, 40).unwrap(), vec![10, 20, 30, 31]);
+        assert_eq!(store.edges_in(1, 0, 40).unwrap(), vec![30, 31, 32]);
         assert_eq!(meta.state, CaptureState::Aborted);
         assert_eq!(meta.channels[1].index, 3);
         assert!(meta.notes[0].message.contains("stopped after 40 samples"));

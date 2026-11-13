@@ -251,12 +251,42 @@ impl<'a> ZipArchive<'a> {
         if e.size > limit {
             return Err(err(format!("The entry \"{name}\" is larger than expected ({} bytes).", e.size)));
         }
+        if e.method == 8 {
+            // Inflating straight into one buffer of the known size is faster than streaming
+            // through the inflater's ring buffer.
+            let start = self.data_start(e, name)?;
+            let packed = read(self.file, start, usize::try_from(e.compressed).unwrap_or(usize::MAX))?;
+            let damaged = || err(format!("The entry \"{name}\" in the archive is damaged."));
+            let out = miniz_oxide::inflate::decompress_to_vec_with_limit(
+                &packed,
+                usize::try_from(e.size).unwrap_or(0),
+            )
+            .map_err(|_| damaged())?;
+            if out.len() as u64 != e.size || crc32fast::hash(&out) != e.crc {
+                return Err(damaged());
+            }
+            return Ok(Some(out));
+        }
         let mut out = Vec::with_capacity(usize::try_from(e.size).unwrap_or(0));
         self.stream(name, &mut |b| {
             out.extend_from_slice(b);
             Ok(())
         })?;
         Ok(Some(out))
+    }
+
+    /// Where the data of entry `e` starts, after its local header; checks it lies inside the file.
+    fn data_start(&self, e: &Entry, name: &str) -> Result<u64, ImportError> {
+        let h = read(self.file, e.local_header, 30)?;
+        if u32_at(&h, 0) != LOCAL {
+            return Err(err(format!("The entry \"{name}\" in the archive is damaged.")));
+        }
+        let start = e.local_header + 30 + u64::from(u16_at(&h, 26)) + u64::from(u16_at(&h, 28));
+        let size = self.file.size().map_err(ImportError::io)?;
+        if start.checked_add(e.compressed).is_none_or(|end| end > size) {
+            return Err(err(format!("The entry \"{name}\" is cut short. Was the file fully copied?")));
+        }
+        Ok(start)
     }
 
     /// The entry as text (UTF-8, invalid bytes replaced), if it exists.
