@@ -29,10 +29,14 @@ Usage:
   logica inspect <file> --index      The index of a .lacap file as stored, without opening it.
   logica convert <in> <out>          Convert a capture (.lacap, FNIRSI .demo, sigrok .sr, VCD) to
                                      .lacap. Add --force to replace an existing <out>.
+  logica mcp [--allow-outputs]       Speak MCP on stdin and stdout for an agent (for Claude Code:
+                                     claude mcp add logica -- logica mcp). Until the app exists,
+                                     this runs its own engine without a window (as with --headless);
+                                     --allow-outputs permits commands that drive device outputs.
   logica help                        This text.
   logica version                     The version of logica and of its command API.
 
-Exporting to .sr, VCD and CSV comes in milestone M5; `logica mcp` comes with the MCP server.
+Exporting to .sr, VCD and CSV comes in milestone M5.
 ";
 
 enum Fail {
@@ -58,9 +62,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         ),
         Some("inspect") => inspect(&args[1..], out, err),
         Some("convert") => convert(&args[1..], out),
-        Some("mcp") => Err(Fail::Failed(
-            "logica mcp is not built yet; it comes with the MCP server later in milestone M1.".into(),
-        )),
+        Some("mcp") => mcp(&args[1..]),
         Some(other) => Err(Fail::Usage(format!("There is no command \"{other}\"."))),
     };
     match result {
@@ -366,4 +368,25 @@ fn convert(args: &[String], out: &mut dyn Write) -> Result<()> {
             bytes(size)
         ),
     )
+}
+
+/// `logica mcp`: an engine without a window, serving one agent over stdin and stdout. Nothing
+/// else may be written to stdout; messages go to stderr.
+fn mcp(args: &[String]) -> Result<()> {
+    let a = parse("mcp", args, &["--headless", "--allow-outputs"])?;
+    if !a.positional.is_empty() {
+        return Err(Fail::Usage("mcp takes no files; agents open them with the open_file tool.".into()));
+    }
+    let work = WorkDir::new()?;
+    let engine = Engine::new(EngineConfig { data_dir: Some(work.0.clone()), ..EngineConfig::default() });
+    let shared = logica_mcp::Shared::new(engine, a.has("--allow-outputs"));
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| Fail::Failed(format!("The MCP server could not start: {e}.")))?;
+    let result = runtime.block_on(logica_mcp::serve_stdio(shared));
+    // the engine and its working files are gone before the folder is removed
+    drop(runtime);
+    drop(work);
+    result.map_err(|e| Fail::Failed(e.to_string()))
 }

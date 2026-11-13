@@ -11,6 +11,10 @@ What is done, what is next, and decisions made on the way. Newest first.
 - The contract as JSON Schema, generated from the Rust types and checked in
   (`packages/api/schema/contract.json`); `packages/api` generates the TypeScript types, the
   command list and a typed client from it. Both ends fail CI when a generated file is stale.
+- Crate `mcp`: the curated tools, resources, subscriptions and prompts over the command API,
+  with `logica mcp` serving one agent over stdio from its own engine (no app yet, so it runs as
+  `--headless` does). Tested through a real MCP client in-process, under both handshakes, and
+  through the binary.
 - Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
   `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
   files go to a temporary folder that is removed afterwards. No new dependencies (own argument
@@ -23,6 +27,18 @@ What is done, what is next, and decisions made on the way. Newest first.
 - The API version is written "major.minor" everywhere (contract and `session.get`).
 - `logica open <file>` hands the file to the app (doc 09), not to an in-process engine as doc 03's
   diagram had it; it moves to M2 with the lock file (docs 03, 11; owner's decision).
+- MCP through the official Rust SDK `rmcp` 3.10 (Apache-2.0) with `tokio` (MIT); owner's choice
+  over our own HTTP and JSON-RPC code, for spec conformance as MCP changes. 96 crates in the
+  Rust tree now, all MIT, Apache-2.0 or more permissive.
+- MCP 2026-07-28 removed sessions; the server serves it and the session-based versions, and
+  takes the actor from the client information either carries. Resource updates go out through
+  `subscriptions/listen` (new) and `resources/subscribe` (old).
+- `capture` with `wait` starts without waiting inside the engine (that would hold the engine for
+  the whole capture) and waits for `capture.done` outside it; progress is estimated from the
+  elapsed time until the engine reports capture progress. `compare` (M5) and `set_output` (M3)
+  wait for their commands. The `verify-expected` prompt, planned for M5, is in already: it needs
+  only `get_decoded`.
+- History texts use "an" where a name is spoken with a vowel ("an I2C decoder").
 - TypeScript 7 (the native compiler; `tsc` as before). If M2's tooling (lint, bundler) still
   needs the TypeScript 5 programmatic API, the window packages pin that instead.
 - New dependencies: `schemars` (Rust, MIT: the contract schema from the types);
@@ -32,7 +48,9 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- The MCP server and `render`, the Electron skeleton (spike S7) and the exit scenario.
+- MCP over HTTP (token, `Origin`), the lock file and the `logica mcp` relay; `render`; golden
+  summaries and the manual Claude Code checklist; the Electron skeleton (spike S7) and the exit
+  scenario.
 
 ## M0 Foundations (November 2026)
 

@@ -101,7 +101,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
     Ok(Done::edit(
         out(&DecoderOut { decoder: summary }),
         inv("decoder.remove", &DecoderRef { capture: i.capture.clone(), decoder: id }),
-        format!("added a {title} decoder{}", channels_text(&i.roles)),
+        format!("added {} {title} decoder{}", article(&title), channels_text(&i.roles)),
     )
     .canonical(out(&canonical)))
 }
@@ -364,4 +364,46 @@ pub(crate) fn frames(e: &mut Engine, _: &Ctx, i: DecoderFramesIn) -> Result<Done
         o.explanation = Some(Explanation { problems: groups.into_values().collect(), causes });
     }
     Ok(Done::query(out(&o)))
+}
+
+/// "a" or "an" before a protocol name as it is spoken: initialisms by their first letter
+/// ("an I2C", "an SPI", "a UART"), words by their first letter ("a CAN", "an Infrared").
+pub(crate) fn article(name: &str) -> &'static str {
+    const WORDS: &[&str] = &["CAN", "JTAG", "DALI", "LIN", "MIDI", "DMX512"];
+    let Some(c) = name.chars().next().map(|c| c.to_ascii_uppercase()) else { return "a" };
+    let first = name.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("");
+    let initialism = first.len() <= 5 && first.chars().all(|c| !c.is_lowercase()) && !WORDS.contains(&first);
+    let vowel_sound = if initialism {
+        // "U" is spoken "you": a UART, a USB
+        "AEFHILMNORSX".contains(c)
+    } else {
+        "AEIO".contains(c)
+    };
+    if vowel_sound { "an" } else { "a" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::article;
+
+    #[test]
+    fn articles_follow_how_names_are_spoken() {
+        for (name, a) in [
+            ("I2C", "an"),
+            ("SPI", "an"),
+            ("UART", "a"),
+            ("PWM", "a"),
+            ("CAN", "a"),
+            ("JTAG", "a"),
+            ("SWD", "an"),
+            ("NEC", "an"),
+            ("1-Wire", "a"),
+            ("Infrared remote", "an"),
+            ("Servo PWM", "a"),
+            ("DMX512", "a"),
+            ("", "a"),
+        ] {
+            assert_eq!(article(name), a, "{name}");
+        }
+    }
 }

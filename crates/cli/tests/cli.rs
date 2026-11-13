@@ -67,9 +67,50 @@ fn help_version_and_wrong_command_lines() {
         assert!(out.is_empty());
         assert!(err.contains(says) && err.contains("logica help"), "{args:?}: {err}");
     }
-    let (code, _, err) = logica(&["mcp"]);
-    assert_eq!(code, EXIT_FAILED);
-    assert!(err.contains("not built yet"), "{err}");
+    let (code, _, err) = logica(&["mcp", "some.demo"]);
+    assert_eq!(code, EXIT_USAGE);
+    assert!(err.contains("mcp takes no files"), "{err}");
+}
+
+#[test]
+fn logica_mcp_speaks_mcp_on_stdio_and_nothing_else() {
+    use std::io::{BufRead, BufReader, Write};
+    let mut child = Command::new(env!("CARGO_BIN_EXE_logica"))
+        .args(["mcp", "--headless"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut ask = |msg: Value| {
+        writeln!(stdin, "{msg}").unwrap();
+        stdin.flush().unwrap();
+    };
+    ask(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "cli-test", "version": "1" } } }));
+    let init: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+    assert_eq!(init["result"]["serverInfo"]["name"], "logica", "{init}");
+    assert!(init["result"]["instructions"].as_str().unwrap().contains("session tool"));
+    ask(serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
+    let path = fixture("captures/mystery_C.demo");
+    ask(serde_json::json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+        "name": "open_file", "arguments": { "path": path } } }));
+    let r: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+    assert_eq!(r["id"], 2, "{r}");
+    let text = r["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("Opened c1 \"mystery_C.demo\""), "{text}");
+    // closing stdin ends the server, and its working files go with it
+    drop(stdin);
+    let pid = child.id();
+    assert_eq!(child.wait().unwrap().code(), Some(EXIT_OK));
+    let leftovers = std::fs::read_dir(std::env::temp_dir())
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with(&format!("logica-cli-{pid}-")))
+        .count();
+    assert_eq!(leftovers, 0);
 }
 
 #[test]

@@ -1,0 +1,1046 @@
+{
+  "capture": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "action \"start\" records from a connected device: give `config` (channels, sampleRateHz, samples, mode) to configure it first; waits until the capture ends (wait: true, the default) with progress, and can be cancelled. \"stop\" ends a running capture.",
+    "inputSchema": {
+      "$defs": {
+        "CaptureConfig": {
+          "properties": {
+            "channels": {
+              "description": "Enabled physical channels, ascending.",
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "mode": {
+              "$ref": "#/$defs/CaptureMode"
+            },
+            "sampleRateHz": {
+              "format": "double",
+              "type": "number"
+            },
+            "samples": {
+              "description": "Samples per channel.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "thresholdVolts": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channels",
+            "sampleRateHz",
+            "samples",
+            "mode"
+          ],
+          "type": "object"
+        },
+        "CaptureMode": {
+          "oneOf": [
+            {
+              "const": "buffer",
+              "description": "Record to device memory, then download.",
+              "type": "string"
+            },
+            {
+              "const": "stream",
+              "description": "Samples arrive while capturing.",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "action": {
+          "enum": [
+            "start",
+            "stop"
+          ],
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/CaptureConfig",
+          "description": "Channels, sample rate, samples per channel and mode; configures the device before starting. Without it, the device's last configuration is used. For start."
+        },
+        "device": {
+          "type": "string"
+        },
+        "title": {
+          "description": "The tab title; \"Capture N\" when absent. For start.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "wait": {
+          "description": "Wait until the capture ends (default). Without waiting, the capture runs on and\n`capture.done` follows. For start.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "device"
+      ],
+      "type": "object"
+    }
+  },
+  "decoder": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "action \"add\" decodes a protocol on channels (roles such as {\"scl\": 5, \"sda\": 4}) with settings; \"update\" changes roles or settings and says how the problem counts changed; \"remove\" deletes it. Every change can be undone.",
+    "inputSchema": {
+      "$defs": {
+        "SettingValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "A setting's value: a number, a choice (text) or a switch."
+        }
+      },
+      "properties": {
+        "action": {
+          "enum": [
+            "add",
+            "update",
+            "remove"
+          ],
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "decoder": {
+          "description": "For update, remove.",
+          "type": "string"
+        },
+        "name": {
+          "description": "For add, update.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocol": {
+          "description": "A protocol id from protocol.list, such as \"i2c\". For add.",
+          "type": "string"
+        },
+        "replaceSettings": {
+          "default": false,
+          "description": "Replace all settings instead of merging (what an undo uses). For update.",
+          "type": "boolean"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "description": "Role to physical channel, such as {\"scl\": 5, \"sda\": 4}. For add, update.",
+          "type": "object"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "default": {},
+          "description": "For add, update.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "action",
+        "capture"
+      ],
+      "type": "object"
+    }
+  },
+  "device": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "action \"connect\" opens a device, takes its lease and returns its capabilities; \"disconnect\" closes it.",
+    "inputSchema": {
+      "properties": {
+        "action": {
+          "enum": [
+            "connect",
+            "disconnect"
+          ],
+          "type": "string"
+        },
+        "device": {
+          "description": "A device id from device.list, such as \"synthetic/mix\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "device"
+      ],
+      "type": "object"
+    }
+  },
+  "get_decoded": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Decoded packets (bytes as text per transaction or line) or frames, filtered by range, kind, problems and text; paged with nextCursor. explain: true groups the problems and names likely causes.",
+    "inputSchema": {
+      "$defs": {
+        "FrameKind": {
+          "enum": [
+            "data",
+            "address",
+            "start",
+            "repeated-start",
+            "stop",
+            "ack",
+            "nack",
+            "break",
+            "reset",
+            "presence",
+            "field",
+            "command",
+            "sample",
+            "cycle",
+            "info"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "cursor": {
+          "description": "From the previous page's `nextCursor`.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "decoder": {
+          "type": "string"
+        },
+        "explain": {
+          "default": false,
+          "description": "Group the problems and explain likely causes.",
+          "type": "boolean"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only frames of this kind."
+        },
+        "limit": {
+          "description": "Items per page (default 100, at most 1,000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "packets": {
+          "default": false,
+          "description": "Packets (a UART line, an I2C transaction) instead of single frames.",
+          "type": "boolean"
+        },
+        "problems": {
+          "default": false,
+          "description": "Only frames (or packets with frames) that have problems.",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "Only items whose label, detail, title or text contains this (any case).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "decoder"
+      ],
+      "type": "object"
+    }
+  },
+  "list_devices": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Connected and available logic analysers: driver, model, whether connected or capturing, who holds the lease, channels, rates and modes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "description": "Input of commands that take nothing.",
+      "type": "object"
+    }
+  },
+  "measure": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "action \"stats\": frequency, period, duty cycle, pulse widths and edge count of one channel; \"edges\": the edges of channels in a range (paged); \"between\": the time between two samples.",
+    "inputSchema": {
+      "properties": {
+        "action": {
+          "enum": [
+            "stats",
+            "edges",
+            "between"
+          ],
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "channel": {
+          "description": "For stats.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "channels": {
+          "description": "For edges.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "cursor": {
+          "description": "From the previous page's `nextCursor`. For edges.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "description": "Edges per page (default 1,000, at least 64, at most 10,000). For edges.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "capture"
+      ],
+      "type": "object"
+    }
+  },
+  "open_file": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Open a capture file from a path on the machine running Logica: .lacap, FNIRSI .demo, sigrok .sr or VCD. Returns the capture's id, length, rate and channels.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "A path on the machine running the engine.",
+          "type": "string"
+        },
+        "title": {
+          "description": "The tab title; the file name when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  "render": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "A PNG picture of a range of a capture with its decoder rows and markers, for clients that can see images.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "width": {
+          "description": "Pixels (default 1200).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    }
+  },
+  "run_command": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Run any command of Logica's command API by name with its input, for example history.undo, analysis.bytes, channel.rename or capture.close. The commands and their input schemas are in the resource logica://commands.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "description": "The command's name.",
+          "enum": [
+            "session.get",
+            "file.open",
+            "file.save",
+            "capture.close",
+            "capture.rename",
+            "device.list",
+            "device.connect",
+            "device.disconnect",
+            "device.configure",
+            "capture.start",
+            "capture.stop",
+            "lease.take",
+            "lease.release",
+            "channel.rename",
+            "channel.colour",
+            "channel.group",
+            "channel.hide",
+            "view.set",
+            "analysis.detect",
+            "analysis.bytes",
+            "measure.stats",
+            "measure.edges",
+            "measure.between",
+            "decoder.add",
+            "decoder.update",
+            "decoder.remove",
+            "decoder.frames",
+            "search.run",
+            "marker.add",
+            "marker.update",
+            "marker.remove",
+            "protocol.list",
+            "protocol.info",
+            "protocol.addCustom",
+            "protocol.removeCustom",
+            "render",
+            "history.list",
+            "history.undo",
+            "history.redo"
+          ],
+          "type": "string"
+        },
+        "input": {
+          "description": "The command's input, as in its schema in logica://commands.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    }
+  },
+  "save_capture": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Save a capture as .lacap with its decoders and markers: in place, or to `path`. Exports to other formats come later.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Where to save; a path ending in .lacap. Without it, the .lacap the capture came from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    }
+  },
+  "search": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Find edges, pulses and decoded content with a structured query (all, any, not, decoded, edge, pulse, level, within). Hits with times and samples.",
+    "inputSchema": {
+      "$defs": {
+        "DecodedQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "decoder": {
+              "description": "A decoder id on the capture.",
+              "type": "string"
+            },
+            "hasProblem": {
+              "default": false,
+              "description": "Only frames with any problem.",
+              "type": "boolean"
+            },
+            "kind": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/FrameKind"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "description": "Exact label, such as \"NACK\" or \"4F\".",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "problem": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ProblemCode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only frames with this problem."
+            },
+            "text": {
+              "description": "Contained in the label or detail (any case).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "decoder"
+          ],
+          "type": "object"
+        },
+        "Direction": {
+          "enum": [
+            "rising",
+            "falling",
+            "any"
+          ],
+          "type": "string"
+        },
+        "EdgeQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction"
+            }
+          },
+          "required": [
+            "channel",
+            "direction"
+          ],
+          "type": "object"
+        },
+        "FrameKind": {
+          "enum": [
+            "data",
+            "address",
+            "start",
+            "repeated-start",
+            "stop",
+            "ack",
+            "nack",
+            "break",
+            "reset",
+            "presence",
+            "field",
+            "command",
+            "sample",
+            "cycle",
+            "info"
+          ],
+          "type": "string"
+        },
+        "Level": {
+          "description": "A digital level.",
+          "enum": [
+            "low",
+            "high"
+          ],
+          "type": "string"
+        },
+        "LevelQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "level": {
+              "$ref": "#/$defs/Level"
+            }
+          },
+          "required": [
+            "channel",
+            "level"
+          ],
+          "type": "object"
+        },
+        "ProblemCode": {
+          "enum": [
+            "frame-error",
+            "parity-error",
+            "incomplete",
+            "glitch",
+            "checksum",
+            "stuffing",
+            "timing",
+            "protocol"
+          ],
+          "type": "string"
+        },
+        "PulseQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "level": {
+              "$ref": "#/$defs/Level"
+            },
+            "longerThan": {
+              "description": "Seconds.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "shorterThan": {
+              "description": "Seconds.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "level"
+          ],
+          "type": "object"
+        },
+        "Query": {
+          "description": "A search (doc 06): a typed structure, not a text grammar. `decoded`, `edge` and `pulse` produce\nhits; `within`, `level`, `not` and further producers filter them inside `all`.",
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "items": {
+                    "$ref": "#/$defs/Query"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "all"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "items": {
+                    "$ref": "#/$defs/Query"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "any"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/Query"
+                }
+              },
+              "required": [
+                "not"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "decoded": {
+                  "$ref": "#/$defs/DecodedQuery"
+                }
+              },
+              "required": [
+                "decoded"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "edge": {
+                  "$ref": "#/$defs/EdgeQuery"
+                }
+              },
+              "required": [
+                "edge"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "pulse": {
+                  "$ref": "#/$defs/PulseQuery"
+                }
+              },
+              "required": [
+                "pulse"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "level": {
+                  "$ref": "#/$defs/LevelQuery"
+                }
+              },
+              "required": [
+                "level"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "within": {
+                  "$ref": "#/$defs/WithinQuery"
+                }
+              },
+              "required": [
+                "within"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Unit": {
+          "enum": [
+            "s",
+            "ms",
+            "us",
+            "ns",
+            "samples"
+          ],
+          "type": "string"
+        },
+        "WithinQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "format": "double",
+              "type": "number"
+            },
+            "to": {
+              "format": "double",
+              "type": "number"
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Unit"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Seconds by default."
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ],
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "limit": {
+          "description": "Most hits (default 100, at most 1,000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "query": {
+          "$ref": "#/$defs/Query"
+        }
+      },
+      "required": [
+        "capture",
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  "session": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "What is open and what the person sees: captures with their decoders and markers, the person's view per tab (range, cursors, selection), devices with lease holders, running captures, recent activity. Start here.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "description": "Input of commands that take nothing.",
+      "type": "object"
+    }
+  },
+  "show_user": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Point the person at something: a marker at a sample, or a range note with `end`, with a label and an optional note; moveView: true also moves their view there. Shown with an agent badge.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "end": {
+          "description": "End of a range note.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "moveView": {
+          "default": false,
+          "description": "Move the view so the marker is in the middle.",
+          "type": "boolean"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "at",
+        "label"
+      ],
+      "type": "object"
+    }
+  },
+  "summarize": {
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "What is on the wire: detected protocols with channels, settings, confidence and evidence; per-channel measurements; channels nothing explains. For the whole capture or a range of samples.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "First sample; after the start-up artefact when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "End sample (exclusive); the end of the detection window when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    }
+  }
+}

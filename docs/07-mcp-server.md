@@ -21,6 +21,10 @@ MCP is the only protocol outside the app (ADR 0006).
   (doc 02, spike S8).
 - The settings window shows connected agents and a copyable setup command.
 
+Protocol versions: the server speaks MCP 2026-07-28, where requests are stateless and carry their
+client information, and the earlier session-based versions that current clients use (through the
+official Rust SDK, `rmcp`). Either way, a client's name becomes its actor `agent:<name>`.
+
 ## Security
 
 - Bind to 127.0.0.1 only. Binding elsewhere needs an explicit `--listen` flag and prints a warning.
@@ -69,7 +73,11 @@ indices, so follow-up calls are exact.
 | `run_command` | per command | Any command of the command API by name (for example `history.undo`, `analysis.bytes`, `capture.close`), validated by its contract; the command's own safety class and lease rules apply. The list is the resource `logica://commands` |
 
 Tools change only deliberately (schema snapshot tests); a new capability first goes through
-`run_command` and earns its own tool when agents need it often.
+`run_command` and earns its own tool when agents need it often. `compare` joins with capture
+comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
+exist, the tools are not offered. A tool that has several actions (`device`, `capture`, `measure`,
+`decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
+`oneOf`.
 
 ## Resources
 
