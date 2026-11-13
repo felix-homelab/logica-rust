@@ -381,8 +381,10 @@ fn can_a_corrupted_bit_gives_a_crc_or_stuffing_error() {
     let rate = 8e6;
     let mut l = Lane::high(rate);
     can_frame(&mut l, 0.0001, 500e3, 0x100, &[0x55], false);
-    // move one edge in the data field by a whole bit
-    l.edges[20] += 16;
+    // move one edge in the data field by a whole bit: it lands on the next edge, and two changes
+    // on one sample cancel out (Signal Detective kept both; the store cannot hold that)
+    assert_eq!(l.edges[20] + 16, l.edges[21]);
+    l.edges.drain(20..22);
     let c = generated(&make_capture("t", rate, 0.001, vec![(0, "RX", l)]));
     let r = decode_as(&c, "can", &roles(&[("rx", Some(0))]), &settings(&[("bitrate", 500_000.0.into())]));
     assert!(count(&r, ProblemCode::Checksum) + count(&r, ProblemCode::Stuffing) > 0);
