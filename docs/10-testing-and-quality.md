@@ -18,7 +18,7 @@
 | Unit | `cargo test` | store, LOD, ingest, protocols, engine logic, importers, query validation, `.lacap`, PNG rendering |
 | Fixture | `cargo test` | every capture in `fixtures/captures/` detects and decodes to its answer key and Signal Detective's test expectations |
 | Generated signals | `cargo test` | every protocol's generated example round-trips; wrong settings produce the expected problems; decoder output is identical for any batching and across snapshot and restore (doc 06) |
-| Scale | `cargo test` | a 5e9-sample, 8-channel synthetic capture is created, saved, reopened and queried with peak memory under 1 GB; a signal straddling sample 2^32 decodes identically |
+| Scale | `cargo test` | a 5e9-sample, 8-channel synthetic capture is created, saved, reopened and queried with peak memory under 1 GB (cache budget 64 MB; peak resident memory read from `/proc/self/status` in a test binary of its own, Linux only, skipped with a message elsewhere); a signal straddling sample 2^32 decodes identically. Test builds are optimised (workspace `profile.dev`) so plain `cargo test` runs it in seconds |
 | Driver replay | `cargo test` | drivers against recorded USB transcripts (below) |
 | Engine and API | `cargo test` | commands in-process; undo (every mutating command's inverse restores the state, redo reapplies it), leases (busy errors, take-over, release on disconnect), events; the generated TypeScript contract is up to date |
 | Node binding | Vitest | the Node-API module loads, runs commands, delivers events over a `MessagePort` |
@@ -28,7 +28,7 @@
 | Electron security | Playwright | window options (context isolation, sandbox, no Node), nothing but the bridge exposed, CSP present, navigation and `window.open` blocked |
 | Packaging | CI on Windows, macOS, Linux | installers build; the packaged app starts, loads the engine module, lists the synthetic device, and quits cleanly |
 | Hardware in the loop | manual or a local CI runner | real devices against the known-signal rig |
-| Benchmarks | `cargo bench` | ingest throughput, LOD build, decode speed; results in `docs/benchmarks.md` |
+| Benchmarks | `cargo bench` | ingest throughput, LOD build, decode speed; results in `docs/benchmarks.md`. Own harness (`harness = false`, best of 5 with `std::time::Instant`), no benchmark crate |
 
 Native dialogs and drag and drop from the file manager cannot be driven by Playwright; tests call
 the command the dialog would trigger, and the real interaction is on the manual checklist.
@@ -60,7 +60,12 @@ example files as public real-hardware fixtures.
 - `fixtures/captures/`: Signal Detective's generated captures (`1_UART_easy`, `2_UART_mystery_baud`,
   `3_I2C_bus`, `4_SPI_wrong_mode`, `mystery_A` to `mystery_D`) and both answer-key files, copied
   unchanged. The expectations come from the answer keys and Signal Detective's tests
-  (`../signal-detective/tests/`).
+  (`../signal-detective/tests/`). In scope is behaviour: `samples`, `protocols` (without the
+  `fingerprint` check), `custom`, `bytes`, and the behavioural parts of `capture` (reading `.demo`,
+  the start-up artefact, error messages). Out of scope are the Learn-tab suites (`identify`, `calc`,
+  fingerprints and sketches, D12) and tests of Signal Detective's internals (the `EdgeBuilder`
+  edge limit, the exact number of progress calls, its INI helper), which get equivalents on our own
+  API.
 - `I2C.demo`, `SPI.demo` and `UART.demo` are FNIRSI's example captures (shipped with DLA_Logic) and
   must not be published. They live in `fixtures/captures/local/`, which is git-ignored. Their tests
   run when the files are present and are skipped with a visible "skipped: FNIRSI example files not
@@ -72,8 +77,10 @@ example files as public real-hardware fixtures.
 
 ## CI (GitHub Actions)
 
-- Rust: format, clippy, tests on Linux; the engine module and the `logica` binary built for
-  Windows, macOS and Linux (x64 and arm64).
+- Rust: format, clippy, tests on Linux; tests also on Windows and macOS; `core` and `protocols`
+  built for `wasm32-unknown-unknown`; from M1 the engine module and the `logica` binary built for
+  Windows, macOS and Linux (x64 and arm64). The toolchain is pinned in `rust-toolchain.toml` and
+  bumped deliberately.
 - TypeScript: lint, type-check, Vitest; the generated command-API types checked for staleness.
 - Playwright against the Electron app on Linux under a virtual display (`xvfb`).
 - Packaging jobs on Windows, macOS and Linux (path handling, native module loading, USB permission

@@ -29,7 +29,7 @@ Every driver is written clean-room ([clean-room.md](clean-room.md)) and has a `P
 
 | Device | Driver | Milestone | Notes |
 |---|---|---|---|
-| Synthetic | `synthetic` | M0 | Plays a program, repeated to the requested length: every generated protocol example, or `mix` (UART, I2C, SPI and PWM on 8 channels at 100 MHz, with an optional dense 25 MHz stretch). Streams one tile at a time, so 5e9 samples run in bounded memory |
+| Synthetic | `synthetic` | M0 | Plays a program, repeated to the requested length: every generated protocol example, or `mix` (UART, I2C, SPI and PWM on 8 channels at 100 MHz, with an optional dense 25 MHz stretch). Streams one tile at a time, so 5e9 samples run in bounded memory. Like real hardware, a capture is exactly the requested length; a frame cut off at the end is reported by its decoder as incomplete |
 | FNIRSI DLA-32 Plus / DLA-16 Plus | `fnirsi-dla` | spike S3 after M0; driver M3 | Buffer mode first, then threshold, trigger, PWM outputs, then stream mode. DLA-16 Plus untested (the owner has no device) |
 | FX2 analysers (original Saleae Logic, 8 ch / 24 MHz clones, USBee AX clones) | `fx2lafw` | M4 | Upload fx2lafw firmware, wait for re-enumeration, stream bulk data. No hardware trigger: software and protocol triggers in the engine |
 

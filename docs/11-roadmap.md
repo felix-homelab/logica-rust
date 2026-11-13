@@ -20,10 +20,10 @@ to the DLA-32 Plus at all, is tested right after M0, before any UI work.
 - Cargo workspace and npm workspace (doc 03), lint and format, CI on GitHub Actions, `LICENSE`,
   `.gitignore` excluding `fixtures/captures/local/`.
 - `core`: chunked transition store with per-chunk LOD, eviction to a backing, level cursor, edge
-  streams and batches (doc 04); `.demo`, `.sr` and VCD import; `.lacap` read and write with
-  recovery from an interrupted save (doc 09).
+  streams and batches (doc 04); measurements; `.demo`, `.sr` and VCD import; `.lacap` read and
+  write with recovery from an interrupted save (doc 09). `fileio`: the file interface on real files.
 - `protocols`: every protocol of Signal Detective with its detector, streaming decoder and signal
-  generator; measurements, bus grouping, byte analyser, custom JSON protocols (doc 06).
+  generator; bus grouping, byte analyser, custom JSON protocols (doc 06).
 - `drivers`: the driver traits in use with the synthetic device.
 - Tests against the fixtures in `fixtures/` and Signal Detective's expectations (doc 10).
 - **Exit:** every Signal Detective sample and test expectation holds (same detections, roles,

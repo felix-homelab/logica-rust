@@ -45,8 +45,11 @@ is offset 0, and every chunk can be read on its own.
 
 - Offsets fit in 32 bits whatever the capture length; that removes the 2^32 limit.
 - Above 2^19 transitions, offsets would take more than the 2 MiB of raw bits, so the chunk is stored
-  as bits. Memory per chunk is never above the raw size. Writers switch representation on the fly;
-  a whole aligned chunk of bits is copied without scanning.
+  as bits. Memory per chunk is never above the raw size. Writers switch representation on the fly.
+  Incoming bits are first counted (one popcount pass over each word XOR its shifted self gives the
+  transitions per bucket, without extracting positions); only above 2^19 transitions is a block
+  kept as bits, otherwise its offsets are extracted or the chunk stays quiet. So a quiet line
+  delivered as bits (every `.demo` block) still costs nothing.
 - Per channel, a resident **summary** per chunk: kind, entry and exit level, transition count, where
   the payload lives, and its coarse LOD.
 - Reading: level at a sample; a level cursor (amortised O(1) for increasing positions, across chunk
@@ -64,6 +67,9 @@ start. LOD memory follows activity, not length:
   same evictable cache as payloads and stored in `.lacap`.
 - Other bucket sizes are derived by summing; sparse chunks answer from their offsets; quiet chunks
   need nothing. A LOD query is exact for any bucket size and fast when buckets align to 2^8 or 2^16.
+  A coarse bucket can hold 65,536 transitions (a line toggling on every sample), one more than its
+  count can say; a saturated coarse bucket is answered from the chunk's fine LOD, which always
+  exists then (the chunk has more than 4,096 transitions) but may have to be loaded.
 
 A global fine level would cost about 2 bytes per 256 samples per channel even on idle lines (about
 330 MB for 5e9 samples on 8 channels); per-chunk LOD avoids that.
@@ -84,7 +90,7 @@ are without loading them.
 
 | Hot data | Cold data |
 |---|---|
-| chunk payloads and fine LODs in a least-recently-used cache with a byte budget (default 1 GB, adjustable); summaries and coarse LODs always resident | a **backing**: chunks leaving the cache are written there and read back by offset |
+| chunk payloads and fine LODs in a least-recently-used cache with a byte budget (default 512 MB, adjustable, so a whole engine at default settings stays near 1 GB); summaries and coarse LODs always resident | a **backing**: chunks leaving the cache are written there and read back by offset |
 
 Backings: memory (small captures, tests) and the `.lacap` file itself. A new capture is created
 inside a working `.lacap` in the data folder: chunks evicted while capturing are appended as blobs,

@@ -120,7 +120,8 @@ BME280, MPU6050, DS18B20 (1-Wire). A chip can be recognised from its address or 
 ## Signal generators
 
 Every protocol has a generator that produces its example signal (used by the synthetic device and
-the tests). A generated capture always extends to its last edge; nothing is cut off at the end.
+the tests). A generated example always extends to its last edge; nothing is cut off at the end.
+(A synthetic device capture is the requested length instead, like real hardware; doc 05.)
 
 ## Quality rules
 
