@@ -9,13 +9,20 @@
 //! An edge is the first sample at a new level. Levels are binary, so a channel is fully described by
 //! its level at sample 0 and its ascending edge positions.
 
+pub mod bits;
+pub(crate) mod blob;
 pub mod cache;
 pub mod channels;
 pub mod chunk;
 pub mod edges;
+pub mod error;
 pub mod lod;
+mod read;
+mod write;
 
 pub use channels::CaptureStore;
+pub use error::{StoreError, StoreResult};
+pub use read::{EdgeIter, EdgeMerger, LevelCursor};
 
 use std::ops::Not;
 

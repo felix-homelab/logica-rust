@@ -4,6 +4,8 @@
 //! `wasm32-unknown-unknown`. Time inside it is the sample index ([`Sample`]); seconds appear only at
 //! the edges.
 
+#![cfg_attr(test, allow(clippy::cast_possible_truncation))]
+
 pub mod capture;
 pub mod io;
 pub mod store;

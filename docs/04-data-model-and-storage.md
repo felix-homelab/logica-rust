@@ -55,7 +55,14 @@ is offset 0, and every chunk can be read on its own.
 - Reading: level at a sample; a level cursor (amortised O(1) for increasing positions, across chunk
   boundaries and both kinds); edges in a range; an incremental edge stream; merged **edge batches**
   for decoders (sample, channel slot and new level per edge, plus `end`: every edge before `end` has
-  been delivered); and windows of absolute edge positions for measurement and detection.
+  been delivered, and every edge in the batch is before `end`; a batch never splits the edges of
+  one sample, so it may exceed its size limit by the edges sharing its last sample; edges at the
+  same sample come in slot order); and windows of absolute edge positions for measurement and
+  detection.
+- Writing: transition lists, per-channel bit blocks and packed samples, each continuing exactly
+  where the channel's data ends. Data at sample 0 defines the initial level (chunk 0 never has an
+  edge at offset 0). Readers see every sample written on all channels, including the chunk still
+  being written, so a live view is never a whole chunk behind.
 
 ## Level of detail
 
@@ -91,6 +98,11 @@ are without loading them.
 | Hot data | Cold data |
 |---|---|
 | chunk payloads and fine LODs in a least-recently-used cache with a byte budget (default 512 MB, adjustable, so a whole engine at default settings stays near 1 GB); summaries and coarse LODs always resident | a **backing**: chunks leaving the cache are written there and read back by offset |
+
+A payload or fine LOD is written to the backing only when it is pushed out of the cache (or at
+save), as a `.lacap` blob; whoever pushed it out (the writer completing a chunk, or a reader loading
+another) appends it and records its place in the chunk summary. The item just inserted is never
+pushed out by its own insertion, even when it alone is over the budget.
 
 Backings: memory (small captures, tests) and the `.lacap` file itself. A new capture is created
 inside a working `.lacap` in the data folder: chunks evicted while capturing are appended as blobs,
