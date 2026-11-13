@@ -144,9 +144,7 @@ fn encode_table(slot: u32, chunks: &[ChunkSummary], locs: &[(Option<BlobLoc>, Op
     }
     for c in chunks {
         if let Some(lod) = &c.coarse {
-            lod.counts
-                .iter()
-                .for_each(|v| p.extend_from_slice(&v.to_le_bytes()));
+            lod.counts.iter().for_each(|v| p.extend_from_slice(&v.to_le_bytes()));
             p.extend_from_slice(&lod.start_levels);
         }
     }
@@ -161,9 +159,8 @@ fn write_index_and_footer(
     session: &serde_json::Value,
     tables: Vec<[u64; 2]>,
 ) -> LacapResult<u64> {
-    let initial_levels = (0..store.slots())
-        .map(|s| store.initial_level(s).map(|l| l as u8))
-        .collect::<Result<_, _>>()?;
+    let initial_levels =
+        (0..store.slots()).map(|s| store.initial_level(s).map(|l| l as u8)).collect::<Result<_, _>>()?;
     let index = Index {
         format: "lacap".into(),
         version: [MAJOR, MINOR],
@@ -219,10 +216,8 @@ pub fn save(store: &CaptureStore, meta: &CaptureMeta, session: &serde_json::Valu
     let mut tables = Vec::with_capacity(store.slots());
     for slot in 0..store.slots() {
         let chunks = store.chunks(slot)?;
-        let locs: Vec<_> = chunks
-            .iter()
-            .map(|c| (c.payload_at.get().copied(), c.fine_at.get().copied()))
-            .collect();
+        let locs: Vec<_> =
+            chunks.iter().map(|c| (c.payload_at.get().copied(), c.fine_at.get().copied())).collect();
         let slot32 = u32::try_from(slot).unwrap_or(u32::MAX);
         let loc = store.append_raw(&encode_table(slot32, chunks, &locs))?;
         tables.push([loc.offset, loc.len]);
@@ -245,10 +240,7 @@ pub fn save_as(
     let mut at = HEADER_LEN;
     let mut append = |bytes: &[u8]| -> LacapResult<BlobLoc> {
         dest.write_all_at(at, bytes)?;
-        let loc = BlobLoc {
-            offset: at,
-            len: bytes.len() as u64,
-        };
+        let loc = BlobLoc { offset: at, len: bytes.len() as u64 };
         at += loc.len;
         Ok(loc)
     };
@@ -336,9 +328,7 @@ fn find_last_save(file: &dyn RandomAccess, size: u64) -> LacapResult<(Vec<u8>, u
         hi = lo + 7;
     }
     if damaged_end {
-        return Err(LacapError::Damaged(
-            "its index does not match its checksum".into(),
-        ));
+        return Err(LacapError::Damaged("its index does not match its checksum".into()));
     }
     Err(LacapError::NoCompleteSave)
 }
@@ -359,9 +349,7 @@ fn decode_table(
         return Err("it belongs to another channel".into());
     }
     if count != expect_chunks {
-        return Err(format!(
-            "it lists {count} chunks, but the capture needs {expect_chunks}"
-        ));
+        return Err(format!("it lists {count} chunks, but the capture needs {expect_chunks}"));
     }
     if rec < RECORD_SIZE as usize {
         return Err("its records are too small".into());
@@ -377,10 +365,7 @@ fn decode_table(
         _ => Err("a level is neither 0 nor 1".to_string()),
     };
     let loc_at = |r: &[u8], at: usize| -> Result<Option<BlobLoc>, String> {
-        let l = BlobLoc {
-            offset: u64_at(r, at),
-            len: u64_at(r, at + 8),
-        };
+        let l = BlobLoc { offset: u64_at(r, at), len: u64_at(r, at + 8) };
         if l.len == 0 {
             return Ok(None);
         }
@@ -426,15 +411,11 @@ fn decode_table(
             if p.len() < coarse_at + COARSE_BYTES {
                 return Err("the coarse level of detail is cut short".into());
             }
-            let mut lod = CoarseLod {
-                counts: [0; COARSE_BUCKETS],
-                start_levels: [0; COARSE_BUCKETS / 8],
-            };
+            let mut lod = CoarseLod { counts: [0; COARSE_BUCKETS], start_levels: [0; COARSE_BUCKETS / 8] };
             for (j, v) in lod.counts.iter_mut().enumerate() {
                 *v = u16::from_le_bytes([p[coarse_at + 2 * j], p[coarse_at + 2 * j + 1]]);
             }
-            lod.start_levels
-                .copy_from_slice(&p[coarse_at + COARSE_BUCKETS * 2..coarse_at + COARSE_BYTES]);
+            lod.start_levels.copy_from_slice(&p[coarse_at + COARSE_BUCKETS * 2..coarse_at + COARSE_BYTES]);
             c.coarse = Some(Box::new(lod));
             coarse_at += COARSE_BYTES;
         }
@@ -454,10 +435,7 @@ pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Ope
     if &h[..8] != MAGIC {
         return Err(LacapError::NotLacap);
     }
-    let (major, minor) = (
-        u16::from_le_bytes([h[8], h[9]]),
-        u16::from_le_bytes([h[10], h[11]]),
-    );
+    let (major, minor) = (u16::from_le_bytes([h[8], h[9]]), u16::from_le_bytes([h[10], h[11]]));
     if major > MAJOR {
         return Err(LacapError::Newer { major, minor });
     }
@@ -467,9 +445,7 @@ pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Ope
     let index: Index = serde_json::from_slice(&json)
         .map_err(|e| LacapError::Damaged(format!("the index cannot be read ({e})")))?;
     if index.format != "lacap" || index.chunk_size != CHUNK_SAMPLES {
-        return Err(LacapError::Damaged(
-            "the index describes another format or chunk size".into(),
-        ));
+        return Err(LacapError::Damaged("the index describes another format or chunk size".into()));
     }
     let slots = index.capture.channels.len();
     if index.tables.len() != slots || index.initial_levels.len() != slots {
@@ -506,10 +482,5 @@ pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Ope
         });
     }
     let store = CaptureStore::from_parts(channels, index.sample_count, file, valid_end, cache_budget);
-    Ok(Opened {
-        store,
-        meta,
-        session: index.session,
-        recovered,
-    })
+    Ok(Opened { store, meta, session: index.session, recovered })
 }

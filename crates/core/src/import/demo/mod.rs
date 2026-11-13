@@ -47,20 +47,12 @@ fn parse_channel_ini(text: &str) -> Option<ChannelIni> {
             values.push(v);
         }
     }
-    Some(ChannelIni {
-        name,
-        sample_count,
-        masks,
-        values,
-    })
+    Some(ChannelIni { name, sample_count, masks, values })
 }
 
 /// Bit `k` of the block bitmap; blocks past the listed words count as "no file".
 fn block_bit(words: &[u64], k: u64) -> bool {
-    usize::try_from(k / 64)
-        .ok()
-        .and_then(|i| words.get(i))
-        .is_none_or(|w| (w >> (k % 64)) & 1 == 1)
+    usize::try_from(k / 64).ok().and_then(|i| words.get(i)).is_none_or(|w| (w >> (k % 64)) & 1 == 1)
 }
 
 fn json_of(set: &[(String, String)], key: &str) -> Option<Value> {
@@ -87,11 +79,7 @@ fn saved_decoders(raw: Option<Value>, notes: &mut Vec<Note>) -> Vec<SavedDecoder
             if key == "main" || !val.is_object() {
                 continue;
             }
-            let id = val
-                .get("main")
-                .and_then(|m| m.get("id"))
-                .and_then(Value::as_str)
-                .unwrap_or(key);
+            let id = val.get("main").and_then(|m| m.get("id")).and_then(Value::as_str).unwrap_or(key);
             let mut channels = Vec::new();
             for list in ["channels", "opt_channels"] {
                 for c in val.get(list).and_then(Value::as_array).into_iter().flatten() {
@@ -108,18 +96,11 @@ fn saved_decoders(raw: Option<Value>, notes: &mut Vec<Note>) -> Vec<SavedDecoder
                     options.push((oid.to_string(), value_text(v)));
                 }
             }
-            out.push(SavedDecoder {
-                protocol: id.to_lowercase(),
-                channels,
-                options,
-            });
+            out.push(SavedDecoder { protocol: id.to_lowercase(), channels, options });
         }
     }
     if !items.is_empty() && out.is_empty() {
-        info(
-            notes,
-            "The file has saved decoder settings in a layout this tool does not recognise.",
-        );
+        info(notes, "The file has saved decoder settings in a layout this tool does not recognise.");
     }
     out
 }
@@ -161,10 +142,7 @@ pub fn import(
     if let (Some(s), Some(r)) = (set_hz, root_hz)
         && (s - r).abs() > 1.0
     {
-        warn(
-            &mut notes,
-            format!("set.ini says {s} Hz but channel.ini says {r} Hz. Using {s} Hz."),
-        );
+        warn(&mut notes, format!("set.ini says {s} Hz but channel.ini says {r} Hz. Using {s} Hz."));
     }
     let depth = ini_get(&root, "SamplingDepth").and_then(|v| v.parse::<u64>().ok());
 
@@ -173,16 +151,11 @@ pub fn import(
         .unwrap_or_default()
         .iter()
         .filter_map(|c| {
-            Some((
-                c.get("id")?.as_u64()?,
-                c.get("enable").and_then(Value::as_bool) == Some(true),
-            ))
+            Some((c.get("id")?.as_u64()?, c.get("enable").and_then(Value::as_bool) == Some(true)))
         })
         .collect();
     let flag = |i: u64| enabled.iter().find(|(id, _)| *id == i).map(|(_, e)| *e);
-    let colours = json_of(&set, "channelsDataColor")
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default();
+    let colours = json_of(&set, "channelsDataColor").and_then(|v| v.as_array().cloned()).unwrap_or_default();
     let colour_of = |i: usize| -> String {
         colours
             .get(i)
@@ -198,10 +171,7 @@ pub fn import(
             continue;
         };
         let Some(ini) = parse_channel_ini(&text) else {
-            warn(
-                &mut notes,
-                format!("Channel {i} has an unreadable channel.ini and was skipped."),
-            );
+            warn(&mut notes, format!("Channel {i} has an unreadable channel.ini and was skipped."));
             continue;
         };
         let flagged = flag(u64::from(i));
@@ -214,10 +184,7 @@ pub fn import(
             }
             chans.push((i, ini));
         } else if flagged == Some(true) {
-            warn(
-                &mut notes,
-                format!("Channel {i} is marked as enabled but has no samples."),
-            );
+            warn(&mut notes, format!("Channel {i} is marked as enabled but has no samples."));
         }
     }
     if chans.is_empty() {
@@ -231,17 +198,11 @@ pub fn import(
         );
     }
     if let Some(d) = depth.filter(|&d| d > 0 && sample_count != d + 8 && sample_count != d) {
-        info(
-            &mut notes,
-            format!("The channels hold {sample_count} samples; the capture depth is {d}."),
-        );
+        info(&mut notes, format!("The channels hold {sample_count} samples; the capture depth is {d}."));
     }
 
     let mut store = target.create(&vec![Level::Low; chans.len()])?;
-    let total_blocks: u64 = chans
-        .iter()
-        .map(|(_, c)| c.sample_count.div_ceil(BLOCK_SAMPLES))
-        .sum();
+    let total_blocks: u64 = chans.iter().map(|(_, c)| c.sample_count.div_ceil(BLOCK_SAMPLES)).sum();
     let mut done_blocks = 0u64;
     let mut words = vec![0u64; BLOCK_BYTES / 8];
     for (slot, (index, ini)) in chans.iter().enumerate() {
@@ -252,11 +213,7 @@ pub fn import(
             let n = BLOCK_SAMPLES.min(ini.sample_count - base);
             let name = format!("{index}/0-{k}.bin");
             let no_file = block_bit(&ini.masks, k);
-            let data = if no_file {
-                None
-            } else {
-                zip.read(&name, BLOCK_BYTES as u64)?
-            };
+            let data = if no_file { None } else { zip.read(&name, BLOCK_BYTES as u64)? };
             match data {
                 Some(bytes) => {
                     let have = bytes.len() as u64 * 8;
@@ -362,11 +319,7 @@ pub fn import(
             .iter()
             .map(|(i, ini)| ChannelInfo {
                 index: *i,
-                name: if ini.name.is_empty() {
-                    format!("channel {i}")
-                } else {
-                    ini.name.clone()
-                },
+                name: if ini.name.is_empty() { format!("channel {i}") } else { ini.name.clone() },
                 colour: Some(colour_of(*i as usize)),
                 enabled: true,
                 threshold_volts: None,
@@ -438,18 +391,9 @@ mod tests {
     use crate::io::MemFile;
 
     fn channel_ini(name: &str, count: u64, mask0: u64, value0: u64, rest: u64) -> String {
-        let mut lines = vec![
-            name.to_string(),
-            "0".into(),
-            count.to_string(),
-            format!("{mask0},{value0}"),
-        ];
+        let mut lines = vec![name.to_string(), "0".into(), count.to_string(), format!("{mask0},{value0}")];
         for _ in 1..320 {
-            lines.push(if count > 0 {
-                format!("{rest},0")
-            } else {
-                "0,0".into()
-            });
+            lines.push(if count > 0 { format!("{rest},0") } else { "0,0".into() });
         }
         lines.join("\r\n") + "\r\n"
     }
@@ -457,12 +401,7 @@ mod tests {
         "SessionName=Test\r\nSamplingFrequency=1000\r\nSamplingDepth=100\r\nTriggerSamplingDepth=1\r\n";
     fn set(enabled: &[u32]) -> String {
         let cs: Vec<String> = (0..32)
-            .map(|i| {
-                format!(
-                    "{{\"enable\":{},\"id\":{i},\"triggerType\":0}}",
-                    enabled.contains(&i)
-                )
-            })
+            .map(|i| format!("{{\"enable\":{},\"id\":{i},\"triggerType\":0}}", enabled.contains(&i)))
             .collect();
         format!(
             "\n[DLA32_Plus]\nchannelsSet=[{}]\nsettingData={{\"setHz\":1000000}}\ndecodeJson=[]\n",
@@ -537,10 +476,7 @@ mod tests {
     fn things_that_are_not_captures_get_clear_errors() {
         let z = MemFile::from_bytes(b"hello, not a zip at all, just some text".to_vec());
         let e = import(&z, "t", &StoreTarget::memory(), &mut |_, _| {}).unwrap_err();
-        assert_eq!(
-            e.to_string(),
-            "This is not a ZIP archive, so it cannot be a DLA_Logic .demo file."
-        );
+        assert_eq!(e.to_string(), "This is not a ZIP archive, so it cannot be a DLA_Logic .demo file.");
         let z = MemFile::from_bytes(vec![0; 3]);
         assert!(
             import(&z, "t", &StoreTarget::memory(), &mut |_, _| {})
@@ -548,17 +484,9 @@ mod tests {
                 .to_string()
                 .contains("too small")
         );
+        assert!(run(&[("readme.txt", b"x")]).unwrap_err().to_string().contains("no channel.ini"));
         assert!(
-            run(&[("readme.txt", b"x")])
-                .unwrap_err()
-                .to_string()
-                .contains("no channel.ini")
-        );
-        assert!(
-            run(&[("channel.ini", b"SessionName=x\r\n")])
-                .unwrap_err()
-                .to_string()
-                .contains("sample rate")
+            run(&[("channel.ini", b"SessionName=x\r\n")]).unwrap_err().to_string().contains("sample rate")
         );
         let ci = channel_ini("channel 0", 0, 0, 0, 0);
         let s = set(&[]);
@@ -569,11 +497,8 @@ mod tests {
         ])
         .unwrap_err();
         assert_eq!(e.to_string(), "No channel in this capture has any samples.");
-        let e = run(&[
-            ("channel.ini", ROOT.as_bytes()),
-            ("0/channel.ini", b"A\r\n0\r\nabc\r\n"),
-        ])
-        .unwrap_err();
+        let e =
+            run(&[("channel.ini", ROOT.as_bytes()), ("0/channel.ini", b"A\r\n0\r\nabc\r\n")]).unwrap_err();
         assert_eq!(e.to_string(), "No channel in this capture has any samples.");
     }
 
@@ -581,38 +506,27 @@ mod tests {
     fn without_set_ini_channel_ini_is_used() {
         let block = vec![0u8; BLOCK_BYTES];
         let ci = channel_ini("A", 100, u64::MAX - 1, 0, u64::MAX);
-        let r = run(&[
-            ("channel.ini", ROOT.as_bytes()),
-            ("0/channel.ini", ci.as_bytes()),
-            ("0/0-0.bin", &block),
-        ])
-        .unwrap();
+        let r =
+            run(&[("channel.ini", ROOT.as_bytes()), ("0/channel.ini", ci.as_bytes()), ("0/0-0.bin", &block)])
+                .unwrap();
         assert_eq!(r.meta.sample_rate_hz, 1e6);
-        assert!(
-            r.meta
-                .notes
-                .iter()
-                .any(|n| n.message.contains("set.ini is missing"))
-        );
+        assert!(r.meta.notes.iter().any(|n| n.message.contains("set.ini is missing")));
     }
 
     #[test]
     fn the_artefact_rule_ignores_ordinary_signals() {
         let mut s = CaptureStore::new(&[Level::High], std::sync::Arc::new(MemFile::new()), 16, 1 << 20);
-        s.push_edges(0, &(0..40).map(|i| 1000 + i * 8).collect::<Vec<_>>())
-            .unwrap();
+        s.push_edges(0, &(0..40).map(|i| 1000 + i * 8).collect::<Vec<_>>()).unwrap();
         s.finish(100_000).unwrap();
         assert_eq!(detect_start_artefact(&s).unwrap(), None);
         // a regular signal that simply carries on past the start
         let mut s = CaptureStore::new(&[Level::High], std::sync::Arc::new(MemFile::new()), 16, 1 << 20);
-        s.push_edges(0, &(0..4000).map(|i| 8 + i * 8).collect::<Vec<_>>())
-            .unwrap();
+        s.push_edges(0, &(0..4000).map(|i| 8 + i * 8).collect::<Vec<_>>()).unwrap();
         s.finish(100_000).unwrap();
         assert_eq!(detect_start_artefact(&s).unwrap(), None);
         // a burst of 20 edges every 8 samples, then quiet
         let mut s = CaptureStore::new(&[Level::High], std::sync::Arc::new(MemFile::new()), 16, 1 << 20);
-        s.push_edges(0, &(0..20).map(|i| 8 + i * 8).chain([5000]).collect::<Vec<_>>())
-            .unwrap();
+        s.push_edges(0, &(0..20).map(|i| 8 + i * 8).chain([5000]).collect::<Vec<_>>()).unwrap();
         s.finish(100_000).unwrap();
         assert_eq!(detect_start_artefact(&s).unwrap(), Some(0..161));
     }

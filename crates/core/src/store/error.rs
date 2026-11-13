@@ -12,11 +12,7 @@ pub enum StoreError {
     /// A blob in the backing file does not match what the store expects.
     Damaged { slot: usize, chunk: u64, reason: String },
     /// Data was handed over out of order, with a gap or an overlap.
-    Order {
-        slot: usize,
-        expected: Sample,
-        got: Sample,
-    },
+    Order { slot: usize, expected: Sample, got: Sample },
     /// The store has no channel with this slot.
     NoSuchChannel { slot: usize, channels: usize },
     /// A read past the samples written so far.
@@ -40,10 +36,7 @@ impl fmt::Display for StoreError {
                 "Data for channel {slot} must continue at sample {expected}, but it starts at sample {got}."
             ),
             StoreError::NoSuchChannel { slot, channels } => {
-                write!(
-                    f,
-                    "There is no channel {slot}; this capture has {channels} channel(s)."
-                )
+                write!(f, "There is no channel {slot}; this capture has {channels} channel(s).")
             }
             StoreError::OutOfRange { sample, count } => write!(
                 f,

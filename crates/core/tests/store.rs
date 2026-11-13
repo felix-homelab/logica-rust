@@ -58,11 +58,7 @@ fn check(store: &CaptureStore, models: &[Model], count: u64, seed: u64) {
     for (slot, m) in models.iter().enumerate() {
         assert_eq!(store.initial_level(slot).unwrap(), m.initial);
         // every edge, and windows
-        assert_eq!(
-            store.edges_in(slot, 0, count).unwrap(),
-            m.edges,
-            "slot {slot} all edges"
-        );
+        assert_eq!(store.edges_in(slot, 0, count).unwrap(), m.edges, "slot {slot} all edges");
         let mut points: Vec<Sample> = vec![0, count - 1];
         for k in 0..=count / C {
             for d in [0, 1, 2, 65_535, 65_536, 65_537] {
@@ -78,31 +74,19 @@ fn check(store: &CaptureStore, models: &[Model], count: u64, seed: u64) {
         }
         points.retain(|&p| p < count);
         for &p in &points {
-            assert_eq!(
-                store.level_at(slot, p).unwrap(),
-                m.level_at(p),
-                "slot {slot} level at {p}"
-            );
+            assert_eq!(store.level_at(slot, p).unwrap(), m.level_at(p), "slot {slot} level at {p}");
         }
         // a cursor, forwards then backwards
         let mut sorted = points.clone();
         sorted.sort_unstable();
         let mut cur = store.cursor(slot).unwrap();
         for &p in sorted.iter().chain(sorted.iter().rev()) {
-            assert_eq!(
-                cur.level_at(p).unwrap(),
-                m.level_at(p),
-                "slot {slot} cursor at {p}"
-            );
+            assert_eq!(cur.level_at(p).unwrap(), m.level_at(p), "slot {slot} cursor at {p}");
         }
         for _ in 0..100 {
             let a = rng.below(count);
             let b = (a + rng.below(3 * C)).min(count);
-            assert_eq!(
-                store.edges_in(slot, a, b).unwrap(),
-                m.edges_in(a, b),
-                "slot {slot} edges {a}..{b}"
-            );
+            assert_eq!(store.edges_in(slot, a, b).unwrap(), m.edges_in(a, b), "slot {slot} edges {a}..{b}");
             assert_eq!(
                 store.transitions_in(slot, a, b).unwrap(),
                 m.transitions_in(a, b),
@@ -110,24 +94,14 @@ fn check(store: &CaptureStore, models: &[Model], count: u64, seed: u64) {
             );
         }
         // LOD for aligned and unaligned bucket sizes
-        for (start, bucket) in [
-            (0, C),
-            (0, 1 << 16),
-            (0, 256),
-            (7, 1 << 16),
-            (0, 1_000_003),
-            (C - 300, 777),
-        ] {
+        for (start, bucket) in [(0, C), (0, 1 << 16), (0, 256), (7, 1 << 16), (0, 1_000_003), (C - 300, 777)]
+        {
             let n = 300;
             let lod = store.lod(slot, start, bucket, n).unwrap();
             for (i, b) in lod.iter().enumerate() {
                 let b0 = start + i as u64 * bucket;
                 let b1 = (b0 + bucket).min(count);
-                assert_eq!(
-                    b.transitions,
-                    m.transitions_in(b0, b1),
-                    "slot {slot} lod {b0}..{b1}"
-                );
+                assert_eq!(b.transitions, m.transitions_in(b0, b1), "slot {slot} lod {b0}..{b1}");
                 assert_eq!(b.start_level, m.level_at(b0), "slot {slot} lod level {b0}");
             }
         }
@@ -138,11 +112,7 @@ fn reference_merge(models: &[Model], start: Sample, end: Sample) -> Vec<Edge> {
     let mut all: Vec<Edge> = Vec::new();
     for (i, m) in models.iter().enumerate() {
         for e in m.edges_in(start + 1, end) {
-            all.push(Edge {
-                sample: e,
-                slot: i as u8,
-                level: m.level_at(e),
-            });
+            all.push(Edge { sample: e, slot: i as u8, level: m.level_at(e) });
         }
     }
     all.sort_by_key(|e| (e.sample, e.slot));
@@ -159,11 +129,7 @@ fn merged(store: &CaptureStore, slots: &[usize], start: Sample, end: Sample, max
         assert!(over < slots.len());
         if over > 0 {
             let last = b.edges.last().unwrap().sample;
-            assert!(
-                b.edges[b.edges.len() - over - 1..]
-                    .iter()
-                    .all(|e| e.sample == last)
-            );
+            assert!(b.edges[b.edges.len() - over - 1..].iter().all(|e| e.sample == last));
         }
         assert!(b.end >= last_end, "batch ends never go back");
         assert!(b.edges.iter().all(|e| e.sample < b.end), "edges are before `end`");
@@ -180,14 +146,8 @@ fn every_ingest_path_reads_back_like_the_reference() {
     let models = vec![
         mixed_model(1, 0, count, Level::Low),
         mixed_model(2, 0, count, Level::High),
-        Model {
-            initial: Level::High,
-            edges: vec![],
-        },
-        Model {
-            initial: Level::Low,
-            edges: vec![1, C - 1, C, C + 1, 2 * C, count - 1],
-        },
+        Model { initial: Level::High, edges: vec![] },
+        Model { initial: Level::Low, edges: vec![1, C - 1, C, C + 1, 2 * C, count - 1] },
     ];
     for how in [
         Ingest::EdgesAtOnce,
@@ -200,10 +160,7 @@ fn every_ingest_path_reads_back_like_the_reference() {
         check(&s, &models, count, 11);
         // representation follows density
         let kinds: Vec<ChunkKind> = s.chunks(0).unwrap().iter().map(|c| c.kind).collect();
-        assert!(
-            kinds.contains(&ChunkKind::Bits),
-            "{how:?}: dense part kept as bits: {kinds:?}"
-        );
+        assert!(kinds.contains(&ChunkKind::Bits), "{how:?}: dense part kept as bits: {kinds:?}");
         assert!(kinds.contains(&ChunkKind::Offsets), "{how:?}: {kinds:?}");
         assert!(
             s.chunks(2).unwrap().iter().all(|c| c.kind == ChunkKind::Quiet),
@@ -215,10 +172,7 @@ fn every_ingest_path_reads_back_like_the_reference() {
 #[test]
 fn eviction_to_the_backing_gives_the_same_answers() {
     let count = 3 * C + 999;
-    let models = vec![
-        mixed_model(5, 0, count, Level::Low),
-        mixed_model(6, 0, count, Level::High),
-    ];
+    let models = vec![mixed_model(5, 0, count, Level::Low), mixed_model(6, 0, count, Level::High)];
     // A budget of one byte: every payload and fine LOD goes to the backing at once.
     let (s, f) = build(&models, count, Ingest::EdgesAtOnce, 1);
     assert!(f.size().unwrap() > 1 << 20, "blobs were written");
@@ -234,10 +188,7 @@ fn eviction_to_the_backing_gives_the_same_answers() {
 #[test]
 fn a_damaged_blob_is_reported_by_chunk_and_channel() {
     let count = 2 * C;
-    let models = vec![Model {
-        initial: Level::Low,
-        edges: vec![10, 20, C + 5],
-    }];
+    let models = vec![Model { initial: Level::Low, edges: vec![10, 20, C + 5] }];
     let (s, f) = build(&models, count, Ingest::EdgesAtOnce, 1);
     // The newest item stays in the cache even over budget; push everything out first.
     s.set_cache_budget(0).unwrap();
@@ -247,14 +198,7 @@ fn a_damaged_blob_is_reported_by_chunk_and_channel() {
     f.write_all_at(0, &bytes).unwrap();
     assert_eq!(s.level_at(0, 15).unwrap(), Level::High, "chunk 0 is fine");
     let err = s.level_at(0, C + 6).unwrap_err();
-    assert!(matches!(
-        err,
-        StoreError::Damaged {
-            slot: 0,
-            chunk: 1,
-            ..
-        }
-    ));
+    assert!(matches!(err, StoreError::Damaged { slot: 0, chunk: 1, .. }));
     assert_eq!(
         err.to_string(),
         "Chunk 1 of channel 0 is damaged (checksum mismatch); the capture cannot be read there."
@@ -267,10 +211,7 @@ fn a_damaged_blob_is_reported_by_chunk_and_channel() {
 fn captures_longer_than_2_pow_32_samples() {
     let b = 1u64 << 32;
     let count = b + 2 * C + 77;
-    let m = Model {
-        initial: Level::Low,
-        edges: vec![5, b - 1, b, b + 1, b + C - 1, b + C, count - 1],
-    };
+    let m = Model { initial: Level::Low, edges: vec![5, b - 1, b, b + 1, b + C - 1, b + C, count - 1] };
     let mut dense = mixed_model(9, b - C, 3 * C, Level::Low);
     dense.edges.retain(|&e| e < count);
     dense.edges.insert(0, 3);
@@ -284,10 +225,7 @@ fn captures_longer_than_2_pow_32_samples() {
     // bits pushed across 2^32
     let (mut s2, _) = new_store(&[Level::Low], 1 << 30);
     s2.advance_to(b - C / 2).unwrap();
-    let m2 = Model {
-        initial: Level::Low,
-        edges: vec![b - 3, b, b + 64, b + C / 2],
-    };
+    let m2 = Model { initial: Level::Low, edges: vec![b - 3, b, b + 64, b + C / 2] };
     let n = C + 100;
     s2.push_bits(0, b - C / 2, &m2.bits(b - C / 2, n), n).unwrap();
     s2.finish(b - C / 2 + n).unwrap();
@@ -299,25 +237,15 @@ fn batching_never_changes_the_merged_stream() {
     let count = 2 * C + 5;
     let models = vec![
         mixed_model(21, 0, count, Level::Low),
-        Model {
-            initial: Level::High,
-            edges: vec![100, 200, C, C + 7],
-        },
+        Model { initial: Level::High, edges: vec![100, 200, C, C + 7] },
         // edges at the same samples as channel 1, to pin the order by slot
-        Model {
-            initial: Level::Low,
-            edges: vec![100, 150, 200, C],
-        },
+        Model { initial: Level::Low, edges: vec![100, 150, 200, C] },
     ];
     let (s, _) = build(&models, count, Ingest::EdgesAtOnce, 1 << 30);
     let start = 50;
     let want = reference_merge(&models, start, count);
     for max in [1, 3, 1000, usize::MAX] {
-        assert_eq!(
-            merged(&s, &[0, 1, 2], start, count, max),
-            want,
-            "batches of {max}"
-        );
+        assert_eq!(merged(&s, &[0, 1, 2], start, count, max), want, "batches of {max}");
     }
     // time-limited batches: `end` advances to `until` even without edges
     let mut m = s.merger(&[1, 2], 0, count).unwrap();
@@ -329,16 +257,8 @@ fn batching_never_changes_the_merged_stream() {
     assert_eq!(
         b.edges,
         vec![
-            Edge {
-                sample: 100,
-                slot: 0,
-                level: Level::Low
-            },
-            Edge {
-                sample: 100,
-                slot: 1,
-                level: Level::High
-            }
+            Edge { sample: 100, slot: 0, level: Level::Low },
+            Edge { sample: 100, slot: 1, level: Level::High }
         ]
     );
     assert_eq!(b.end, 150, "until");
@@ -363,11 +283,7 @@ fn representation_switches_at_the_documented_thresholds() {
     let c1 = &s.chunks(2).unwrap()[1];
     assert!(c1.has_fine);
     assert!(c1.coarse.as_ref().unwrap().saturated(0));
-    assert_eq!(
-        s.transitions_in(2, C, C + 65_536).unwrap(),
-        65_536,
-        "exact despite saturation"
-    );
+    assert_eq!(s.transitions_in(2, C, C + 65_536).unwrap(), 65_536, "exact despite saturation");
     assert_eq!(s.lod(2, C, 1 << 16, 2).unwrap()[0].transitions, 65_536);
     assert_eq!(s.lod(2, 0, C, 2).unwrap()[1].transitions, 65_536);
 }
@@ -377,14 +293,8 @@ fn packed_samples_split_into_channels() {
     let count = C + 5000;
     let models = vec![
         mixed_model(31, 0, count, Level::Low),
-        Model {
-            initial: Level::High,
-            edges: vec![1, 2, 3, C, C + 1],
-        },
-        Model {
-            initial: Level::Low,
-            edges: vec![],
-        },
+        Model { initial: Level::High, edges: vec![1, 2, 3, C, C + 1] },
+        Model { initial: Level::Low, edges: vec![] },
     ];
     // channel slot i lives in bit [3, 0, 9][i] of 2-byte samples; bit 5 is noise to be ignored
     let bit_of_slot = [3u32, 0, 9];
@@ -433,57 +343,24 @@ fn mistakes_get_clear_errors() {
     let (mut s, _) = new_store(&[Level::Low, Level::Low], 1 << 20);
     s.push_edges(0, &[5, 9]).unwrap();
     let e = s.push_edges(0, &[7]).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "Data for channel 0 must continue at sample 10, but it starts at sample 7."
-    );
+    assert_eq!(e.to_string(), "Data for channel 0 must continue at sample 10, but it starts at sample 7.");
     let e = s.push_edges(2, &[1]).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "There is no channel 2; this capture has 2 channel(s)."
-    );
+    assert_eq!(e.to_string(), "There is no channel 2; this capture has 2 channel(s).");
     let e = s.push_bits(1, 3, &[0], 10).unwrap_err();
-    assert!(matches!(
-        e,
-        StoreError::Order {
-            slot: 1,
-            expected: 0,
-            got: 3
-        }
-    ));
-    assert!(
-        s.push_bits(1, 0, &[0], 65)
-            .unwrap_err()
-            .to_string()
-            .contains("only 64 were given")
-    );
+    assert!(matches!(e, StoreError::Order { slot: 1, expected: 0, got: 3 }));
+    assert!(s.push_bits(1, 0, &[0], 65).unwrap_err().to_string().contains("only 64 were given"));
     assert!(s.push_packed(0, 0, &[], &[0, 1]).is_err());
-    assert!(
-        s.push_packed(10, 1, &[1, 2, 3], &[0, 1]).is_err(),
-        "channel 1 is not at sample 10"
-    );
-    assert!(
-        s.push_packed(0, 1, &[1], &[0, 8])
-            .unwrap_err()
-            .to_string()
-            .contains("Bit 8")
-    );
+    assert!(s.push_packed(10, 1, &[1, 2, 3], &[0, 1]).is_err(), "channel 1 is not at sample 10");
+    assert!(s.push_packed(0, 1, &[1], &[0, 8]).unwrap_err().to_string().contains("Bit 8"));
     assert_eq!(s.sample_count(), 0, "channel 1 has nothing yet");
     let e = s.level_at(0, 0).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "Sample 0 is past the end of the capture, which has 0 sample(s) so far."
-    );
+    assert_eq!(e.to_string(), "Sample 0 is past the end of the capture, which has 0 sample(s) so far.");
     let e = s.finish(8).unwrap_err();
     assert!(e.to_string().contains("past the end at sample 8"));
     s.finish(100).unwrap();
     assert!(matches!(s.push_edges(0, &[200]), Err(StoreError::Finished)));
     assert!(s.lod(0, 0, 0, 1).is_err());
-    assert_eq!(
-        s.lod(0, 90, 7, 10).unwrap().len(),
-        2,
-        "stops at the end, last bucket short"
-    );
+    assert_eq!(s.lod(0, 90, 7, 10).unwrap().len(), 2, "stops at the end, last bucket short");
 }
 
 #[test]

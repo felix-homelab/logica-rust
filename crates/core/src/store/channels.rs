@@ -81,13 +81,7 @@ impl CaptureStore {
             .into_iter()
             .map(|(initial, chunks)| {
                 let level = chunks.last().map_or(initial, |c| c.exit);
-                ChannelState {
-                    initial,
-                    chunks,
-                    open: None,
-                    level,
-                    written_to: sample_count,
-                }
+                ChannelState { initial, chunks, open: None, level, written_to: sample_count }
             })
             .collect();
         CaptureStore {
@@ -149,11 +143,7 @@ impl CaptureStore {
     // ------------------------------------------------------------------ writing
 
     fn check_writable(&self) -> StoreResult<()> {
-        if self.finished {
-            Err(StoreError::Finished)
-        } else {
-            Ok(())
-        }
+        if self.finished { Err(StoreError::Finished) } else { Ok(()) }
     }
 
     /// Appends level changes of `slot`: ascending samples, each at or after the end of what was
@@ -166,11 +156,7 @@ impl CaptureStore {
         let mut result = Ok(());
         for &e in edges {
             if e < ch.written_to {
-                result = Err(StoreError::Order {
-                    slot,
-                    expected: ch.written_to,
-                    got: e,
-                });
+                result = Err(StoreError::Order { slot, expected: ch.written_to, got: e });
                 break;
             }
             ch.toggle_at(e, &mut done);
@@ -192,11 +178,7 @@ impl CaptureStore {
         }
         let ch = &mut self.channels[slot];
         if start != ch.written_to {
-            return Err(StoreError::Order {
-                slot,
-                expected: ch.written_to,
-                got: start,
-            });
+            return Err(StoreError::Order { slot, expected: ch.written_to, got: start });
         }
         let mut done = Vec::new();
         ch.push_bits(words, 0, count, &mut done);
@@ -220,9 +202,7 @@ impl CaptureStore {
             )));
         }
         if bit_of_slot.len() != self.channels.len() {
-            return Err(StoreError::Invalid(
-                "Every channel needs a bit in the packed samples.".into(),
-            ));
+            return Err(StoreError::Invalid("Every channel needs a bit in the packed samples.".into()));
         }
         let unit_bits = u32::try_from(unit_size * 8).unwrap_or(u32::MAX);
         if let Some(&b) = bit_of_slot.iter().find(|&&b| b >= unit_bits) {
@@ -232,11 +212,7 @@ impl CaptureStore {
         }
         for (slot, ch) in self.channels.iter().enumerate() {
             if ch.written_to != start {
-                return Err(StoreError::Order {
-                    slot,
-                    expected: ch.written_to,
-                    got: start,
-                });
+                return Err(StoreError::Order { slot, expected: ch.written_to, got: start });
             }
         }
         let n = (data.len() / unit_size) as u64;
@@ -362,20 +338,12 @@ impl CaptureStore {
         for (slot, c) in done {
             let slot32 = u32::try_from(slot).unwrap_or(u32::MAX);
             if let Some(p) = c.payload {
-                let key = CacheKey {
-                    slot: slot32,
-                    chunk: c.chunk,
-                    part: Part::Payload,
-                };
+                let key = CacheKey { slot: slot32, chunk: c.chunk, part: Part::Payload };
                 let out = cache.insert(key, Cached::Payload(Arc::new(p)), true);
                 self.write_evicted(out)?;
             }
             if let Some(f) = c.fine {
-                let key = CacheKey {
-                    slot: slot32,
-                    chunk: c.chunk,
-                    part: Part::FineLod,
-                };
+                let key = CacheKey { slot: slot32, chunk: c.chunk, part: Part::FineLod };
                 let out = cache.insert(key, Cached::FineLod(Arc::new(f)), true);
                 self.write_evicted(out)?;
             }
@@ -405,10 +373,9 @@ impl CaptureStore {
         let slot = key.slot as usize;
         let s = self.summary(slot, key.chunk);
         let (blob, cell) = match item {
-            Cached::Payload(p) => (
-                blob::encode_chunk(key.slot, key.chunk, s.entry, s.transitions, p),
-                &s.payload_at,
-            ),
+            Cached::Payload(p) => {
+                (blob::encode_chunk(key.slot, key.chunk, s.entry, s.transitions, p), &s.payload_at)
+            }
             Cached::FineLod(f) => (blob::encode_fine(key.slot, key.chunk, f), &s.fine_at),
         };
         let len = blob.len() as u64;
@@ -426,9 +393,7 @@ impl CaptureStore {
     pub(crate) fn append_raw(&self, bytes: &[u8]) -> StoreResult<BlobLoc> {
         let len = bytes.len() as u64;
         let at = self.append_at.fetch_add(len, Ordering::AcqRel);
-        self.backing
-            .write_all_at(at, bytes)
-            .map_err(io_err("Could not write to the capture file"))?;
+        self.backing.write_all_at(at, bytes).map_err(io_err("Could not write to the capture file"))?;
         Ok(BlobLoc { offset: at, len })
     }
 
@@ -451,20 +416,12 @@ impl CaptureStore {
 
     fn read_blob(&self, slot: usize, chunk: u64, loc: BlobLoc) -> StoreResult<Vec<u8>> {
         if loc.len < (BLOB_HEADER + blob::BLOB_TRAILER) as u64 || loc.len > (64 << 20) {
-            return Err(StoreError::Damaged {
-                slot,
-                chunk,
-                reason: "the blob length is impossible".into(),
-            });
+            return Err(StoreError::Damaged { slot, chunk, reason: "the blob length is impossible".into() });
         }
         let mut buf = vec![0u8; idx(loc.len)];
         self.backing.read_exact_at(loc.offset, &mut buf).map_err(|e| {
             if e.kind() == io::ErrorKind::UnexpectedEof {
-                StoreError::Damaged {
-                    slot,
-                    chunk,
-                    reason: "the file ends inside it".into(),
-                }
+                StoreError::Damaged { slot, chunk, reason: "the file ends inside it".into() }
             } else {
                 StoreError::Io {
                     context: format!("Could not read chunk {chunk} of channel {slot}"),
@@ -477,21 +434,15 @@ impl CaptureStore {
 
     /// The payload of a completed, non-quiet chunk, from the cache or the backing.
     pub(crate) fn payload(&self, slot: usize, chunk: u64) -> StoreResult<Arc<Payload>> {
-        let key = CacheKey {
-            slot: u32::try_from(slot).unwrap_or(u32::MAX),
-            chunk,
-            part: Part::Payload,
-        };
+        let key = CacheKey { slot: u32::try_from(slot).unwrap_or(u32::MAX), chunk, part: Part::Payload };
         let mut cache = self.lock();
         if let Some(Cached::Payload(p)) = cache.get(&key) {
             return Ok(p);
         }
         let s = self.summary(slot, chunk);
         let damaged = |reason: String| StoreError::Damaged { slot, chunk, reason };
-        let loc = *s
-            .payload_at
-            .get()
-            .ok_or_else(|| damaged("it is neither in memory nor in the file".into()))?;
+        let loc =
+            *s.payload_at.get().ok_or_else(|| damaged("it is neither in memory nor in the file".into()))?;
         let bytes = self.read_blob(slot, chunk, loc)?;
         let (p, entry, transitions) = blob::decode_chunk(&bytes, key.slot, chunk).map_err(damaged)?;
         if entry != s.entry || transitions != s.transitions || p.kind() != s.kind {
@@ -505,11 +456,7 @@ impl CaptureStore {
 
     /// The fine LOD of a dense completed chunk, from the cache or the backing.
     pub(crate) fn fine_lod(&self, slot: usize, chunk: u64) -> StoreResult<Arc<FineLod>> {
-        let key = CacheKey {
-            slot: u32::try_from(slot).unwrap_or(u32::MAX),
-            chunk,
-            part: Part::FineLod,
-        };
+        let key = CacheKey { slot: u32::try_from(slot).unwrap_or(u32::MAX), chunk, part: Part::FineLod };
         let mut cache = self.lock();
         if let Some(Cached::FineLod(f)) = cache.get(&key) {
             return Ok(f);

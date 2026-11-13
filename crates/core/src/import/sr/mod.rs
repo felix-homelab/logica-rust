@@ -17,9 +17,7 @@ const COLOURS: [&str; 4] = ["#e54242", "#ff7f00", "#007fff", "#26ad34"];
 /// Parses a sigrok sample rate such as "1 MHz", "2.5 MHz", "10kHz" or "500 Hz" into hertz.
 pub fn parse_rate(text: &str) -> Option<f64> {
     let t = text.trim();
-    let split = t
-        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
-        .unwrap_or(t.len());
+    let split = t.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(t.len());
     let value: f64 = t[..split].parse().ok()?;
     let unit = t[split..].trim().to_ascii_lowercase();
     let scale = match unit.as_str() {
@@ -73,27 +71,17 @@ pub fn import(
     let devices: Vec<&(String, Vec<(String, String)>)> =
         secs.iter().filter(|(n, _)| n.starts_with("device ")).collect();
     let Some((_, dev)) = devices.first() else {
-        return Err(ImportError::new(
-            "The .sr metadata describes no device, so there is nothing to show.",
-        ));
+        return Err(ImportError::new("The .sr metadata describes no device, so there is nothing to show."));
     };
     if devices.len() > 1 {
-        warn(
-            &mut notes,
-            format!(
-                "The file holds {} devices; only the first is shown.",
-                devices.len()
-            ),
-        );
+        warn(&mut notes, format!("The file holds {} devices; only the first is shown.", devices.len()));
     }
     let get = |k: &str| dev.iter().rev().find(|(x, _)| x == k).map(|(_, v)| v.as_str());
 
     let rate_text =
         get("samplerate").ok_or_else(|| ImportError::new("The .sr file does not say its sample rate."))?;
     let rate = parse_rate(rate_text).ok_or_else(|| {
-        ImportError::new(format!(
-            "The sample rate \"{rate_text}\" in the .sr file cannot be read."
-        ))
+        ImportError::new(format!("The sample rate \"{rate_text}\" in the .sr file cannot be read."))
     })?;
     let unit_size: usize = match get("unitsize").map(str::parse::<usize>) {
         Some(Ok(u)) if (1..=4).contains(&u) => u,
@@ -114,10 +102,7 @@ pub fn import(
             "This capture has {total} channels; this tool shows at most 32 channels per capture."
         )));
     }
-    if let Some(a) = get("total analog")
-        .and_then(|v| v.parse::<u32>().ok())
-        .filter(|&a| a > 0)
-    {
+    if let Some(a) = get("total analog").and_then(|v| v.parse::<u32>().ok()).filter(|&a| a > 0) {
         info(
             &mut notes,
             format!("The file has {a} analog channel(s); they are not shown (digital channels only)."),
@@ -126,12 +111,7 @@ pub fn import(
     // probeN = name of the channel on bit N-1
     let mut probes: Vec<(u32, String)> = dev
         .iter()
-        .filter_map(|(k, v)| {
-            Some((
-                k.strip_prefix("probe")?.parse::<u32>().ok()?.checked_sub(1)?,
-                v.clone(),
-            ))
-        })
+        .filter_map(|(k, v)| Some((k.strip_prefix("probe")?.parse::<u32>().ok()?.checked_sub(1)?, v.clone())))
         .collect();
     probes.sort_by_key(|(b, _)| *b);
     probes.dedup_by_key(|(b, _)| *b);
@@ -163,11 +143,7 @@ pub fn import(
             "The .sr file has no sample data (no \"{capture_file}-1\" entry)."
         )));
     }
-    let total_bytes: u64 = parts
-        .iter()
-        .filter_map(|(_, n)| zip.entry(n))
-        .map(|e| e.size)
-        .sum();
+    let total_bytes: u64 = parts.iter().filter_map(|(_, n)| zip.entry(n)).map(|e| e.size).sum();
 
     let bits: Vec<u32> = probes.iter().map(|(b, _)| *b).collect();
     let mut store = target.create(&vec![Level::Low; bits.len()])?;
@@ -217,10 +193,7 @@ pub fn import(
     let meta = CaptureMeta {
         id: title.to_string(),
         title: title.to_string(),
-        source: Source {
-            kind: SourceKind::File,
-            detail: "sigrok session file (.sr)".into(),
-        },
+        source: Source { kind: SourceKind::File, detail: "sigrok session file (.sr)".into() },
         sample_rate_hz: rate,
         trigger: None,
         channels: probes

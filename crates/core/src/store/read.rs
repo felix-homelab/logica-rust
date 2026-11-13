@@ -89,11 +89,7 @@ impl ChunkView<'_> {
             return (x < lim).then_some(x);
         }
         let w = self.words()?;
-        let mut prev = if from == 0 {
-            self.entry as u64
-        } else {
-            bits::get(w, from - 1) as u64
-        };
+        let mut prev = if from == 0 { self.entry as u64 } else { bits::get(w, from - 1) as u64 };
         let mut p = from;
         while p < lim {
             let valid = (lim - p).min(64);
@@ -122,10 +118,7 @@ impl CaptureStore {
         if s < self.sample_count() {
             Ok(())
         } else {
-            Err(StoreError::OutOfRange {
-                sample: s,
-                count: self.sample_count(),
-            })
+            Err(StoreError::OutOfRange { sample: s, count: self.sample_count() })
         }
     }
 
@@ -140,12 +133,7 @@ impl CaptureStore {
             } else {
                 ViewData::Shared(self.payload(slot, chunk)?)
             };
-            return Ok(ChunkView {
-                chunk,
-                entry: s.entry,
-                len: avail,
-                data,
-            });
+            return Ok(ChunkView { chunk, entry: s.entry, len: avail, data });
         }
         if chunk == ch.chunks.len() as u64 {
             if let Some(open) = &ch.open {
@@ -156,17 +144,9 @@ impl CaptureStore {
                     data: ViewData::Open(&open.data),
                 });
             }
-            return Ok(ChunkView {
-                chunk,
-                entry: ch.level,
-                len: 0,
-                data: ViewData::Quiet,
-            });
+            return Ok(ChunkView { chunk, entry: ch.level, len: 0, data: ViewData::Quiet });
         }
-        Err(StoreError::OutOfRange {
-            sample: base,
-            count: self.sample_count(),
-        })
+        Err(StoreError::OutOfRange { sample: base, count: self.sample_count() })
     }
 
     /// Level of `slot` at sample `s`.
@@ -191,27 +171,14 @@ impl CaptureStore {
     /// A cursor answering levels of `slot`, amortised O(1) for increasing positions.
     pub fn cursor(&self, slot: usize) -> StoreResult<LevelCursor<'_>> {
         check_slot(slot, self.slots())?;
-        Ok(LevelCursor {
-            store: self,
-            slot,
-            view: None,
-            idx: 0,
-            last: 0,
-        })
+        Ok(LevelCursor { store: self, slot, view: None, idx: 0, last: 0 })
     }
 
     /// Edges (first samples at a new level) of `slot` with samples in `[from, to)`; `to` is
     /// limited to the samples written so far.
     pub fn edges(&self, slot: usize, from: Sample, to: Sample) -> StoreResult<EdgeIter<'_>> {
         check_slot(slot, self.slots())?;
-        Ok(EdgeIter {
-            store: self,
-            slot,
-            pos: from,
-            to: to.min(self.sample_count()),
-            view: None,
-            idx: 0,
-        })
+        Ok(EdgeIter { store: self, slot, pos: from, to: to.min(self.sample_count()), view: None, idx: 0 })
     }
 
     /// All edges of `slot` in `[from, to)`.
@@ -223,9 +190,7 @@ impl CaptureStore {
     /// levels at `start` are [`EdgeMerger::start_levels`].
     pub fn merger(&self, slots: &[usize], start: Sample, end: Sample) -> StoreResult<EdgeMerger<'_>> {
         if slots.len() > 256 {
-            return Err(StoreError::Invalid(
-                "A decoder can use at most 256 channels.".into(),
-            ));
+            return Err(StoreError::Invalid("A decoder can use at most 256 channels.".into()));
         }
         let end = end.min(self.sample_count());
         let mut levels = Vec::with_capacity(slots.len());
@@ -238,14 +203,7 @@ impl CaptureStore {
         for it in &mut iters {
             heads.push(it.next().transpose()?);
         }
-        Ok(EdgeMerger {
-            start_levels: levels.clone(),
-            levels,
-            iters,
-            heads,
-            end,
-            done: false,
-        })
+        Ok(EdgeMerger { start_levels: levels.clone(), levels, iters, heads, end, done: false })
     }
 
     /// Exact number of transitions of `slot` at samples in `[from, to)`. Uses the coarse LOD for
@@ -309,10 +267,8 @@ impl CaptureStore {
         let (f0, f1) = (round_up(lo, FINE_SHIFT), round_down(hi, FINE_SHIFT));
         if s.has_fine && f0 < f1 {
             let fine = self.fine_lod(slot, k)?;
-            let mid: u64 = fine.counts[idx(f0 >> FINE_SHIFT)..idx(f1 >> FINE_SHIFT)]
-                .iter()
-                .map(|&c| u64::from(c))
-                .sum();
+            let mid: u64 =
+                fine.counts[idx(f0 >> FINE_SHIFT)..idx(f1 >> FINE_SHIFT)].iter().map(|&c| u64::from(c)).sum();
             let mut edge_parts = 0;
             if lo < f0 || f1 < hi {
                 let v = self.view(slot, k)?;
@@ -328,9 +284,7 @@ impl CaptureStore {
     pub fn lod(&self, slot: usize, start: Sample, bucket: u64, n: usize) -> StoreResult<Vec<LodBucket>> {
         check_slot(slot, self.slots())?;
         if bucket == 0 {
-            return Err(StoreError::Invalid(
-                "A LOD bucket must hold at least one sample.".into(),
-            ));
+            return Err(StoreError::Invalid("A LOD bucket must hold at least one sample.".into()));
         }
         let mut out = Vec::with_capacity(n.min(1 << 20));
         let end = self.sample_count();
@@ -418,9 +372,8 @@ impl Iterator for EdgeIter<'_> {
                 match self.store.view(self.slot, k) {
                     Ok(v) => {
                         // Start the offset index at the first position, not at 0.
-                        self.idx = v
-                            .offsets()
-                            .map_or(0, |o| o.partition_point(|&x| u64::from(x) < self.pos - base));
+                        self.idx =
+                            v.offsets().map_or(0, |o| o.partition_point(|&x| u64::from(x) < self.pos - base));
                         self.view = Some(v);
                     }
                     Err(e) => {
@@ -492,11 +445,7 @@ impl EdgeMerger<'_> {
                 break s;
             }
             self.levels[i] = !self.levels[i];
-            edges.push(Edge {
-                sample: s,
-                slot: u8::try_from(i).unwrap_or(u8::MAX),
-                level: self.levels[i],
-            });
+            edges.push(Edge { sample: s, slot: u8::try_from(i).unwrap_or(u8::MAX), level: self.levels[i] });
             self.heads[i] = self.iters[i].next().transpose()?;
         };
         if end >= self.end {
@@ -507,10 +456,7 @@ impl EdgeMerger<'_> {
 
     /// Every remaining edge in one batch.
     pub fn rest(&mut self) -> StoreResult<EdgeBatch> {
-        let mut all = EdgeBatch {
-            edges: Vec::new(),
-            end: self.end,
-        };
+        let mut all = EdgeBatch { edges: Vec::new(), end: self.end };
         while let Some(b) = self.next_batch(usize::MAX, Sample::MAX)? {
             all.edges.extend(b.edges);
             all.end = b.end;

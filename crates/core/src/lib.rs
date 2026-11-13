@@ -10,6 +10,7 @@ pub mod capture;
 pub mod import;
 pub mod io;
 pub mod lacap;
+pub mod measure;
 pub mod store;
 
 pub use store::{Level, Sample};

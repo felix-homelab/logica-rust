@@ -38,11 +38,7 @@ fn load(rel: &str, f: Importer) -> Result<Imported, ImportError> {
 
 fn demo(name: &str) -> Option<Imported> {
     let local = ["I2C.demo", "SPI.demo", "UART.demo"].contains(&name);
-    let path = if local {
-        format!("captures/local/{name}")
-    } else {
-        format!("captures/{name}")
-    };
+    let path = if local { format!("captures/local/{name}") } else { format!("captures/{name}") };
     if !fixtures().join(&path).exists() {
         assert!(local, "{name} is missing from fixtures/captures");
         say(&format!("skipped: FNIRSI example files not present ({name})"));
@@ -64,31 +60,14 @@ const DEMO: &[(&str, f64, &[DemoChannel])] = &[
     (
         "4_SPI_wrong_mode.demo",
         50e6,
-        &[
-            (3, "CLK", 0, 432),
-            (4, "MISO", 0, 82),
-            (5, "CS#", 1, 8),
-            (6, "MOSI", 0, 14),
-        ],
+        &[(3, "CLK", 0, 432), (4, "MISO", 0, 82), (5, "CS#", 1, 8), (6, "MOSI", 0, 14)],
     ),
     ("I2C.demo", 10e6, &[(1, "SCL", 1, 2368), (2, "SDA", 1, 642)]),
-    (
-        "SPI.demo",
-        50e6,
-        &[(3, "CLK", 0, 2560), (4, "MISO", 0, 648), (5, "CS#", 1, 80)],
-    ),
+    ("SPI.demo", 50e6, &[(3, "CLK", 0, 2560), (4, "MISO", 0, 648), (5, "CS#", 1, 80)]),
     ("UART.demo", 40e6, &[(0, "RX", 1, 288)]),
-    (
-        "mystery_A.demo",
-        40e6,
-        &[(0, "channel 0", 1, 158), (1, "channel 1", 1, 240)],
-    ),
+    ("mystery_A.demo", 40e6, &[(0, "channel 0", 1, 158), (1, "channel 1", 1, 240)]),
     ("mystery_B.demo", 40e6, &[(7, "channel 7", 1, 142)]),
-    (
-        "mystery_C.demo",
-        10e6,
-        &[(4, "channel 4", 1, 150), (5, "channel 5", 1, 624)],
-    ),
+    ("mystery_C.demo", 10e6, &[(4, "channel 4", 1, 150), (5, "channel 5", 1, 624)]),
     (
         "mystery_D.demo",
         50e6,
@@ -117,22 +96,14 @@ fn every_demo_sample_reads_as_signal_detective_read_it() {
     for (file, rate, chans) in DEMO {
         let Some(c) = demo(file) else { continue };
         assert_eq!(c.meta.sample_rate_hz, *rate, "{file}");
-        assert_eq!(
-            c.store.sample_count(),
-            *rate as u64 + 8,
-            "{file}: depth (1 s) + 8"
-        );
+        assert_eq!(c.store.sample_count(), *rate as u64 + 8, "{file}: depth (1 s) + 8");
         assert_eq!(
             c.meta.channels.iter().map(|ch| ch.index).collect::<Vec<_>>(),
             chans.iter().map(|x| x.0).collect::<Vec<_>>()
         );
         for (slot, (_, name, init, count)) in chans.iter().enumerate() {
             assert_eq!(c.meta.channels[slot].name, *name, "{file}");
-            assert_eq!(
-                c.store.initial_level(slot).unwrap(),
-                Level::from(*init == 1),
-                "{file} {name}"
-            );
+            assert_eq!(c.store.initial_level(slot).unwrap(), Level::from(*init == 1), "{file} {name}");
             let e = edges(&c, slot);
             assert_eq!(e.len(), *count, "{file} {name}");
             assert!(
@@ -149,18 +120,10 @@ fn every_demo_sample_reads_as_signal_detective_read_it() {
 #[test]
 fn saved_decoder_settings_are_read_but_kept_apart() {
     let opt = |c: &Imported, k: &str| {
-        c.meta.saved_decoders[0]
-            .options
-            .iter()
-            .find(|(x, _)| x == k)
-            .map(|(_, v)| v.clone())
+        c.meta.saved_decoders[0].options.iter().find(|(x, _)| x == k).map(|(_, v)| v.clone())
     };
     let ch = |c: &Imported, k: &str| {
-        c.meta.saved_decoders[0]
-            .channels
-            .iter()
-            .find(|(x, _)| x == k)
-            .map(|(_, v)| *v)
+        c.meta.saved_decoders[0].channels.iter().find(|(x, _)| x == k).map(|(_, v)| *v)
     };
     let m2 = demo("2_UART_mystery_baud.demo").unwrap();
     assert_eq!(opt(&m2, "baudrate").as_deref(), Some("115200"));
@@ -181,12 +144,7 @@ fn saved_decoder_settings_are_read_but_kept_apart() {
     }
     if let Some(i) = demo("I2C.demo") {
         assert_eq!((ch(&i, "scl"), ch(&i, "sda")), (Some(Some(1)), Some(Some(2))));
-        assert!(
-            i.meta
-                .notes
-                .iter()
-                .any(|n| n.message.contains("first 2049 samples"))
-        );
+        assert!(i.meta.notes.iter().any(|n| n.message.contains("first 2049 samples")));
     }
 }
 
@@ -204,13 +162,8 @@ fn progress_reaches_1() {
 fn truncated_demo_files_fail_clearly() {
     let bytes = std::fs::read(fixtures().join("captures/3_I2C_bus.demo")).unwrap();
     for cut in [10, bytes.len() / 3, bytes.len() / 2, bytes.len() - 10] {
-        let e = load_bytes(bytes[..cut].to_vec(), import::demo::import)
-            .unwrap_err()
-            .to_string();
-        assert!(
-            e.contains("ZIP") || e.contains("cut short") || e.contains("damaged"),
-            "cut {cut}: {e}"
-        );
+        let e = load_bytes(bytes[..cut].to_vec(), import::demo::import).unwrap_err().to_string();
+        assert!(e.contains("ZIP") || e.contains("cut short") || e.contains("damaged"), "cut {cut}: {e}");
     }
 }
 
@@ -237,25 +190,17 @@ fn sr_mixed_8_channels() {
 
 #[test]
 fn sr_walking_ones_with_2_and_3_byte_samples() {
-    for (file, n, count, rate) in [
-        ("walk-16ch.sr", 16u64, 64u64, 1e3),
-        ("walk-24ch.sr", 24, 48, 2.5e6),
-    ] {
+    for (file, n, count, rate) in [("walk-16ch.sr", 16u64, 64u64, 1e3), ("walk-24ch.sr", 24, 48, 2.5e6)] {
         let c = load(&format!("formats/sr/{file}"), import::sr::import).unwrap();
         assert_eq!(
-            (
-                c.store.slots() as u64,
-                c.store.sample_count(),
-                c.meta.sample_rate_hz
-            ),
+            (c.store.slots() as u64, c.store.sample_count(), c.meta.sample_rate_hz),
             (n, count, rate),
             "{file}"
         );
         for b in 0..n {
             // high exactly at samples s with s % n == b
-            let want: Vec<Sample> = (0..count)
-                .filter(|s| s % n == b || (s % n == (b + 1) % n && *s > 0))
-                .collect();
+            let want: Vec<Sample> =
+                (0..count).filter(|s| s % n == b || (s % n == (b + 1) % n && *s > 0)).collect();
             let want: Vec<Sample> = want.into_iter().filter(|&s| s > 0).collect();
             assert_eq!(edges(&c, b as usize), want, "{file} channel {b}");
             assert_eq!(c.store.initial_level(b as usize).unwrap(), Level::from(b == 0));
@@ -266,12 +211,7 @@ fn sr_walking_ones_with_2_and_3_byte_samples() {
 #[test]
 fn sr_with_only_some_channels_keeps_their_numbers() {
     let c = load("formats/sr/selected-3of8.sr", import::sr::import).unwrap();
-    let ch: Vec<(u32, &str)> = c
-        .meta
-        .channels
-        .iter()
-        .map(|x| (x.index, x.name.as_str()))
-        .collect();
+    let ch: Vec<(u32, &str)> = c.meta.channels.iter().map(|x| (x.index, x.name.as_str())).collect();
     assert_eq!(ch, [(0, "A"), (2, "B"), (5, "C")]);
     assert_eq!(c.store.sample_count(), 16);
     assert_eq!(edges(&c, 0), vec![1, 8, 9]);
@@ -332,11 +272,7 @@ fn crc32(data: &[u8]) -> u32 {
     for &b in data {
         c ^= u32::from(b);
         for _ in 0..8 {
-            c = if c & 1 == 1 {
-                (c >> 1) ^ 0xEDB8_8320
-            } else {
-                c >> 1
-            };
+            c = if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 };
         }
     }
     !c
@@ -349,11 +285,8 @@ fn malformed_sr_files_say_what_is_wrong() {
             "[global]\nsigrok version=0.5.2\n[device 1]\ncapturefile=logic-1\ntotal probes=2\nsamplerate=1 MHz\nprobe1=A\nprobe2=B\nunitsize=1\n{extra}"
         )
     };
-    let err = |entries: &[(&str, &[u8])]| {
-        load_bytes(make_sr(entries), import::sr::import)
-            .unwrap_err()
-            .to_string()
-    };
+    let err =
+        |entries: &[(&str, &[u8])]| load_bytes(make_sr(entries), import::sr::import).unwrap_err().to_string();
     let m = meta("");
     assert!(err(&[("metadata", m.as_bytes())]).contains("no \"version\" entry"));
     assert!(err(&[("version", b"1"), ("metadata", m.as_bytes())]).contains("format version 1"));
@@ -361,48 +294,27 @@ fn malformed_sr_files_say_what_is_wrong() {
     assert!(err(&[("version", b"2"), ("metadata", m.as_bytes())]).contains("no sample data"));
     let bad_rate = m.replace("1 MHz", "fast");
     assert!(
-        err(&[
-            ("version", b"2"),
-            ("metadata", bad_rate.as_bytes()),
-            ("logic-1-1", &[0])
-        ])
-        .contains("\"fast\"")
+        err(&[("version", b"2"), ("metadata", bad_rate.as_bytes()), ("logic-1-1", &[0])])
+            .contains("\"fast\"")
     );
     let wide = m.replace("unitsize=1", "unitsize=5");
     assert!(
-        err(&[
-            ("version", b"2"),
-            ("metadata", wide.as_bytes()),
-            ("logic-1-1", &[0])
-        ])
-        .contains("5 bytes per sample")
+        err(&[("version", b"2"), ("metadata", wide.as_bytes()), ("logic-1-1", &[0])])
+            .contains("5 bytes per sample")
     );
     let many = m.replace("total probes=2", "total probes=40");
     assert!(
-        err(&[
-            ("version", b"2"),
-            ("metadata", many.as_bytes()),
-            ("logic-1-1", &[0])
-        ])
-        .contains("at most 32 channels")
+        err(&[("version", b"2"), ("metadata", many.as_bytes()), ("logic-1-1", &[0])])
+            .contains("at most 32 channels")
     );
     let high_bit = m.replace("probe2=B", "probe9=B");
     assert!(
-        err(&[
-            ("version", b"2"),
-            ("metadata", high_bit.as_bytes()),
-            ("logic-1-1", &[0])
-        ])
-        .contains("bit 8")
+        err(&[("version", b"2"), ("metadata", high_bit.as_bytes()), ("logic-1-1", &[0])]).contains("bit 8")
     );
     // a stray byte at the end of 2-byte samples, and analog channels: notes, not errors
     let two = m.replace("unitsize=1", "unitsize=2") + "total analog=2\n";
     let c = load_bytes(
-        make_sr(&[
-            ("version", b"2"),
-            ("metadata", two.as_bytes()),
-            ("logic-1-1", &[1, 0, 3, 0, 9]),
-        ]),
+        make_sr(&[("version", b"2"), ("metadata", two.as_bytes()), ("logic-1-1", &[1, 0, 3, 0, 9])]),
         import::sr::import,
     )
     .unwrap();
@@ -412,13 +324,8 @@ fn malformed_sr_files_say_what_is_wrong() {
     // truncated fixture
     let bytes = std::fs::read(fixtures().join("formats/sr/mixed-8ch-1mhz.sr")).unwrap();
     for cut in [5, bytes.len() / 2, bytes.len() - 3] {
-        let e = load_bytes(bytes[..cut].to_vec(), import::sr::import)
-            .unwrap_err()
-            .to_string();
-        assert!(
-            e.contains("ZIP") || e.contains("cut short") || e.contains("damaged"),
-            "cut {cut}: {e}"
-        );
+        let e = load_bytes(bytes[..cut].to_vec(), import::sr::import).unwrap_err().to_string();
+        assert!(e.contains("ZIP") || e.contains("cut short") || e.contains("damaged"), "cut {cut}: {e}");
     }
 }
 
@@ -427,24 +334,12 @@ fn malformed_sr_files_say_what_is_wrong() {
 #[test]
 fn vcd_features() {
     let c = load("formats/vcd/features.vcd", import::vcd::import).unwrap();
-    assert_eq!(
-        c.meta.sample_rate_hz, 50e6,
-        "10 ns timescale, steps of 2: 20 ns per sample"
-    );
+    assert_eq!(c.meta.sample_rate_hz, 50e6, "10 ns timescale, steps of 2: 20 ns per sample");
     assert_eq!(c.store.sample_count(), 6);
     let names: Vec<&str> = c.meta.channels.iter().map(|ch| ch.name.as_str()).collect();
     assert_eq!(
         names,
-        [
-            "clk",
-            "clk_copy",
-            "top.en",
-            "nibble[0]",
-            "nibble[1]",
-            "nibble[2]",
-            "nibble[3]",
-            "top.sub.en"
-        ]
+        ["clk", "clk_copy", "top.en", "nibble[0]", "nibble[1]", "nibble[2]", "nibble[3]", "top.sub.en"]
     );
     let want: [(Level, &[Sample]); 8] = [
         (Level::Low, &[1, 2, 3, 4, 5]),
@@ -461,16 +356,8 @@ fn vcd_features() {
         assert_eq!(edges(&c, slot), e.to_vec(), "{}", names[slot]);
     }
     let notes: Vec<&str> = c.meta.notes.iter().map(|n| n.message.as_str()).collect();
-    assert!(
-        notes.iter().any(|n| n.starts_with("3 value(s) were x or z")),
-        "{notes:?}"
-    );
-    assert!(
-        notes
-            .iter()
-            .any(|n| n.starts_with("temp is a real-valued variable")),
-        "{notes:?}"
-    );
+    assert!(notes.iter().any(|n| n.starts_with("3 value(s) were x or z")), "{notes:?}");
+    assert!(notes.iter().any(|n| n.starts_with("temp is a real-valued variable")), "{notes:?}");
 }
 
 #[test]
@@ -484,28 +371,17 @@ fn vcd_from_sigrok_matches_the_sr_it_was_made_from() {
         s.meta.channels.iter().map(|c| &c.name).collect::<Vec<_>>()
     );
     for slot in 0..8 {
-        assert_eq!(
-            v.store.initial_level(slot).unwrap(),
-            s.store.initial_level(slot).unwrap(),
-            "slot {slot}"
-        );
+        assert_eq!(v.store.initial_level(slot).unwrap(), s.store.initial_level(slot).unwrap(), "slot {slot}");
         assert_eq!(edges(&v, slot), edges(&s, slot), "slot {slot}");
     }
 }
 
 #[test]
 fn malformed_vcd_files_say_what_is_wrong() {
-    let err = |text: &str| {
-        load_bytes(text.as_bytes().to_vec(), import::vcd::import)
-            .unwrap_err()
-            .to_string()
-    };
+    let err = |text: &str| load_bytes(text.as_bytes().to_vec(), import::vcd::import).unwrap_err().to_string();
     let head =
         "$timescale 1 ns $end $scope module m $end $var wire 1 ! a $end $upscope $end $enddefinitions $end\n";
-    assert_eq!(
-        err("hello"),
-        "This is not a VCD file: it does not start with a $ command."
-    );
+    assert_eq!(err("hello"), "This is not a VCD file: it does not start with a $ command.");
     assert!(err("$timescale 1 ns $end $var wire 1 ! a $end").contains("$enddefinitions is missing"));
     assert!(err("$timescale 1 ns $end $var wire 1 ! a").contains("no $end"));
     assert!(err("$timescale 7 ns $end $enddefinitions $end").contains("timescale \"7 ns\""));
@@ -520,16 +396,9 @@ fn malformed_vcd_files_say_what_is_wrong() {
     // undeclared identifiers are a note, not an error
     let c = load_bytes(format!("{head}#0 1! 1? #3 0!").into_bytes(), import::vcd::import).unwrap();
     assert!(
-        c.meta
-            .notes
-            .iter()
-            .any(|n| n.level == NoteLevel::Warning && n.message.contains("never declared"))
+        c.meta.notes.iter().any(|n| n.level == NoteLevel::Warning && n.message.contains("never declared"))
     );
     assert_eq!(edges(&c, 0), vec![1]);
     assert_eq!(c.store.initial_level(0).unwrap(), Level::High);
-    assert_eq!(
-        c.store.sample_count(),
-        2,
-        "steps of 3 ns: #3 is sample 1, and it has a change"
-    );
+    assert_eq!(c.store.sample_count(), 2, "steps of 3 ns: #3 is sample 1, and it has a change");
 }

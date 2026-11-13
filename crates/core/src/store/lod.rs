@@ -76,10 +76,7 @@ mod tests {
 
     #[test]
     fn packed_levels_are_lsb_first() {
-        let mut c = CoarseLod {
-            counts: [0; COARSE_BUCKETS],
-            start_levels: [0; COARSE_BUCKETS / 8],
-        };
+        let mut c = CoarseLod { counts: [0; COARSE_BUCKETS], start_levels: [0; COARSE_BUCKETS / 8] };
         c.start_levels[1] = 0b0000_0100;
         assert_eq!(c.start_level(10), Level::High);
         assert_eq!(c.start_level(9), Level::Low);

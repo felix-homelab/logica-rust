@@ -20,10 +20,7 @@ fn meta(channels: usize) -> CaptureMeta {
     CaptureMeta {
         id: "c1".into(),
         title: "Test capture".into(),
-        source: Source {
-            kind: SourceKind::Synthetic,
-            detail: "tests".into(),
-        },
+        source: Source { kind: SourceKind::Synthetic, detail: "tests".into() },
         sample_rate_hz: 100e6,
         trigger: Some(12),
         channels: (0..channels)
@@ -36,10 +33,7 @@ fn meta(channels: usize) -> CaptureMeta {
             })
             .collect(),
         segments: vec![0..1000, 2000..3000],
-        notes: vec![Note {
-            level: NoteLevel::Info,
-            message: "made by a test".into(),
-        }],
+        notes: vec![Note { level: NoteLevel::Info, message: "made by a test".into() }],
         state: CaptureState::Complete,
         artefact: None,
         saved_decoders: vec![],
@@ -49,14 +43,8 @@ fn meta(channels: usize) -> CaptureMeta {
 fn models(count: u64) -> Vec<Model> {
     vec![
         mixed_model(41, 0, count, Level::Low),
-        Model {
-            initial: Level::High,
-            edges: vec![],
-        },
-        Model {
-            initial: Level::Low,
-            edges: vec![3, C, count - 1],
-        },
+        Model { initial: Level::High, edges: vec![] },
+        Model { initial: Level::Low, edges: vec![3, C, count - 1] },
     ]
 }
 
@@ -160,10 +148,7 @@ fn truncated_files_never_panic_and_say_why() {
 #[test]
 fn damage_is_reported_by_place() {
     let count = 2 * C;
-    let ms = vec![Model {
-        initial: Level::Low,
-        edges: vec![5, C + 5],
-    }];
+    let ms = vec![Model { initial: Level::Low, edges: vec![5, C + 5] }];
     let file = Arc::new(MemFile::new());
     let s = record(file.clone(), &ms, count, 1 << 30);
     let mut m = meta(1);
@@ -176,33 +161,16 @@ fn damage_is_reported_by_place() {
     let mut b = bytes.clone();
     b[(loc.offset + 20) as usize] ^= 1;
     let o = reopen(b).unwrap();
-    assert_eq!(
-        o.store.level_at(0, 6).unwrap(),
-        Level::High,
-        "chunk 0 still reads"
-    );
+    assert_eq!(o.store.level_at(0, 6).unwrap(), Level::High, "chunk 0 still reads");
     let e = o.store.edges_in(0, 0, count).unwrap_err();
-    assert!(
-        matches!(
-            e,
-            StoreError::Damaged {
-                slot: 0,
-                chunk: 1,
-                ..
-            }
-        ),
-        "{e}"
-    );
+    assert!(matches!(e, StoreError::Damaged { slot: 0, chunk: 1, .. }), "{e}");
 
     // the index (just before the footer): no earlier save, so it is damage
     let mut b = bytes.clone();
     let n = b.len();
     b[n - 40] ^= 0xff;
     let e = reopen(b).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "This .lacap file is damaged: its index does not match its checksum."
-    );
+    assert_eq!(e.to_string(), "This .lacap file is damaged: its index does not match its checksum.");
 
     // the channel table: the last blob before the index; flip a byte inside it
     let mut b = bytes.clone();
@@ -210,8 +178,7 @@ fn damage_is_reported_by_place() {
     b[index_at - 30] ^= 0xff;
     let e = reopen(b).unwrap_err();
     assert!(
-        e.to_string()
-            .starts_with("This .lacap file is damaged: the channel table of channel 0 is unusable"),
+        e.to_string().starts_with("This .lacap file is damaged: the channel table of channel 0 is unusable"),
         "{e}"
     );
 }
@@ -219,20 +186,14 @@ fn damage_is_reported_by_place() {
 #[test]
 fn foreign_and_newer_files_are_refused_clearly() {
     let e = reopen(b"PK\x03\x04 this is a zip".to_vec()).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "This is not a .lacap file: it does not start with the LACAP header."
-    );
+    assert_eq!(e.to_string(), "This is not a .lacap file: it does not start with the LACAP header.");
     let mut h = b"LACAP\0\r\n".to_vec();
     h.extend_from_slice(&2u16.to_le_bytes());
     h.extend_from_slice(&3u16.to_le_bytes());
     h.extend_from_slice(&[0; 4]);
     h.extend_from_slice(&[0; 64]);
     let e = reopen(h).unwrap_err();
-    assert!(
-        e.to_string().contains("newer version of Logica (format 2.3)"),
-        "{e}"
-    );
+    assert!(e.to_string().contains("newer version of Logica (format 2.3)"), "{e}");
 }
 
 #[test]
@@ -241,16 +202,10 @@ fn only_finished_captures_with_matching_channels_are_saved() {
     let mut s = lacap::new_capture(file, &[Level::Low], 1 << 20).unwrap();
     s.push_edges(0, &[4]).unwrap();
     let e = lacap::save(&s, &meta(1), &serde_json::Value::Null).unwrap_err();
-    assert_eq!(
-        e.to_string(),
-        "The capture is still running; it can be saved once it has ended."
-    );
+    assert_eq!(e.to_string(), "The capture is still running; it can be saved once it has ended.");
     s.finish(10).unwrap();
     let e = lacap::save(&s, &meta(2), &serde_json::Value::Null).unwrap_err();
-    assert!(
-        e.to_string()
-            .contains("describes 2 channel(s) but holds data for 1")
-    );
+    assert!(e.to_string().contains("describes 2 channel(s) but holds data for 1"));
 }
 
 #[test]

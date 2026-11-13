@@ -70,9 +70,7 @@ impl<'a> ZipArchive<'a> {
     pub fn open(file: &'a dyn RandomAccess, what: &str) -> Result<Self, ImportError> {
         let size = file.size().map_err(ImportError::io)?;
         if size < 22 {
-            return Err(err(format!(
-                "The file is too small to be a ZIP archive, so it cannot be {what}."
-            )));
+            return Err(err(format!("The file is too small to be a ZIP archive, so it cannot be {what}.")));
         }
         // The end-of-central-directory record is within the last 22 + 65,535 bytes.
         let tail_len = size.min(22 + 0xffff);
@@ -150,11 +148,7 @@ impl<'a> ZipArchive<'a> {
             entries.push(e);
             p += 46 + name_len + extra_len + comment_len;
         }
-        Ok(ZipArchive {
-            file,
-            entries,
-            by_name,
-        })
+        Ok(ZipArchive { file, entries, by_name })
     }
 
     pub fn names(&self) -> impl Iterator<Item = &str> {
@@ -172,9 +166,7 @@ impl<'a> ZipArchive<'a> {
         name: &str,
         sink: &mut dyn FnMut(&[u8]) -> Result<(), ImportError>,
     ) -> Result<u64, ImportError> {
-        let e = self
-            .entry(name)
-            .ok_or_else(|| err(format!("The archive has no entry \"{name}\".")))?;
+        let e = self.entry(name).ok_or_else(|| err(format!("The archive has no entry \"{name}\".")))?;
         let damaged = || err(format!("The entry \"{name}\" in the archive is damaged."));
         let h = read(self.file, e.local_header, 30)?;
         if u32_at(&h, 0) != LOCAL {
@@ -183,9 +175,7 @@ impl<'a> ZipArchive<'a> {
         let start = e.local_header + 30 + u64::from(u16_at(&h, 26)) + u64::from(u16_at(&h, 28));
         let size = self.file.size().map_err(ImportError::io)?;
         if start.checked_add(e.compressed).is_none_or(|end| end > size) {
-            return Err(err(format!(
-                "The entry \"{name}\" is cut short. Was the file fully copied?"
-            )));
+            return Err(err(format!("The entry \"{name}\" is cut short. Was the file fully copied?")));
         }
         let mut crc = crc32fast::Hasher::new();
         let mut total = 0u64;
@@ -259,10 +249,7 @@ impl<'a> ZipArchive<'a> {
             return Ok(None);
         };
         if e.size > limit {
-            return Err(err(format!(
-                "The entry \"{name}\" is larger than expected ({} bytes).",
-                e.size
-            )));
+            return Err(err(format!("The entry \"{name}\" is larger than expected ({} bytes).", e.size)));
         }
         let mut out = Vec::with_capacity(usize::try_from(e.size).unwrap_or(0));
         self.stream(name, &mut |b| {
@@ -274,9 +261,7 @@ impl<'a> ZipArchive<'a> {
 
     /// The entry as text (UTF-8, invalid bytes replaced), if it exists.
     pub fn read_text(&self, name: &str) -> Result<Option<String>, ImportError> {
-        Ok(self
-            .read(name, 16 << 20)?
-            .map(|b| String::from_utf8_lossy(&b).into_owned()))
+        Ok(self.read(name, 16 << 20)?.map(|b| String::from_utf8_lossy(&b).into_owned()))
     }
 }
 
@@ -362,9 +347,7 @@ pub(crate) mod tests {
     #[test]
     fn damaged_and_foreign_archives_get_clear_messages() {
         let open = |b: Vec<u8>| {
-            ZipArchive::open(&MemFile::from_bytes(b), "a DLA_Logic .demo file")
-                .err()
-                .map(|e| e.to_string())
+            ZipArchive::open(&MemFile::from_bytes(b), "a DLA_Logic .demo file").err().map(|e| e.to_string())
         };
         assert_eq!(
             open(vec![1, 2, 3]).unwrap(),

@@ -17,28 +17,17 @@ pub struct StdFile {
 impl StdFile {
     /// Opens an existing file for reading only; writes fail with `PermissionDenied`.
     pub fn open(path: &Path) -> io::Result<Self> {
-        Ok(StdFile {
-            file: File::open(path)?,
-            writable: false,
-        })
+        Ok(StdFile { file: File::open(path)?, writable: false })
     }
 
     /// Opens an existing file for reading and writing.
     pub fn open_rw(path: &Path) -> io::Result<Self> {
-        Ok(StdFile {
-            file: OpenOptions::new().read(true).write(true).open(path)?,
-            writable: true,
-        })
+        Ok(StdFile { file: OpenOptions::new().read(true).write(true).open(path)?, writable: true })
     }
 
     /// Creates a file, or empties an existing one, for reading and writing.
     pub fn create(path: &Path) -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
+        let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(path)?;
         Ok(StdFile { file, writable: true })
     }
 
@@ -46,10 +35,7 @@ impl StdFile {
         if self.writable {
             Ok(())
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "the file is open for reading only",
-            ))
+            Err(io::Error::new(io::ErrorKind::PermissionDenied, "the file is open for reading only"))
         }
     }
 }
@@ -74,11 +60,7 @@ impl RandomAccess for StdFile {
     }
 
     fn sync(&self) -> io::Result<()> {
-        if self.writable {
-            self.file.sync_data()
-        } else {
-            Ok(())
-        }
+        if self.writable { self.file.sync_data() } else { Ok(()) }
     }
 }
 
@@ -127,10 +109,7 @@ mod imp {
         while !data.is_empty() {
             match f.seek_write(data, offset) {
                 Ok(0) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "could not write to the file",
-                    ));
+                    return Err(io::Error::new(io::ErrorKind::WriteZero, "could not write to the file"));
                 }
                 Ok(n) => {
                     data = &data[n..];
@@ -160,10 +139,7 @@ mod tests {
         let mut buf = [0u8; 3];
         f.read_exact_at(3, &mut buf).unwrap();
         assert_eq!(&buf, b"xyz");
-        assert_eq!(
-            f.read_exact_at(4, &mut buf).unwrap_err().kind(),
-            io::ErrorKind::UnexpectedEof
-        );
+        assert_eq!(f.read_exact_at(4, &mut buf).unwrap_err().kind(), io::ErrorKind::UnexpectedEof);
         f.set_len(4).unwrap();
         assert_eq!(f.size().unwrap(), 4);
         drop(f);
@@ -175,10 +151,7 @@ mod tests {
         let p = temp_path("ro");
         std::fs::write(&p, b"abc").unwrap();
         let f = StdFile::open(&p).unwrap();
-        assert_eq!(
-            f.write_all_at(0, b"x").unwrap_err().kind(),
-            io::ErrorKind::PermissionDenied
-        );
+        assert_eq!(f.write_all_at(0, b"x").unwrap_err().kind(), io::ErrorKind::PermissionDenied);
         assert_eq!(f.set_len(0).unwrap_err().kind(), io::ErrorKind::PermissionDenied);
         drop(f);
         std::fs::remove_file(&p).unwrap();
@@ -186,9 +159,6 @@ mod tests {
 
     #[test]
     fn missing_files_are_errors() {
-        assert_eq!(
-            StdFile::open(&temp_path("missing")).unwrap_err().kind(),
-            io::ErrorKind::NotFound
-        );
+        assert_eq!(StdFile::open(&temp_path("missing")).unwrap_err().kind(), io::ErrorKind::NotFound);
     }
 }

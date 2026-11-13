@@ -34,9 +34,7 @@ impl MemFile {
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self {
-            data: RwLock::new(bytes),
-        }
+        Self { data: RwLock::new(bytes) }
     }
 
     /// A copy of the whole content.
@@ -80,10 +78,7 @@ impl RandomAccess for MemFile {
 
     fn set_len(&self, len: u64) -> io::Result<()> {
         let len = to_usize(len)?;
-        self.data
-            .write()
-            .unwrap_or_else(|e| e.into_inner())
-            .resize(len, 0);
+        self.data.write().unwrap_or_else(|e| e.into_inner()).resize(len, 0);
         Ok(())
     }
 

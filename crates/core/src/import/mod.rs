@@ -24,9 +24,7 @@ pub struct ImportError {
 
 impl ImportError {
     pub fn new(message: impl Into<String>) -> Self {
-        ImportError {
-            message: message.into(),
-        }
+        ImportError { message: message.into() }
     }
 
     pub fn io(e: std::io::Error) -> Self {
@@ -63,18 +61,11 @@ pub struct StoreTarget {
 
 impl StoreTarget {
     pub fn memory() -> Self {
-        StoreTarget {
-            backing: Arc::new(MemFile::new()),
-            cache_budget: DEFAULT_CACHE_BUDGET,
-        }
+        StoreTarget { backing: Arc::new(MemFile::new()), cache_budget: DEFAULT_CACHE_BUDGET }
     }
 
     pub(crate) fn create(&self, initial: &[Level]) -> Result<CaptureStore, ImportError> {
-        Ok(crate::lacap::new_capture(
-            self.backing.clone(),
-            initial,
-            self.cache_budget,
-        )?)
+        Ok(crate::lacap::new_capture(self.backing.clone(), initial, self.cache_budget)?)
     }
 }
 
@@ -89,17 +80,11 @@ pub struct Imported {
 pub type Progress<'a> = &'a mut dyn FnMut(f64, &str);
 
 pub(crate) fn warn(notes: &mut Vec<Note>, message: impl Into<String>) {
-    notes.push(Note {
-        level: NoteLevel::Warning,
-        message: message.into(),
-    });
+    notes.push(Note { level: NoteLevel::Warning, message: message.into() });
 }
 
 pub(crate) fn info(notes: &mut Vec<Note>, message: impl Into<String>) {
-    notes.push(Note {
-        level: NoteLevel::Info,
-        message: message.into(),
-    });
+    notes.push(Note { level: NoteLevel::Info, message: message.into() });
 }
 
 /// Parses `key=value` lines; blank lines, `[sections]` and comments are skipped. Later keys win.

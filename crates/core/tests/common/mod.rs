@@ -50,10 +50,7 @@ impl Model {
 pub struct Rng(pub u64);
 impl Rng {
     pub fn next(&mut self) -> u64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
+        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         self.0 >> 33
     }
     pub fn below(&mut self, n: u64) -> u64 {
@@ -104,16 +101,8 @@ pub fn assert_same(a: &CaptureStore, b: &CaptureStore) {
     assert_eq!(a.sample_count(), b.sample_count());
     let n = a.sample_count();
     for slot in 0..a.slots() {
-        assert_eq!(
-            a.initial_level(slot).unwrap(),
-            b.initial_level(slot).unwrap(),
-            "slot {slot} initial"
-        );
-        assert_eq!(
-            a.edges_in(slot, 0, n).unwrap(),
-            b.edges_in(slot, 0, n).unwrap(),
-            "slot {slot} edges"
-        );
+        assert_eq!(a.initial_level(slot).unwrap(), b.initial_level(slot).unwrap(), "slot {slot} initial");
+        assert_eq!(a.edges_in(slot, 0, n).unwrap(), b.edges_in(slot, 0, n).unwrap(), "slot {slot} edges");
         for bucket in [1u64 << 16, 1 << 8, 999_999] {
             assert_eq!(
                 a.lod(slot, 0, bucket, 200).unwrap(),

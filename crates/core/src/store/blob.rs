@@ -99,12 +99,7 @@ pub fn decode_chunk(blob: &[u8], slot: u32, chunk: u64) -> Result<(Payload, Leve
             if transitions > MAX_OFFSETS || data.len() != idx(u64::from(transitions)) * 4 {
                 return Err("the offsets do not match their count".into());
             }
-            let offs: Box<[u32]> = data
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|c| u32::from_le_bytes(*c))
-                .collect();
+            let offs: Box<[u32]> = data.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect();
             if offs.windows(2).any(|w| w[0] >= w[1])
                 || offs.last().is_some_and(|&o| u64::from(o) >= CHUNK_SAMPLES)
             {
@@ -116,12 +111,7 @@ pub fn decode_chunk(blob: &[u8], slot: u32, chunk: u64) -> Result<(Payload, Leve
             if data.len() != CHUNK_BITS_BYTES {
                 return Err("the raw bits have the wrong length".into());
             }
-            let words: Box<[u64]> = data
-                .as_chunks::<8>()
-                .0
-                .iter()
-                .map(|c| u64::from_le_bytes(*c))
-                .collect();
+            let words: Box<[u64]> = data.as_chunks::<8>().0.iter().map(|c| u64::from_le_bytes(*c)).collect();
             debug_assert_eq!(words.len(), CHUNK_WORDS);
             Payload::Bits(words)
         }
@@ -138,9 +128,7 @@ pub fn encode_fine(slot: u32, chunk: u64, fine: &FineLod) -> Vec<u8> {
     p.extend_from_slice(&chunk_base(chunk).to_le_bytes());
     p.extend_from_slice(&u32::try_from(fine.counts.len()).unwrap_or(0).to_le_bytes());
     p.extend_from_slice(&0u32.to_le_bytes());
-    fine.counts
-        .iter()
-        .for_each(|c| p.extend_from_slice(&c.to_le_bytes()));
+    fine.counts.iter().for_each(|c| p.extend_from_slice(&c.to_le_bytes()));
     p.extend_from_slice(&fine.start_levels);
     wrap(BLOB_FINE_LOD, &p)
 }
@@ -182,16 +170,8 @@ mod tests {
         let mut bad = blob.clone();
         bad[30] ^= 1;
         assert!(decode_chunk(&bad, 3, 300).unwrap_err().contains("checksum"));
-        assert!(
-            decode_chunk(&blob[..10], 3, 300)
-                .unwrap_err()
-                .contains("cut short")
-        );
-        assert!(
-            decode_chunk(&blob[..blob.len() - 1], 3, 300)
-                .unwrap_err()
-                .contains("length")
-        );
+        assert!(decode_chunk(&blob[..10], 3, 300).unwrap_err().contains("cut short"));
+        assert!(decode_chunk(&blob[..blob.len() - 1], 3, 300).unwrap_err().contains("length"));
     }
 
     #[test]

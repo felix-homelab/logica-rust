@@ -51,13 +51,7 @@ pub(crate) struct ChannelState {
 
 impl ChannelState {
     pub fn new(initial: Level) -> Self {
-        ChannelState {
-            initial,
-            chunks: Vec::new(),
-            open: None,
-            level: initial,
-            written_to: 0,
-        }
+        ChannelState { initial, chunks: Vec::new(), open: None, level: initial, written_to: 0 }
     }
 
     fn open_chunk(&mut self) -> &mut OpenChunk {
@@ -229,10 +223,7 @@ fn lod_from_offsets(offs: &[u32], entry: Level, shift: u32, buckets: usize) -> (
 }
 
 fn coarse_from(counts: Vec<u16>, levels: Vec<u8>) -> Box<CoarseLod> {
-    let mut c = CoarseLod {
-        counts: [0; COARSE_BUCKETS],
-        start_levels: [0; COARSE_BUCKETS / 8],
-    };
+    let mut c = CoarseLod { counts: [0; COARSE_BUCKETS], start_levels: [0; COARSE_BUCKETS / 8] };
     c.counts.copy_from_slice(&counts);
     c.start_levels.copy_from_slice(&levels);
     Box::new(c)
@@ -254,10 +245,7 @@ fn finalise(open: OpenChunk, len: u64, exit: Level) -> (ChunkSummary, Option<Pay
             summary.coarse = Some(coarse_from(cc, cl));
             let fine = (t > FINE_LOD_MIN_TRANSITIONS).then(|| {
                 let (fc, fl) = lod_from_offsets(&offs, entry, FINE_SHIFT, FINE_BUCKETS);
-                FineLod {
-                    counts: fc.into_boxed_slice(),
-                    start_levels: fl.into_boxed_slice(),
-                }
+                FineLod { counts: fc.into_boxed_slice(), start_levels: fl.into_boxed_slice() }
             });
             summary.kind = ChunkKind::Offsets;
             summary.transitions = t;
@@ -284,10 +272,7 @@ fn finalise(open: OpenChunk, len: u64, exit: Level) -> (ChunkSummary, Option<Pay
             let mut cl = vec![0u8; COARSE_BUCKETS / 8];
             let per = FINE_BUCKETS / COARSE_BUCKETS;
             for j in 0..COARSE_BUCKETS {
-                let sum: u32 = fine.counts[j * per..(j + 1) * per]
-                    .iter()
-                    .map(|&c| u32::from(c))
-                    .sum();
+                let sum: u32 = fine.counts[j * per..(j + 1) * per].iter().map(|&c| u32::from(c)).sum();
                 cc[j] = u16::try_from(sum).unwrap_or(u16::MAX);
                 cl[j / 8] |= (fine.start_level(j * per) as u8) << (j % 8);
             }
@@ -314,9 +299,5 @@ fn finalise(open: OpenChunk, len: u64, exit: Level) -> (ChunkSummary, Option<Pay
 
 /// Checks that `slot` exists.
 pub(crate) fn check_slot(slot: usize, channels: usize) -> StoreResult<()> {
-    if slot < channels {
-        Ok(())
-    } else {
-        Err(StoreError::NoSuchChannel { slot, channels })
-    }
+    if slot < channels { Ok(()) } else { Err(StoreError::NoSuchChannel { slot, channels }) }
 }

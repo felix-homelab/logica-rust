@@ -119,15 +119,7 @@ impl ChunkCache {
         let bytes = value.heap_bytes();
         self.used += bytes;
         self.high_water = self.high_water.max(self.used);
-        self.entries.insert(
-            key,
-            Entry {
-                value,
-                bytes,
-                tick,
-                dirty,
-            },
-        );
+        self.entries.insert(key, Entry { value, bytes, tick, dirty });
         self.order.insert(tick, key);
 
         let mut out = Vec::new();
@@ -160,12 +152,7 @@ impl ChunkCache {
 
     /// Keys of the items not yet in the backing, in key order (for saving).
     pub fn dirty_keys(&self) -> Vec<CacheKey> {
-        let mut keys: Vec<CacheKey> = self
-            .entries
-            .iter()
-            .filter(|(_, e)| e.dirty)
-            .map(|(k, _)| *k)
-            .collect();
+        let mut keys: Vec<CacheKey> = self.entries.iter().filter(|(_, e)| e.dirty).map(|(k, _)| *k).collect();
         keys.sort();
         keys
     }
@@ -203,11 +190,7 @@ mod tests {
     use super::*;
 
     fn key(chunk: u64) -> CacheKey {
-        CacheKey {
-            slot: 0,
-            chunk,
-            part: Part::Payload,
-        }
+        CacheKey { slot: 0, chunk, part: Part::Payload }
     }
     fn offsets(n: usize) -> Cached {
         Cached::Payload(Arc::new(Payload::Offsets(vec![0; n].into_boxed_slice())))

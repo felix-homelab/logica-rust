@@ -155,9 +155,7 @@ mod tests {
         let mut level = 0u8;
         (0..n)
             .map(|_| {
-                s = s
-                    .wrapping_mul(6364136223846793005)
-                    .wrapping_add(1442695040888963407);
+                s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
                 if (s >> 33).is_multiple_of(density) {
                     level ^= 1;
                 }
@@ -218,11 +216,7 @@ mod tests {
                         } else {
                             before[i as usize]
                         };
-                        assert_eq!(
-                            get(&dst, i),
-                            want,
-                            "copy dst {dst_off} src {src_off} n {n} bit {i}"
-                        );
+                        assert_eq!(get(&dst, i), want, "copy dst {dst_off} src {src_off} n {n} bit {i}");
                     }
                 }
             }
@@ -231,11 +225,7 @@ mod tests {
             let mut dst = vec![0u64; 4];
             fill(&mut dst, from, to, Level::High);
             for i in 0..256u64 {
-                assert_eq!(
-                    get(&dst, i).is_high(),
-                    i >= from && i < to,
-                    "fill {from}..{to} bit {i}"
-                );
+                assert_eq!(get(&dst, i).is_high(), i >= from && i < to, "fill {from}..{to} bit {i}");
             }
         }
     }

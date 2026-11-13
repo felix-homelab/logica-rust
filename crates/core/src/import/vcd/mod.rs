@@ -44,9 +44,7 @@ impl<'a> Tokens<'a> {
         }
         let n = usize::try_from((self.size - self.pos).min(PIECE as u64)).unwrap_or(PIECE);
         self.buf.resize(n, 0);
-        self.file
-            .read_exact_at(self.pos, &mut self.buf)
-            .map_err(ImportError::io)?;
+        self.file.read_exact_at(self.pos, &mut self.buf).map_err(ImportError::io)?;
         self.pos += n as u64;
         self.i = 0;
         Ok(true)
@@ -192,19 +190,14 @@ fn first_pass(file: &dyn RandomAccess, progress: Progress<'_>) -> Result<Header,
             ));
         }
         if first && !t.tok.starts_with(b"$") {
-            return Err(ImportError::new(
-                "This is not a VCD file: it does not start with a $ command.",
-            ));
+            return Err(ImportError::new("This is not a VCD file: it does not start with a $ command."));
         }
         first = false;
         match t.tok.as_slice() {
             b"$timescale" => {
                 let parts = t.until_end("$timescale")?;
                 timescale = Some(parse_timescale(&parts).ok_or_else(|| {
-                    ImportError::new(format!(
-                        "The VCD timescale \"{}\" cannot be read.",
-                        parts.join(" ")
-                    ))
+                    ImportError::new(format!("The VCD timescale \"{}\" cannot be read.", parts.join(" ")))
                 })?);
             }
             b"$scope" => {
@@ -272,10 +265,8 @@ fn first_pass(file: &dyn RandomAccess, progress: Progress<'_>) -> Result<Header,
     while t.next()? {
         match t.tok.first() {
             Some(b'#') => {
-                let v: u64 = std::str::from_utf8(&t.tok[1..])
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .ok_or_else(|| {
+                let v: u64 =
+                    std::str::from_utf8(&t.tok[1..]).ok().and_then(|s| s.parse().ok()).ok_or_else(|| {
                         ImportError::new(format!("The VCD timestamp \"{}\" cannot be read.", t.text()))
                     })?;
                 match h.t0 {
@@ -308,9 +299,7 @@ fn first_pass(file: &dyn RandomAccess, progress: Progress<'_>) -> Result<Header,
                 };
                 h.unknown += unknown;
                 if !matches!(t.tok.first(), Some(b'0' | b'1' | b'x' | b'X' | b'z' | b'Z')) && !t.next()? {
-                    return Err(ImportError::new(
-                        "The VCD file ends in the middle of a value change.",
-                    ));
+                    return Err(ImportError::new("The VCD file ends in the middle of a value change."));
                 }
                 h.any_change = true;
                 h.changes_at_last = true;
@@ -344,10 +333,7 @@ pub fn import(
         if v.kind == "real" || v.kind == "realtime" {
             info(
                 &mut notes,
-                format!(
-                    "{} is a real-valued variable; it is not shown (digital signals only).",
-                    v.reference
-                ),
+                format!("{} is a real-valued variable; it is not shown (digital signals only).", v.reference),
             );
             continue;
         }
@@ -362,17 +348,12 @@ pub fn import(
             } else {
                 format!("{}[{}]", v.reference, right + dir * i64::from(p))
             };
-            by_id.entry(v.id.clone()).or_default().push(Target {
-                slot: channels.len(),
-                bit: p,
-            });
+            by_id.entry(v.id.clone()).or_default().push(Target { slot: channels.len(), bit: p });
             channels.push((name, v.scope.clone()));
         }
     }
     if channels.is_empty() {
-        return Err(ImportError::new(
-            "The VCD file declares no signals that can be shown.",
-        ));
+        return Err(ImportError::new("The VCD file declares no signals that can be shown."));
     }
     // A name used in more than one scope gets its scope path.
     let names: Vec<String> = channels
@@ -393,19 +374,14 @@ pub fn import(
     let span = (h.last - t0) / step;
     let count = span + u64::from(h.changes_at_last || (h.any_change && span == 0));
     if count >= 1 << 53 {
-        return Err(ImportError::new(
-            "This VCD file spans more samples than this tool can index (2^53).",
-        ));
+        return Err(ImportError::new("This VCD file spans more samples than this tool can index (2^53)."));
     }
     let (factor, exp) = h.timescale;
     let rate = 10f64.powi(-exp) / (factor as f64 * step as f64);
     if h.unknown > 0 {
         warn(
             &mut notes,
-            format!(
-                "{} value(s) were x or z (unknown or high impedance); they are shown as low.",
-                h.unknown
-            ),
+            format!("{} value(s) were x or z (unknown or high impedance); they are shown as low.", h.unknown),
         );
     }
 
@@ -444,10 +420,7 @@ pub fn import(
     while t.next()? {
         match t.tok.first() {
             Some(b'#') => {
-                let v: u64 = std::str::from_utf8(&t.tok[1..])
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(t0);
+                let v: u64 = std::str::from_utf8(&t.tok[1..]).ok().and_then(|s| s.parse().ok()).unwrap_or(t0);
                 flush_time(sample, &mut dirty, &level, &mut emitted, &mut pending, &mut store)?;
                 sample = (v - t0) / step;
             }
@@ -515,10 +488,7 @@ pub fn import(
     let meta = CaptureMeta {
         id: title.to_string(),
         title: title.to_string(),
-        source: Source {
-            kind: SourceKind::File,
-            detail: "value change dump (VCD)".into(),
-        },
+        source: Source { kind: SourceKind::File, detail: "value change dump (VCD)".into() },
         sample_rate_hz: rate,
         trigger: None,
         channels: names
