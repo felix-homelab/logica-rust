@@ -54,7 +54,17 @@ pub struct Window {
 impl Window {
     /// The window of `store` starting at `from` (usually the end of a start-up artefact).
     pub fn from_store(store: &CaptureStore, meta: &CaptureMeta, from: Sample) -> StoreResult<Window> {
-        let count = store.sample_count();
+        Self::from_store_range(store, meta, from, Sample::MAX)
+    }
+
+    /// The window of `store` over `[from, to)` (at most 2^26 samples and 2^20 edges per channel).
+    pub fn from_store_range(
+        store: &CaptureStore,
+        meta: &CaptureMeta,
+        from: Sample,
+        to: Sample,
+    ) -> StoreResult<Window> {
+        let count = store.sample_count().min(to);
         let start = from.min(count);
         let mut end = count.min(start.saturating_add(MAX_WINDOW));
         let mut note = (end < count).then(|| {

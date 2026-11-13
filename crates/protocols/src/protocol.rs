@@ -13,7 +13,8 @@ use crate::stream::{DecoderSetup, StreamDecoder};
 use crate::types::{Detection, Rejection, RoleSpec, SettingSpec, Settings};
 use crate::window::{WinChannel, Window};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Symptom {
     pub symptom: String,
     pub cause: String,
@@ -27,7 +28,7 @@ pub fn symptoms(list: &[(&str, &str, &str)]) -> Vec<Symptom> {
 }
 
 /// What the person (or agent) can learn about a protocol from the tool itself.
-#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolInfo {
     /// What it is and where you meet it.
@@ -41,7 +42,7 @@ pub struct ProtocolInfo {
     pub symptoms: Vec<Symptom>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Origin {
     BuiltIn,

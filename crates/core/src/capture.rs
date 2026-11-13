@@ -12,7 +12,7 @@ pub fn whole(count: Sample) -> Vec<Range<Sample>> {
 }
 
 /// Where a capture came from.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum SourceKind {
     Device,
@@ -20,7 +20,7 @@ pub enum SourceKind {
     Synthetic,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Source {
     pub kind: SourceKind,
@@ -29,7 +29,7 @@ pub struct Source {
 }
 
 /// One channel as the person sees it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelInfo {
     /// Physical channel number on the device or in the file (CH0 = 0).
@@ -42,7 +42,7 @@ pub struct ChannelInfo {
     pub threshold_volts: Option<f64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum NoteLevel {
     Info,
@@ -50,14 +50,14 @@ pub enum NoteLevel {
 }
 
 /// Format surprises, dropped data, artefacts: shown to the person and in MCP summaries.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Note {
     pub level: NoteLevel,
     pub message: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum CaptureState {
     Capturing,
@@ -66,7 +66,7 @@ pub enum CaptureState {
 }
 
 /// Decoder settings found in an imported file: shown for comparison, never used by detection.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedDecoder {
     /// The file's own protocol name, normalised to lower case (`uart`, `i2c`, `spi`, …).
@@ -78,7 +78,7 @@ pub struct SavedDecoder {
 }
 
 /// Everything about a capture except its transitions.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureMeta {
     pub id: String,

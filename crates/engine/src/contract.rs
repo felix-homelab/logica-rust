@@ -2,6 +2,7 @@
 //! like, whoever sends it. Defined once here; the JSON Schema and the TypeScript types are
 //! generated from it (step 1 of M1, after review).
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Major and minor version of the contract, sent in the handshake. Additive changes only within a
@@ -41,6 +42,19 @@ impl Serialize for Actor {
     }
 }
 
+impl JsonSchema for Actor {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Actor".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "description": "Who sent a command: user, agent:<client name> or cli.",
+            "pattern": "^(user|cli|agent:.+)$"
+        })
+    }
+}
+
 impl<'de> Deserialize<'de> for Actor {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = String::deserialize(d)?;
@@ -49,7 +63,7 @@ impl<'de> Deserialize<'de> for Actor {
 }
 
 /// What a command may touch (doc 07).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Safety {
     /// Analysis only.
@@ -89,13 +103,13 @@ pub struct CommandSpec {
 }
 
 /// A command call as data: what the history stores and `run_command` takes.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Invocation {
     pub command: String,
     pub input: serde_json::Value,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum ErrorCode {
     /// The input does not match the contract or is impossible ("300 MHz with 20 channels").
@@ -114,7 +128,7 @@ pub enum ErrorCode {
 }
 
 /// An error worded for the person or agent: what is wrong and what to do.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CommandError {
     pub code: ErrorCode,
     pub message: String,
@@ -135,7 +149,7 @@ impl std::fmt::Display for CommandError {
 impl std::error::Error for CommandError {}
 
 /// Sent to every attached client (doc 03).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "event", rename_all = "camelCase")]
 pub enum Event {
     #[serde(rename = "capture.progress")]
@@ -159,7 +173,7 @@ pub enum Event {
 }
 
 /// One entry of the engine-wide history (ADR 0008).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {
     pub id: u64,
@@ -170,6 +184,8 @@ pub struct HistoryEntry {
     /// Why it cannot be undone, when it cannot.
     pub never_because: Option<String>,
     pub undone: bool,
+    /// Undone, and then the same actor did something new: it can no longer be redone.
+    pub discarded: bool,
     /// Plain-language line for the activity feed: "Claude added an I2C decoder on CH4 and CH5".
     pub summary: String,
 }

@@ -13,6 +13,7 @@ publish = false
 logica-core = { path = "crates/core" }
 logica-protocols = { path = "crates/protocols" }
 logica-fileio = { path = "crates/fileio" }
+logica-drivers = { path = "crates/drivers" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

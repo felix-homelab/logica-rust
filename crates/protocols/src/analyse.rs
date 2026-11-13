@@ -22,7 +22,8 @@ use crate::window::Window;
 /// Below this confidence a detection is listed as an alternative only.
 pub const MIN_CONFIDENCE: f64 = 0.4;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct BusAnalysis {
     pub bus: Bus,
     /// The best non-overlapping explanation of the bus, most confident first.
@@ -34,7 +35,8 @@ pub struct BusAnalysis {
     pub unexplained: Vec<u32>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureAnalysis {
     /// The samples detection looked at.
     pub window: (Sample, Sample),

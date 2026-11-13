@@ -10,7 +10,7 @@ use logica_core::Sample;
 // ------------------------------------------------------------------ settings and roles
 
 /// A setting's value: a number, a choice (text) or a switch.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum SettingValue {
     Bool(bool),
@@ -77,7 +77,7 @@ impl SettingsExt for Settings {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingKind {
     Number { default: f64, unit: Option<String>, min: Option<f64>, max: Option<f64>, presets: Vec<f64> },
@@ -85,7 +85,8 @@ pub enum SettingKind {
     Boolean { default: bool },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingSpec {
     pub key: String,
     pub label: String,
@@ -174,7 +175,8 @@ impl SettingSpec {
 }
 
 /// A channel a protocol needs.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RoleSpec {
     pub key: String,
     pub label: String,
@@ -209,7 +211,9 @@ pub fn roles(pairs: &[(&str, Option<u32>)]) -> Roles {
 
 // ------------------------------------------------------------------ decoded output
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum FrameKind {
     Data,
@@ -229,7 +233,9 @@ pub enum FrameKind {
     Info,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProblemCode {
     FrameError,
@@ -242,7 +248,8 @@ pub enum ProblemCode {
     Protocol,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Problem {
     pub code: ProblemCode,
     pub message: String,
@@ -253,7 +260,8 @@ pub fn problem(code: ProblemCode, message: impl Into<String>) -> Problem {
 }
 
 /// One annotation.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Frame {
     pub start: Sample,
     pub end: Sample,
@@ -272,7 +280,8 @@ pub struct Frame {
     pub row: u8,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PacketStream {
     /// "MOSI", "Write to 0x50", "RX", …
     pub label: String,
@@ -281,7 +290,8 @@ pub struct PacketStream {
 }
 
 /// A group of frames (a UART line, an I2C transaction, a chip-select frame) with its bytes.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Packet {
     pub index: u64,
     pub start: Sample,
@@ -297,7 +307,8 @@ impl Packet {
 }
 
 /// A whole decode, collected from a streaming decoder.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DecodeResult {
     pub frames: Vec<Frame>,
     pub packets: Vec<Packet>,
@@ -307,7 +318,8 @@ pub struct DecodeResult {
 
 // ------------------------------------------------------------------ detection
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Evidence {
     pub text: String,
     /// Whether the observation supports the protocol or counts against it.
@@ -318,7 +330,8 @@ pub fn evidence(text: impl Into<String>, supports: bool) -> Evidence {
     Evidence { text: text.into(), supports }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingNote {
     /// 0 to 1.
     pub confidence: f64,
@@ -329,7 +342,8 @@ pub fn note(confidence: f64, reason: impl Into<String>) -> SettingNote {
     SettingNote { confidence, reason: reason.into() }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Detection {
     pub protocol_id: String,
     /// Physical channels this detection explains, ascending.
@@ -344,7 +358,8 @@ pub struct Detection {
     pub warnings: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Rejection {
     pub protocol_id: String,
     pub because: String,
