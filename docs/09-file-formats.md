@@ -88,4 +88,7 @@ footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserve
 - Packed start levels: bit k of byte k / 8 (least significant bit first) is the level at the start
   of bucket k. Offsets are the chunk-relative transition positions, ascending; raw bits are least
   significant bit first, sample 0 of the chunk in bit 0 of byte 0.
-- `logica inspect <file>` prints the index (the file cannot be opened with `unzip`).
+- `logica inspect <file> --index` prints the index of the last complete save as stored, without
+  opening the capture (the file cannot be opened with `unzip`), and says so on stderr when the
+  end of the file is an interrupted save. Without `--index`, `inspect` summarises any capture file
+  it can open; `--json` prints that summary as the command API's capture summary.

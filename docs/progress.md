@@ -11,6 +11,10 @@ What is done, what is next, and decisions made on the way. Newest first.
 - The contract as JSON Schema, generated from the Rust types and checked in
   (`packages/api/schema/contract.json`); `packages/api` generates the TypeScript types, the
   command list and a typed client from it. Both ends fail CI when a generated file is stale.
+- Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
+  `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
+  files go to a temporary folder that is removed afterwards. No new dependencies (own argument
+  parsing).
 
 ### Decisions on the way
 
@@ -26,8 +30,8 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- The `logica` CLI (open, inspect, convert), then the MCP server and `render`, the Electron
-  skeleton (spike S7) and the exit scenario.
+- `logica open` (docs 03 and 09 disagree on what it does; owner to decide), then the MCP server
+  and `render`, the Electron skeleton (spike S7) and the exit scenario.
 
 ## M0 Foundations (November 2026)
 

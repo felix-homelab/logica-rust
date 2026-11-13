@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/protocols", "crates/drivers", "crates/fileio", "crates/engine"]
+members = ["crates/core", "crates/protocols", "crates/drivers", "crates/fileio", "crates/engine", "crates/cli"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,6 +14,7 @@ logica-core = { path = "crates/core" }
 logica-protocols = { path = "crates/protocols" }
 logica-fileio = { path = "crates/fileio" }
 logica-drivers = { path = "crates/drivers" }
+logica-engine = { path = "crates/engine" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
