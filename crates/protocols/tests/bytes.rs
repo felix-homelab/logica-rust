@@ -1,5 +1,7 @@
 //! The byte analyser (Signal Detective's `tests/bytes.test.ts`).
 
+#![allow(clippy::cast_possible_truncation)]
+
 use logica_protocols::bytes::*;
 
 fn ids(hex: &str) -> Vec<FindingId> {
