@@ -1,0 +1,105 @@
+{
+  "family": "pulse-code",
+  "id": "onewire",
+  "name": "1-Wire",
+  "group": "Single-wire",
+  "idle": "high",
+  "bitOrder": "lsb",
+  "frames": [
+    {
+      "name": "Transaction",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 380,
+          "maxUs": 1000,
+          "label": "reset"
+        },
+        {
+          "level": "high",
+          "minUs": 10,
+          "maxUs": 80,
+          "label": "wait"
+        },
+        {
+          "level": "low",
+          "minUs": 50,
+          "maxUs": 300,
+          "label": "presence"
+        },
+        {
+          "level": "high",
+          "minUs": 10,
+          "maxUs": 1000000000.0,
+          "label": "recovery"
+        }
+      ],
+      "bit": {
+        "first": "low",
+        "encoding": "first",
+        "one": [
+          0.5,
+          15
+        ],
+        "zero": [
+          15,
+          130
+        ],
+        "other": [
+          0.5,
+          1000000.0
+        ]
+      },
+      "bits": {
+        "min": 0,
+        "max": 100000
+      }
+    },
+    {
+      "name": "Reset without answer",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 380,
+          "maxUs": 1000,
+          "label": "reset"
+        }
+      ]
+    }
+  ],
+  "byteLabels": {
+    "33": "Read ROM",
+    "55": "Match ROM",
+    "CC": "Skip ROM",
+    "F0": "Search ROM",
+    "EC": "Alarm search",
+    "44": "Convert T",
+    "BE": "Read scratchpad",
+    "4E": "Write scratchpad",
+    "48": "Copy scratchpad",
+    "B8": "Recall EEPROM",
+    "B4": "Read power supply"
+  },
+  "labelPositions": [
+    0,
+    1
+  ],
+  "info": {
+    "what": "Single data line for parts like the DS18B20 temperature sensor. Rests high.",
+    "confirm": "Starts with a low pulse of about 480 µs, then a shorter low pulse from the device. After that, low pulses of two lengths in slots of 60 to 120 µs.",
+    "decoderTips": "One channel. Short low pulse = 1, long low pulse = 0. Bit order LSB first.",
+    "lookalikes": "DHT sensors and IR remotes also use two pulse lengths on one line; the timing tells them apart.",
+    "symptoms": [
+      {
+        "symptom": "Reset but no presence pulse",
+        "cause": "No device on the bus, or it is not powered",
+        "action": "Check the 4.7 kΩ pull-up and the power pin (parasite power needs a strong pull-up)."
+      },
+      {
+        "symptom": "Temperature reads 85 °C",
+        "cause": "The DS18B20 power-on value: no conversion was finished",
+        "action": "Wait 750 ms after Convert T before reading."
+      }
+    ]
+  }
+}

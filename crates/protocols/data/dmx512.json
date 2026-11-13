@@ -1,0 +1,23 @@
+{
+  "family": "preset",
+  "id": "dmx512",
+  "name": "DMX512 lighting",
+  "group": "UART",
+  "base": "uart",
+  "settings": {
+    "baud": 250000,
+    "dataBits": "8",
+    "parity": "none",
+    "stopBits": "2"
+  },
+  "match": [
+    "baud",
+    "parity"
+  ],
+  "info": {
+    "what": "Stage-lighting control: UART at 250,000 baud with 2 stop bits, sent over RS-485.",
+    "confirm": "Each packet starts with a long low break (at least 88 µs), a short high mark, then a start code (usually 00) and up to 512 channel values.",
+    "decoderTips": "UART at 250000 baud, 8 data bits, no parity, 2 stop bits. The break shows as a 00 with a frame error.",
+    "lookalikes": "Any UART at 250 kbaud. The break at the start of every packet is the giveaway."
+  }
+}

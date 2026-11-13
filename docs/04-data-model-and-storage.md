@@ -45,14 +45,24 @@ is offset 0, and every chunk can be read on its own.
 
 - Offsets fit in 32 bits whatever the capture length; that removes the 2^32 limit.
 - Above 2^19 transitions, offsets would take more than the 2 MiB of raw bits, so the chunk is stored
-  as bits. Memory per chunk is never above the raw size. Writers switch representation on the fly;
-  a whole aligned chunk of bits is copied without scanning.
+  as bits. Memory per chunk is never above the raw size. Writers switch representation on the fly.
+  Incoming bits are first counted (one popcount pass over each word XOR its shifted self gives the
+  transitions per bucket, without extracting positions); only above 2^19 transitions is a block
+  kept as bits, otherwise its offsets are extracted or the chunk stays quiet. So a quiet line
+  delivered as bits (every `.demo` block) still costs nothing.
 - Per channel, a resident **summary** per chunk: kind, entry and exit level, transition count, where
   the payload lives, and its coarse LOD.
 - Reading: level at a sample; a level cursor (amortised O(1) for increasing positions, across chunk
   boundaries and both kinds); edges in a range; an incremental edge stream; merged **edge batches**
   for decoders (sample, channel slot and new level per edge, plus `end`: every edge before `end` has
-  been delivered); and windows of absolute edge positions for measurement and detection.
+  been delivered, and every edge in the batch is before `end`; a batch never splits the edges of
+  one sample, so it may exceed its size limit by the edges sharing its last sample; edges at the
+  same sample come in slot order); and windows of absolute edge positions for measurement and
+  detection.
+- Writing: transition lists, per-channel bit blocks and packed samples, each continuing exactly
+  where the channel's data ends. Data at sample 0 defines the initial level (chunk 0 never has an
+  edge at offset 0). Readers see every sample written on all channels, including the chunk still
+  being written, so a live view is never a whole chunk behind.
 
 ## Level of detail
 
@@ -64,6 +74,9 @@ start. LOD memory follows activity, not length:
   same evictable cache as payloads and stored in `.lacap`.
 - Other bucket sizes are derived by summing; sparse chunks answer from their offsets; quiet chunks
   need nothing. A LOD query is exact for any bucket size and fast when buckets align to 2^8 or 2^16.
+  A coarse bucket can hold 65,536 transitions (a line toggling on every sample), one more than its
+  count can say; a saturated coarse bucket is answered from the chunk's fine LOD, which always
+  exists then (the chunk has more than 4,096 transitions) but may have to be loaded.
 
 A global fine level would cost about 2 bytes per 256 samples per channel even on idle lines (about
 330 MB for 5e9 samples on 8 channels); per-chunk LOD avoids that.
@@ -84,7 +97,12 @@ are without loading them.
 
 | Hot data | Cold data |
 |---|---|
-| chunk payloads and fine LODs in a least-recently-used cache with a byte budget (default 1 GB, adjustable); summaries and coarse LODs always resident | a **backing**: chunks leaving the cache are written there and read back by offset |
+| chunk payloads and fine LODs in a least-recently-used cache with a byte budget (default 512 MB, adjustable, so a whole engine at default settings stays near 1 GB); summaries and coarse LODs always resident | a **backing**: chunks leaving the cache are written there and read back by offset |
+
+A payload or fine LOD is written to the backing only when it is pushed out of the cache (or at
+save), as a `.lacap` blob; whoever pushed it out (the writer completing a chunk, or a reader loading
+another) appends it and records its place in the chunk summary. The item just inserted is never
+pushed out by its own insertion, even when it alone is over the budget.
 
 Backings: memory (small captures, tests) and the `.lacap` file itself. A new capture is created
 inside a working `.lacap` in the data folder: chunks evicted while capturing are appended as blobs,

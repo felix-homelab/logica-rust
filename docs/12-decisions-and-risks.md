@@ -16,7 +16,7 @@ practice proves one wrong.
 | D6 | Windows driver for the DLA | Zadig guide plus "switch back" guide in version 1; FFI to an already installed WCH library evaluated after spike S3 |
 | D7 | Name | The project is **Logica**; the repository is `logica-rust`; the command is `logica`, and the MCP server registers as `logica`. **Open:** whether `logica` is also published on npm or crates.io, decided at M6 (the npm name `logica` was taken by an unrelated package in November 2026) |
 | D8 | Signing and distribution | Unsigned installers for Windows, macOS and Linux via GitHub Releases; ad-hoc signature on macOS so it runs at all; auto-update on Windows and Linux only |
-| D9 | First hardware | DLA buffer mode before FX2; DLA feasibility spike right after M0 |
+| D9 | First hardware | The full analyser for recordings (M1, M2) before any hardware; then the DLA feasibility spike; DLA buffer mode before FX2 (re-decided after M0: S3 moved from after M0 to after M2) |
 | D10 | Drivers in version 1 | Synthetic, DLA-32/16 Plus, FX2. Saleae automation, sigrok bridge and Pico after version 1 |
 | D11 | Scope cuts | Lean UI polish (native frame, tabs, no screenshot tests, no jump lists); JSON custom protocols only; Learn tab after version 1; all importers including `.sal` best effort; register maps, layer decoders, protocol triggers and capture comparison in version 1 |
 | D12 | Signal Detective | `../signal-detective` (the owner's own work, ISC licence) is the behavioural reference: its code is read for heuristics, evidence texts and protocol knowledge, not ported. Its samples (in `fixtures/captures/`), answer keys and test expectations are the acceptance tests. Learn-tab parts (identifier, calculators, waveform sketches) are left out. It stays a separate, finished tool |
@@ -26,7 +26,7 @@ practice proves one wrong.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| The DLA cannot be driven, or the clean-room protocol work stalls | Medium | Main differentiator gone | Spike S3 right after M0, before UI work; stop and re-plan if it fails |
+| The DLA cannot be driven, or the clean-room protocol work stalls | Medium | Main differentiator gone | Spike S3 right after M2, before driver work; stop and re-plan the hardware milestones if it fails. The analyser for recordings is useful without it |
 | Licence contamination: someone (or an AI agent) writes driver code from memory of GPL sigrok code | Medium | Relicensing or a rewrite | "Facts only" rule in CLAUDE.md and clean-room.md; provenance note per driver; people who read the code do not write that driver |
 | FNIRSI example files published by mistake | Low | Copyright complaint | `fixtures/captures/local/` git-ignored; tests skip when absent; replace with rig recordings |
 | USB throughput below the device rate | Low to medium | Streaming limited | Spike S2; buffer mode first; honest rate limits in capabilities |

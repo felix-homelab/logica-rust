@@ -29,8 +29,8 @@ Every driver is written clean-room ([clean-room.md](clean-room.md)) and has a `P
 
 | Device | Driver | Milestone | Notes |
 |---|---|---|---|
-| Synthetic | `synthetic` | M0 | Plays a program, repeated to the requested length: every generated protocol example, or `mix` (UART, I2C, SPI and PWM on 8 channels at 100 MHz, with an optional dense 25 MHz stretch). Streams one tile at a time, so 5e9 samples run in bounded memory |
-| FNIRSI DLA-32 Plus / DLA-16 Plus | `fnirsi-dla` | spike S3 after M0; driver M3 | Buffer mode first, then threshold, trigger, PWM outputs, then stream mode. DLA-16 Plus untested (the owner has no device) |
+| Synthetic | `synthetic` | M0 | Plays a program, repeated to the requested length: every generated protocol example, or `mix` (UART, I2C, SPI and PWM on 8 channels at 100 MHz, with an optional dense 25 MHz stretch). Streams one tile at a time, so 5e9 samples run in bounded memory. Like real hardware, a capture is exactly the requested length; a frame cut off at the end is reported by its decoder as incomplete |
+| FNIRSI DLA-32 Plus / DLA-16 Plus | `fnirsi-dla` | spike S3 after M2; driver M3 | Buffer mode first, then threshold, trigger, PWM outputs, then stream mode. DLA-16 Plus untested (the owner has no device) |
 | FX2 analysers (original Saleae Logic, 8 ch / 24 MHz clones, USBee AX clones) | `fx2lafw` | M4 | Upload fx2lafw firmware, wait for re-enumeration, stream bulk data. No hardware trigger: software and protocol triggers in the engine |
 
 After version 1: Saleae Logic 8 / Pro 8 / Pro 16 / MSO through Saleae's automation API
@@ -47,7 +47,7 @@ What is known is in doc 02. The driver is built under the "facts only" rule from
 2. our own USB captures of DLA_Logic (Wireshark with USBPcap on Windows, usbmon on Linux), stored as
    transcripts in `fixtures/usb/fnirsi-dla/`.
 
-Spike S3 answers whether this works at all before any UI is built: open the device on Windows with
+Spike S3 answers whether this works at all before any driver is built: open the device on Windows with
 WinUSB, run the identification exchange, and record one buffer capture as a transcript.
 
 Steps (M3):

@@ -1,0 +1,112 @@
+{
+  "family": "pulse-code",
+  "id": "dht",
+  "name": "DHT11 or DHT22 sensor",
+  "group": "Single-wire",
+  "idle": "high",
+  "bitOrder": "msb",
+  "frames": [
+    {
+      "name": "Reading",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 500,
+          "maxUs": 30000,
+          "label": "host start"
+        },
+        {
+          "level": "high",
+          "minUs": 10,
+          "maxUs": 60,
+          "label": "release"
+        },
+        {
+          "level": "low",
+          "minUs": 60,
+          "maxUs": 100,
+          "label": "response"
+        },
+        {
+          "level": "high",
+          "minUs": 60,
+          "maxUs": 100,
+          "label": "ready"
+        }
+      ],
+      "bit": {
+        "first": "low",
+        "encoding": "second",
+        "other": [
+          30,
+          75
+        ],
+        "zero": [
+          15,
+          40
+        ],
+        "one": [
+          55,
+          90
+        ]
+      },
+      "bits": {
+        "min": 40,
+        "max": 40
+      },
+      "trailer": [
+        {
+          "level": "low",
+          "minUs": 30,
+          "maxUs": 75,
+          "label": "end"
+        }
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "name": "humidity",
+      "bits": 16,
+      "scale": 0.1,
+      "unit": "%RH (DHT22)"
+    },
+    {
+      "name": "temperature",
+      "bits": 16,
+      "scale": 0.1,
+      "unit": "°C (DHT22)",
+      "signed": "sign-magnitude"
+    },
+    {
+      "name": "checksum",
+      "bits": 8
+    }
+  ],
+  "checks": [
+    {
+      "kind": "sum8",
+      "bytes": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "equals": 4,
+      "message": "The checksum byte is not the sum of the first four bytes: a bit was misread."
+    }
+  ],
+  "info": {
+    "what": "Single-wire humidity and temperature sensor. Rests high.",
+    "confirm": "One long low pulse from the host (1 to 18 ms), then 40 bits. Every bit starts with about 50 µs low; the high time that follows is about 27 µs for 0 and 70 µs for 1.",
+    "decoderTips": "One channel. 40 bits: humidity (16), temperature (16), checksum (8). A DHT11 uses only the first byte of each value.",
+    "lookalikes": "1-Wire codes the bit in the low time; DHT codes it in the high time.",
+    "symptoms": [
+      {
+        "symptom": "Checksum wrong now and then",
+        "cause": "A bit misread: long wires or a slow sample rate",
+        "action": "Sample at 1 MHz or more and keep the wire short."
+      }
+    ]
+  }
+}

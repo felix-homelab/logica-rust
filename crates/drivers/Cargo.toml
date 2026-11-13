@@ -1,0 +1,23 @@
+[package]
+name = "logica-drivers"
+description = "Logica's device drivers: the synthetic device now, fnirsi-dla and fx2lafw later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+logica-core.workspace = true
+logica-protocols.workspace = true
+
+[dev-dependencies]
+logica-fileio.workspace = true
+serde_json = "1"
+
+[[bench]]
+name = "baseline"
+harness = false
+
+[lints]
+workspace = true

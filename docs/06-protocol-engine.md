@@ -52,8 +52,10 @@ Rules, each pinned by tests:
   non-overlapping explanation. Detectors trial-decode with the streaming decoders (statistics only).
 - Runs on a window, so it stays fast on huge captures: from the end of a start-up artefact, at most
   2^26 samples (67 M). That covers every fixture whole (`mystery_D` has an edge at sample
-  50,000,000, past a 50 M window). Sampling the middle and end of long captures, and combining
-  measurements from separate windows, is designed with `analysis.detect` in M1.
+  50,000,000, past a 50 M window). The window also ends after 2^20 edges on any one channel, so a
+  dense line cannot blow up memory; the analysis says so in a note when the window is shorter than
+  the capture. Sampling the middle and end of long captures, and combining measurements from
+  separate windows, is designed with `analysis.detect` in M1.
 - Available for any time range, so an agent can ask "what is happening between 2.1 s and 2.3 s?".
 
 ## Stacking
@@ -112,7 +114,10 @@ BME280, MPU6050, DS18B20 (1-Wire). A chip can be recognised from its address or 
 ## Custom protocols
 
 - Custom JSON protocols (pulse-code and presets such as DMX512) are data, not code, so sharing
-  them is safe.
+  them is safe. The built-in 1-Wire, DHT, WS2812, NEC infrared and DMX512 protocols are such data
+  files themselves (`crates/protocols/data/`), loaded through the same validation as a person's
+  own, so that path is exercised on every start. Learn-tab fields (fingerprint, sketch) are
+  accepted and ignored.
 - No code plugins in version 1. After version 1, code-based decoders come as WebAssembly plugins,
   sandboxed with no file or network access. New built-in decoders arrive as pull requests.
 - sigrok's Python decoders are not run (licence, ADR 0009).
@@ -120,7 +125,8 @@ BME280, MPU6050, DS18B20 (1-Wire). A chip can be recognised from its address or 
 ## Signal generators
 
 Every protocol has a generator that produces its example signal (used by the synthetic device and
-the tests). A generated capture always extends to its last edge; nothing is cut off at the end.
+the tests). A generated example always extends to its last edge; nothing is cut off at the end.
+(A synthetic device capture is the requested length instead, like real hardware; doc 05.)
 
 ## Quality rules
 

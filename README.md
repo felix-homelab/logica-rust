@@ -12,7 +12,8 @@ The engine is written in Rust; the window is an Electron app with a React interf
 Open source under the Apache License 2.0 (`LICENSE`, ADR 0009). The command-line tool is
 `logica`.
 
-**Status: planned, nothing built yet.** Start with [docs/KICKOFF_PROMPT.md](docs/KICKOFF_PROMPT.md);
+**Status: milestone M0 (foundations) built: the engine's capture store, file formats, protocol
+engine and synthetic device, with no window yet.** It started with [docs/KICKOFF_PROMPT.md](docs/KICKOFF_PROMPT.md);
 progress is tracked in [docs/progress.md](docs/progress.md).
 
 ## Documents

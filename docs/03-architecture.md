@@ -62,10 +62,12 @@ There is one engine per desktop (ADR 0007). When the app is not running, `logica
 
 ```
 crates/
-  core/        data model, chunked capture store, LOD, measurements, bus grouping, file import and
-               export, `.lacap`, device and driver traits, ingest. No I/O of its own.
-  protocols/   detectors, streaming decoders, stacking, register maps, custom protocols, queries,
-               byte analyser, protocol knowledge, signal generators. No I/O.
+  core/        data model, chunked capture store, LOD, measurements, file import and export,
+               `.lacap`, device and driver traits, ingest. No I/O of its own.
+  protocols/   bus grouping, detectors, streaming decoders, stacking, register maps, custom
+               protocols, queries, byte analyser, protocol knowledge, signal generators. No I/O.
+  fileio/      the random-access file interface of `core` on real files (`std::fs`), for the
+               engine, the CLI, tests and benchmarks
   drivers/     synthetic, fnirsi-dla, fx2lafw (each with a PROVENANCE.md)
   engine/      sessions, device manager, capture pipeline, decoder orchestration, command API,
                events, actors, undo history, leases, files and USB, PNG rendering for `render`
@@ -85,9 +87,11 @@ tools/         the known-signal rig (doc 10)
 
 Rust crates form one Cargo workspace; `packages/` and `apps/` form one npm workspace.
 
-Dependency direction: `core` ← `protocols` ← `drivers`; (`core`, `protocols`, `drivers`) ←
-`engine` ← `mcp` ← (`cli`, `node`). Drivers implement traits from `core` and never depend on the
-engine. `ui` depends on `packages/api` only, never on the engine. `core` and `protocols` do no I/O
+Dependency direction: `core` ← `protocols` ← `drivers`; `core` ← `fileio`; (`core`, `protocols`,
+`drivers`, `fileio`) ← `engine` ← `mcp` ← (`cli`, `node`). Drivers implement traits from `core` and
+never depend on the engine. Measurements (frequency, duty, pulse widths) live in `core` because the
+`measure` commands need them without protocols; bus grouping is part of detection and lives in
+`protocols`. `ui` depends on `packages/api` only, never on the engine. `core` and `protocols` do no I/O
 and build for WebAssembly, so they stay testable and usable anywhere.
 
 ## The command API

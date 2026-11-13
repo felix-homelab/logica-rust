@@ -1,14 +1,16 @@
 # 11 Roadmap
 
 Every milestone ends with something usable, agents can test the project from M1 on, and the
-riskiest unknowns are measured before the work that depends on them. The biggest unknown, talking
-to the DLA-32 Plus at all, is tested right after M0, before any UI work.
+riskiest unknowns are measured before the work that depends on them. The full analyser for
+recordings (M1, M2) comes before any hardware (owner's decision, November 2026): it is useful on its
+own with files from other tools, and none of it depends on a device. The biggest hardware unknown,
+talking to the DLA-32 Plus at all, is tested right after M2, before any driver work.
 
 ## Spikes (small, time-boxed, one question each)
 
 | Spike | Question | When |
 |---|---|---|
-| S3 | DLA-32 Plus on Windows: does the Rust USB library see it with WinUSB? Does the identification exchange (from the written description, clean-room) work? Record an identification and one buffer capture as transcripts (USBPcap of DLA_Logic for comparison). Chooses the USB library | Right after M0, before M1 |
+| S3 | DLA-32 Plus on Windows: does the Rust USB library see it with WinUSB? Does the identification exchange (from the written description, clean-room) work? Record an identification and one buffer capture as transcripts (USBPcap of DLA_Logic for comparison). Chooses the USB library | Right after M2, before M3 |
 | S7 | Electron skeleton: a packaged app on Windows and Linux loads the Rust engine module in a `utilityProcess`, the window talks to it over a `MessagePort`, cold start under 1.5 s; built with electron-vite and electron-builder | In M1 |
 | S1 | Does the chunked store with per-chunk LOD meet the pan and zoom budget at 16 channels × 1e9 samples in Canvas 2D? | Before M2 |
 | S8 | Can Claude Code in WSL reach the Windows app (`logica.exe mcp` through interop, which also starts the app; HTTP with mirrored networking)? | In M2 |
@@ -20,10 +22,10 @@ to the DLA-32 Plus at all, is tested right after M0, before any UI work.
 - Cargo workspace and npm workspace (doc 03), lint and format, CI on GitHub Actions, `LICENSE`,
   `.gitignore` excluding `fixtures/captures/local/`.
 - `core`: chunked transition store with per-chunk LOD, eviction to a backing, level cursor, edge
-  streams and batches (doc 04); `.demo`, `.sr` and VCD import; `.lacap` read and write with
-  recovery from an interrupted save (doc 09).
+  streams and batches (doc 04); measurements; `.demo`, `.sr` and VCD import; `.lacap` read and
+  write with recovery from an interrupted save (doc 09). `fileio`: the file interface on real files.
 - `protocols`: every protocol of Signal Detective with its detector, streaming decoder and signal
-  generator; measurements, bus grouping, byte analyser, custom JSON protocols (doc 06).
+  generator; bus grouping, byte analyser, custom JSON protocols (doc 06).
 - `drivers`: the driver traits in use with the synthetic device.
 - Tests against the fixtures in `fixtures/` and Signal Detective's expectations (doc 10).
 - **Exit:** every Signal Detective sample and test expectation holds (same detections, roles,
@@ -32,10 +34,6 @@ to the DLA-32 Plus at all, is tested right after M0, before any UI work.
   5e9 samples on 8 channels can be created, saved, reopened and queried within a 1 GB memory budget;
   `.sr`, VCD and `.lacap` tested including malformed and truncated files with clear messages; at
   least as fast as the baseline in `docs/benchmarks.md`.
-
-### Spike S3 (DLA feasibility)
-- **Exit:** a written yes or no with transcripts in `fixtures/usb/fnirsi-dla/` and a provenance
-  note. If no: stop and re-plan before building M1 and M2.
 
 ### M1 Engine, CLI and MCP (files and synthetic device)
 - `engine`: command API with its contract and generated TypeScript types, events, actors, undo
@@ -61,6 +59,11 @@ to the DLA-32 Plus at all, is tested right after M0, before any UI work.
 - **Exit:** doc 08 budgets met on the reference machine; axe checks clean; an agent's `show_user`
   markers and view changes appear live in the open window; the owner runs the Windows build with
   Claude Code in WSL attached (S8).
+
+### Spike S3 (DLA feasibility)
+- **Exit:** a written yes or no with transcripts in `fixtures/usb/fnirsi-dla/` and a provenance
+  note. If no: stop and re-plan the hardware milestones (M3, M4)
+  before building them; the analyser for recordings stands on its own.
 
 ### M3 FNIRSI DLA-32 Plus / DLA-16 Plus
 - Transport with record and replay; USB hot-plug.
