@@ -1,0 +1,128 @@
+{
+  "family": "pulse-code",
+  "id": "ir-nec",
+  "name": "Infrared remote (NEC style)",
+  "group": "Infrared",
+  "idle": "high",
+  "bitOrder": "lsb",
+  "frames": [
+    {
+      "name": "Command",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 8000,
+          "maxUs": 10000,
+          "label": "leader"
+        },
+        {
+          "level": "high",
+          "minUs": 4000,
+          "maxUs": 5000,
+          "label": "space"
+        }
+      ],
+      "bit": {
+        "first": "low",
+        "encoding": "second",
+        "other": [
+          400,
+          750
+        ],
+        "zero": [
+          400,
+          750
+        ],
+        "one": [
+          1400,
+          1950
+        ]
+      },
+      "bits": {
+        "min": 32,
+        "max": 32
+      },
+      "trailer": [
+        {
+          "level": "low",
+          "minUs": 400,
+          "maxUs": 750,
+          "label": "end"
+        }
+      ]
+    },
+    {
+      "name": "Repeat",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 8000,
+          "maxUs": 10000,
+          "label": "leader"
+        },
+        {
+          "level": "high",
+          "minUs": 1900,
+          "maxUs": 2600,
+          "label": "repeat"
+        },
+        {
+          "level": "low",
+          "minUs": 400,
+          "maxUs": 750,
+          "label": "end"
+        }
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "name": "address",
+      "bits": 8
+    },
+    {
+      "name": "address inverted",
+      "bits": 8
+    },
+    {
+      "name": "command",
+      "bits": 8
+    },
+    {
+      "name": "command inverted",
+      "bits": 8
+    }
+  ],
+  "checks": [
+    {
+      "kind": "inverse",
+      "a": 0,
+      "b": 1,
+      "message": "The second byte is not the inverse of the address. This may be extended NEC with a 16-bit address."
+    },
+    {
+      "kind": "inverse",
+      "a": 2,
+      "b": 3,
+      "message": "The fourth byte is not the inverse of the command: a bit was misread."
+    }
+  ],
+  "info": {
+    "what": "Output of an IR receiver module. Rests high, goes low while the remote sends.",
+    "confirm": "Starts with 9 ms low and 4.5 ms high. Then 32 bits: each has a 560 µs low mark; a short gap after it is 0 and a long gap is 1.",
+    "decoderTips": "One channel. The 32 bits are address, inverted address, command, inverted command.",
+    "lookalikes": "Other remote formats (RC5, Sony) use different start pulses.",
+    "symptoms": [
+      {
+        "symptom": "Only a short burst repeats while a button is held",
+        "cause": "NEC repeat codes: 9 ms low, 2.25 ms high, one mark",
+        "action": "Normal. The command is in the first, long frame."
+      },
+      {
+        "symptom": "Inverse bytes do not match",
+        "cause": "Extended NEC with a 16-bit address, or a misread bit",
+        "action": "If only the address pair fails, it is extended NEC."
+      }
+    ]
+  }
+}

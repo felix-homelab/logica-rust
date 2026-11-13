@@ -1,0 +1,46 @@
+{
+  "family": "pulse-code",
+  "id": "my-sensor",
+  "name": "My sensor",
+  "idle": "high",
+  "bitOrder": "msb",
+  "frames": [
+    {
+      "name": "Reading",
+      "preamble": [
+        {
+          "level": "low",
+          "minUs": 900,
+          "maxUs": 1100,
+          "label": "start"
+        }
+      ],
+      "bit": {
+        "first": "high",
+        "encoding": "first",
+        "zero": [
+          20,
+          40
+        ],
+        "one": [
+          60,
+          80
+        ],
+        "other": [
+          20,
+          80
+        ]
+      },
+      "bits": {
+        "min": 16,
+        "max": 16
+      }
+    }
+  ],
+  "info": {
+    "what": "Describe what the protocol is for.",
+    "confirm": "What to look for on the waveform.",
+    "decoderTips": "Which channel to use and how to read the bits.",
+    "lookalikes": "What else looks similar."
+  }
+}

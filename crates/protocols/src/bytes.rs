@@ -34,6 +34,19 @@ pub fn i2c_device(address: u8) -> Option<&'static str> {
     })
 }
 
+/// CRC-15 as used by CAN (polynomial 0x4599), over a list of bits.
+pub fn can_crc15(bits: &[u8]) -> u16 {
+    let mut crc: u16 = 0;
+    for &b in bits {
+        let next = u16::from(b & 1) ^ ((crc >> 14) & 1);
+        crc = (crc << 1) & 0x7fff;
+        if next == 1 {
+            crc ^= 0x4599;
+        }
+    }
+    crc
+}
+
 /// The lowest 8 bits of `v`.
 pub fn low_byte(v: u64) -> u8 {
     v.to_le_bytes()[0]
@@ -42,6 +55,14 @@ pub fn low_byte(v: u64) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn can_crc15_matches_the_reference_value() {
+        // CRC-15/CAN of the ASCII bits of "123456789" is 0x059E
+        let bits: Vec<u8> =
+            b"123456789".iter().flat_map(|&b| (0..8).map(move |k| (b >> (7 - k)) & 1)).collect();
+        assert_eq!(can_crc15(&bits), 0x059e);
+    }
 
     #[test]
     fn modbus_crc_of_a_read_request() {

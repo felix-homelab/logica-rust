@@ -1,0 +1,63 @@
+{
+  "family": "pulse-code",
+  "id": "ws2812",
+  "name": "WS2812 LED data",
+  "group": "Single-wire",
+  "idle": "low",
+  "minIdleUs": 40,
+  "bitOrder": "msb",
+  "frames": [
+    {
+      "name": "LED data",
+      "preamble": [],
+      "bit": {
+        "first": "high",
+        "encoding": "first",
+        "zero": [
+          0.2,
+          0.55
+        ],
+        "one": [
+          0.6,
+          1.0
+        ],
+        "other": [
+          0.2,
+          1.0
+        ]
+      },
+      "bits": {
+        "min": 24,
+        "max": 1000000
+      }
+    }
+  ],
+  "fields": [
+    {
+      "name": "G",
+      "bits": 8
+    },
+    {
+      "name": "R",
+      "bits": 8
+    },
+    {
+      "name": "B",
+      "bits": 8
+    }
+  ],
+  "repeatFields": true,
+  "info": {
+    "what": "Data for addressable LEDs (NeoPixel). Rests low.",
+    "confirm": "Every bit takes 1.25 µs (800 kHz). A short high pulse (about 0.4 µs) is 0, a long one (about 0.8 µs) is 1. Bits come in groups of 24 per LED.",
+    "decoderTips": "One channel. Colour order is green, red, blue. You need at least 10 MHz sampling to see it properly.",
+    "lookalikes": "An inverted UART also rests low, but its pulses come in many widths.",
+    "symptoms": [
+      {
+        "symptom": "Colours are swapped",
+        "cause": "The colour order is green, red, blue",
+        "action": "Read the first byte as green."
+      }
+    ]
+  }
+}

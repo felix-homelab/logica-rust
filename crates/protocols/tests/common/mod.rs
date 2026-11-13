@@ -174,3 +174,16 @@ pub fn count(r: &DecodeResult, code: ProblemCode) -> u64 {
 pub fn role(d: &Detection, key: &str) -> Option<u32> {
     d.roles.get(key).copied().flatten()
 }
+
+/// A generated capture, stored and analysed.
+pub fn generated(g: &logica_protocols::synth::GenCapture) -> Loaded {
+    let store = g.store().unwrap();
+    let meta = g.meta();
+    let analysis = analyse_capture(&store, &meta, registry()).unwrap();
+    Loaded { store, meta, analysis }
+}
+
+/// Labels of frames in annotation row `row`.
+pub fn labels(r: &DecodeResult, row: u8) -> Vec<String> {
+    r.frames.iter().filter(|f| f.row == row).map(|f| f.label.clone()).collect()
+}
