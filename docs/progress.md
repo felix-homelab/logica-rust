@@ -21,6 +21,8 @@ What is done, what is next, and decisions made on the way. Newest first.
 - Only an agent's view changes go into the history; the person's own scrolling and zooming do
   not.
 - The API version is written "major.minor" everywhere (contract and `session.get`).
+- `logica open <file>` hands the file to the app (doc 09), not to an in-process engine as doc 03's
+  diagram had it; it moves to M2 with the lock file (docs 03, 11; owner's decision).
 - TypeScript 7 (the native compiler; `tsc` as before). If M2's tooling (lint, bundler) still
   needs the TypeScript 5 programmatic API, the window packages pin that instead.
 - New dependencies: `schemars` (Rust, MIT: the contract schema from the types);
@@ -30,8 +32,7 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- `logica open` (docs 03 and 09 disagree on what it does; owner to decide), then the MCP server
-  and `render`, the Electron skeleton (spike S7) and the exit scenario.
+- The MCP server and `render`, the Electron skeleton (spike S7) and the exit scenario.
 
 ## M0 Foundations (November 2026)
 

@@ -21,7 +21,8 @@ from the window (ADR 0001). The engine is Rust; the window is Electron with Reac
  other agent ──Streamable HTTP─────────────────────────────┘
 
  headless (CI, no display, or --headless): `logica mcp --headless` ─▶ same ENGINE, no Node
- file tools: `logica convert` / `logica open` / `logica inspect` ─▶ ENGINE in-process
+ file tools: `logica convert` / `logica inspect` ─▶ ENGINE in-process
+ `logica open <file>` ─▶ the app, like a double-click (starts it if it is not running)
 ```
 
 ## Processes
@@ -31,7 +32,7 @@ from the window (ADR 0001). The engine is Rust; the window is Electron with Reac
 | **Main** (Electron) | Windows, menus, native dialogs, file associations, auto-update, the lock file | Electron requires it; kept thin so the window never stalls behind engine work |
 | **Engine** (Electron `utilityProcess`) | A thin Node host that loads the Rust engine as a Node-API module. The engine runs its own threads: ingest, decoding, file I/O, the MCP HTTP server | Off the main thread; can crash and restart without taking the window down |
 | **Renderer** (one per window; captures are tabs) | React UI, waveform drawing | Sandboxed, context isolation, no Node. Reaches the engine only through the command API from the preload |
-| **`logica`** (standalone Rust binary) | `logica mcp`: a stdio-to-HTTP MCP relay to the app, or a headless engine. Other subcommands: the engine in-process | Agents over stdio, CI, file conversion; needs no Node |
+| **`logica`** (standalone Rust binary) | `logica mcp`: a stdio-to-HTTP MCP relay to the app, or a headless engine. `logica open`: hands a file to the app. Other subcommands: the engine in-process | Agents over stdio, CI, file conversion; needs no Node |
 
 The window and the engine process talk over a `MessagePort` created by main (`MessageChannelMain`),
 so command traffic does not pass through the main process. Large drawing data (LOD buckets,

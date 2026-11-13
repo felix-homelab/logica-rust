@@ -19,7 +19,8 @@ third-party formats follow the clean-room rule (published specifications and our
 only, [clean-room.md](clean-room.md)) and have a `PROVENANCE.md`.
 
 Opening files: menu, command palette, drag and drop onto the window, double-click in the file
-manager (file associations for `.lacap`, `.demo`, `.sr`, `.vcd`), or `logica open <file>`.
+manager (file associations for `.lacap`, `.demo`, `.sr`, `.vcd`), or `logica open <file>` (hands the
+file to the running app, or starts the app with it).
 `logica convert <in> <out>` converts between formats without the app.
 
 ## Export
