@@ -57,9 +57,11 @@ blobs …     each: u32 type, u32 flags (0), u64 payload length, payload, u32 CR
                                       the fine LOD blob (0 and 0 where there is none); then for
                                       every non-quiet chunk, in chunk order, its coarse LOD (256
                                       u16 counts, 32 bytes of packed start levels)
-index       raw-deflate JSON: format "lacap", version, chunk size (2^24), capture metadata
-            (channels, segments, notes, …), where each channel table blob is, and the session
-            state saved with the capture (decoder instances, markers, range notes)
+index       raw-deflate JSON (camelCase keys): format "lacap", version [major, minor], chunk
+            size (2^24), sample count, initial level per channel (needed when there are no
+            chunks), capture metadata (channels, segments, notes, …), where each channel table
+            blob is ([offset, length] per channel), and the session state saved with the capture
+            (decoder instances, markers, range notes)
 footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserved, "LACAPEND"
 ```
 
@@ -73,7 +75,13 @@ footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserve
   become dead space. "Save as" writes a compact copy.
 - If saving is interrupted, the file ends in a partial append. The reader scans back for the last
   complete footer (its magic, an index that ends right before it, and the index CRC) and opens that
-  state with a note; the next save cuts the partial append off before writing.
+  state with a note; the next save cuts the partial append off before writing. The footer is
+  written last, so a footer magic at the very end whose index fails its CRC is damage, not an
+  interruption: the reader still falls back to an earlier save if there is one, and otherwise
+  reports the damage.
+- Opening checks every table against itself and the index: chunk count from the sample count,
+  kinds, transition counts within the limits of their kind, exit level = entry level flipped once
+  per transition, each chunk's entry = the previous chunk's exit, blob places inside the file.
 - A capture being recorded or imported lives in a working `.lacap` in the data folder (doc 04);
   saving there appends the chunks still only in the cache (for a small capture, all of them), then
   tables, index and footer.

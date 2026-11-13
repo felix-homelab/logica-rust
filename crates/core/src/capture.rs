@@ -2,17 +2,21 @@
 
 use std::ops::Range;
 
+use serde::{Deserialize, Serialize};
+
 use crate::Sample;
 
 /// Where a capture came from.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SourceKind {
     Device,
     File,
     Synthetic,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Source {
     pub kind: SourceKind,
     /// For example "FNIRSI .demo file mystery_D.demo" or "synthetic device, program mix".
@@ -20,7 +24,8 @@ pub struct Source {
 }
 
 /// One channel as the person sees it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelInfo {
     /// Physical channel number on the device or in the file (CH0 = 0).
     pub index: u32,
@@ -32,20 +37,23 @@ pub struct ChannelInfo {
     pub threshold_volts: Option<f64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum NoteLevel {
     Info,
     Warning,
 }
 
 /// Format surprises, dropped data, artefacts: shown to the person and in MCP summaries.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Note {
     pub level: NoteLevel,
     pub message: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CaptureState {
     Capturing,
     Complete,
@@ -53,7 +61,8 @@ pub enum CaptureState {
 }
 
 /// Decoder settings found in an imported file: shown for comparison, never used by detection.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SavedDecoder {
     /// The file's own protocol name, normalised to lower case (`uart`, `i2c`, `spi`, …).
     pub protocol: String,
@@ -64,7 +73,8 @@ pub struct SavedDecoder {
 }
 
 /// Everything about a capture except its transitions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CaptureMeta {
     pub id: String,
     pub title: String,

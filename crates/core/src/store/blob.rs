@@ -10,9 +10,8 @@ use super::{bits::idx, chunk::ChunkKind, chunk_base};
 
 pub const BLOB_CHUNK: u32 = 1;
 pub const BLOB_FINE_LOD: u32 = 2;
-#[expect(dead_code, reason = "used by the .lacap reader and writer in the next step")]
+#[expect(dead_code, reason = "annotation blobs are defined in M1 (doc 09)")]
 pub const BLOB_ANNOTATIONS: u32 = 3;
-#[expect(dead_code, reason = "used by the .lacap reader and writer in the next step")]
 pub const BLOB_CHANNEL_TABLE: u32 = 4;
 
 /// Bytes before the payload.

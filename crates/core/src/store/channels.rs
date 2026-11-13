@@ -70,7 +70,6 @@ impl CaptureStore {
     }
 
     /// A finished store from saved summaries (opening a `.lacap`): every chunk is in `backing`.
-    #[expect(dead_code, reason = "used by the .lacap reader in the next step")]
     pub(crate) fn from_parts(
         channels: Vec<(Level, Vec<ChunkSummary>)>,
         sample_count: Sample,
@@ -406,6 +405,21 @@ impl CaptureStore {
         let loc = BlobLoc { offset: at, len };
         let _ = cell.set(loc);
         Ok(loc)
+    }
+
+    /// Appends raw bytes (a `.lacap` blob) to the backing.
+    pub(crate) fn append_raw(&self, bytes: &[u8]) -> StoreResult<BlobLoc> {
+        let len = bytes.len() as u64;
+        let at = self.append_at.fetch_add(len, Ordering::AcqRel);
+        self.backing
+            .write_all_at(at, bytes)
+            .map_err(io_err("Could not write to the capture file"))?;
+        Ok(BlobLoc { offset: at, len })
+    }
+
+    /// Moves the append position (after an index and footer were written behind the blobs).
+    pub(crate) fn set_append_position(&self, at: u64) {
+        self.append_at.store(at, Ordering::Release);
     }
 
     /// Writes every cached item that is not in the backing yet (before saving).

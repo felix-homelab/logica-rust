@@ -8,6 +8,7 @@
 
 pub mod capture;
 pub mod io;
+pub mod lacap;
 pub mod store;
 
 pub use store::{Level, Sample};
