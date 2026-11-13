@@ -2,6 +2,33 @@
 
 What is done, what is next, and decisions made on the way. Newest first.
 
+## M1 Engine, CLI and MCP (in progress, November 2026)
+
+### Done
+
+- Crate `engine`: the command API (39 commands), engine-wide history with per-actor undo and
+  redo, device leases, events (doc 03, ADR 0008).
+- The contract as JSON Schema, generated from the Rust types and checked in
+  (`packages/api/schema/contract.json`); `packages/api` generates the TypeScript types, the
+  command list and a typed client from it. Both ends fail CI when a generated file is stale.
+
+### Decisions on the way
+
+- Only an agent's view changes go into the history; the person's own scrolling and zooming do
+  not.
+- The API version is written "major.minor" everywhere (contract and `session.get`).
+- TypeScript 7 (the native compiler; `tsc` as before). If M2's tooling (lint, bundler) still
+  needs the TypeScript 5 programmatic API, the window packages pin that instead.
+- New dependencies: `schemars` (Rust, MIT: the contract schema from the types);
+  `json-schema-to-typescript` (npm, MIT, dev only: types from the schema) and `typescript`
+  (Apache-2.0). The generator rewrites 2020-12 tuples (`prefixItems`) to the form that tool reads,
+  and objects without fields to `Record<string, never>`.
+
+### Next
+
+- The `logica` CLI (open, inspect, convert), then the MCP server and `render`, the Electron
+  skeleton (spike S7) and the exit scenario.
+
 ## M0 Foundations (November 2026)
 
 ### Done

@@ -258,6 +258,7 @@ fn every_format_opens_and_unknown_ones_are_explained() {
 #[test]
 fn inputs_are_checked_against_the_contract() {
     let mut e = Engine::new(EngineConfig::default());
+    assert_eq!(session(&mut e)["apiVersion"], "1.0");
     let c = open(&mut e, "1_UART_easy.demo");
     let (code, msg) = fail(&mut e, &agent(), "decoder.add", json!({ "capture": c, "protocol": "uart" }));
     assert_eq!(code, ErrorCode::InvalidInput);

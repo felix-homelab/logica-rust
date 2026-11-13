@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{API_VERSION, CommandError, ErrorCode, HistoryEntry};
+use crate::contract::{CommandError, ErrorCode, HistoryEntry};
 use crate::engine::{Ctx, Done, Engine, err};
 use crate::state::CaptureSummary;
 
@@ -19,7 +19,8 @@ pub struct RunningEntry {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionOut {
-    pub api_version: (u32, u32),
+    /// "major.minor" (doc 03).
+    pub api_version: String,
     /// Grows with every change; `state.changed` events carry it.
     pub revision: u64,
     /// The capture whose tab is in front.
@@ -34,7 +35,7 @@ pub struct SessionOut {
 pub(crate) fn get(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
     let devices = super::devices::entries(e);
     let s = SessionOut {
-        api_version: API_VERSION,
+        api_version: crate::contract::api_version(),
         revision: e.revision(),
         active: e.active.clone(),
         captures: e.captures.iter().map(|(id, c)| CaptureSummary::of(id, c)).collect(),

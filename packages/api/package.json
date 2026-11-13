@@ -1,0 +1,20 @@
+{
+  "name": "@logica/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "TypeScript types and client for Logica's command API, generated from the contract (doc 03)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "tsc -p tsconfig.json",
+    "lint": "node scripts/generate.mjs --check && tsc -p tsconfig.test.json",
+    "test": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^16.0.0",
+    "typescript": "^7.0.2"
+  }
+}

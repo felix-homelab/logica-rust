@@ -5,7 +5,7 @@
 use serde_json::{Map, Value, json};
 
 use crate::commands::spec;
-use crate::contract::{API_VERSION, CommandError, Event, HistoryEntry, Invocation};
+use crate::contract::{CommandError, Event, HistoryEntry, Invocation};
 
 /// Where the checked-in contract lives, relative to the workspace root.
 pub const CONTRACT_PATH: &str = "packages/api/schema/contract.json";
@@ -36,7 +36,7 @@ pub fn contract() -> Value {
     json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Logica command API",
-        "apiVersion": format!("{}.{}", API_VERSION.0, API_VERSION.1),
+        "apiVersion": crate::contract::api_version(),
         "commands": commands,
         "event": event,
         "error": error,

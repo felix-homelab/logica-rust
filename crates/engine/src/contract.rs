@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 /// major version.
 pub const API_VERSION: (u32, u32) = (1, 0);
 
+/// The API version as written in the contract and `session.get`: "major.minor".
+pub fn api_version() -> String {
+    format!("{}.{}", API_VERSION.0, API_VERSION.1)
+}
+
 /// Who sent a command: the person, an agent (by its client name), or the command line.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Actor {
