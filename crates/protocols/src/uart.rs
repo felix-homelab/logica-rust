@@ -84,7 +84,8 @@ pub struct UartMachine {
     cfg: Cfg,
     /// Next sample to look for a start bit.
     pos: Sample,
-    last_end: f64,
+    /// End of the last frame's stop bit (`None` before the first frame; JSON has no infinity).
+    last_end: Option<f64>,
     /// After a frame error: wait for the line to return to idle from here.
     resync: Option<Sample>,
     started: bool,
@@ -113,7 +114,7 @@ impl UartMachine {
                 limit,
             },
             pos: start,
-            last_end: f64::NEG_INFINITY,
+            last_end: None,
             resync: None,
             started: false,
             stats: UartStats::default(),
@@ -146,8 +147,10 @@ impl UartMachine {
             self.pos = start + 1;
             return Ok(true);
         }
-        if (start as f64) < self.last_end {
-            self.pos = num::ceil(self.last_end);
+        if let Some(last_end) = self.last_end
+            && (start as f64) < last_end
+        {
+            self.pos = num::ceil(last_end);
             return Ok(true);
         }
         let t = c.t;
@@ -221,7 +224,7 @@ impl UartMachine {
                 },
             ));
         }
-        if start as f64 - self.last_end > c.packet_gap || out.packets_opened() == 0 {
+        if self.last_end.is_none_or(|e| start as f64 - e > c.packet_gap) || out.packets_opened() == 0 {
             out.open_packet(start, format!("Packet at sample {start}"));
         }
         let parity_text =
@@ -245,8 +248,9 @@ impl UartMachine {
         if !is_break {
             out.byte(&c.stream, c.lane, crate::bytes::low_byte(u64::from(value)), end);
         }
-        self.last_end = start as f64 + t * (stop_at + 0.5);
-        self.pos = num::ceil(self.last_end);
+        let last_end = start as f64 + t * (stop_at + 0.5);
+        self.last_end = Some(last_end);
+        self.pos = num::ceil(last_end);
         if !stop_ok {
             // resynchronise on the next return to idle
             self.resync = Some(self.pos);

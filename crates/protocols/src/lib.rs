@@ -9,8 +9,11 @@ pub mod buses;
 pub mod bytes;
 pub mod calc;
 pub mod format;
+pub mod i2c;
 pub mod num;
 pub mod protocol;
+pub mod pwm;
+pub mod spi;
 pub mod stream;
 pub mod types;
 pub mod uart;
@@ -22,7 +25,13 @@ pub use protocol::{Protocol, Registry};
 
 /// Every built-in protocol, in the order of the protocol list.
 pub fn built_in() -> Vec<Arc<dyn Protocol>> {
-    vec![Arc::new(uart::Uart::default()), Arc::new(uart::UartInverted::default())]
+    vec![
+        Arc::new(uart::Uart::default()),
+        Arc::new(uart::UartInverted::default()),
+        Arc::new(i2c::I2c::default()),
+        Arc::new(spi::Spi::default()),
+        Arc::new(pwm::Pwm::default()),
+    ]
 }
 
 /// The registry of built-in protocols.

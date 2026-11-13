@@ -13,6 +13,27 @@ pub fn modbus_crc(bytes: &[u8]) -> u16 {
     crc
 }
 
+/// Common I2C parts by 7-bit address.
+pub fn i2c_device(address: u8) -> Option<&'static str> {
+    Some(match address {
+        0x20..=0x26 => "PCF8574 or MCP23017 I/O expander",
+        0x27 => "PCF8574 LCD backpack",
+        0x3c | 0x3d => "SSD1306 OLED display",
+        0x40 => "INA219, Si7021, HDC1080 or PCA9685",
+        0x44 => "SHT3x humidity sensor",
+        0x48 => "LM75 or TMP102 temperature sensor, ADS1115, PCF8591",
+        0x49..=0x4f => "LM75 or TMP102 temperature sensor, ADS1115",
+        0x50..=0x56 => "24Cxx EEPROM",
+        0x57 => "24Cxx EEPROM (on DS3231 modules)",
+        0x5a => "MLX90614, MPR121",
+        0x68 => "DS1307 or DS3231 clock, MPU6050",
+        0x69 => "MPU6050 (alternate)",
+        0x76 => "BMP280, BME280, MS5611",
+        0x77 => "BMP180, BMP280, BME280",
+        _ => return None,
+    })
+}
+
 /// The lowest 8 bits of `v`.
 pub fn low_byte(v: u64) -> u8 {
     v.to_le_bytes()[0]
