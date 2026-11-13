@@ -11,6 +11,8 @@ publish = false
 
 [workspace.dependencies]
 logica-core = { path = "crates/core" }
+logica-protocols = { path = "crates/protocols" }
+logica-fileio = { path = "crates/fileio" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

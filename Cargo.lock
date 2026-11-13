@@ -42,6 +42,12 @@ dependencies = [
 [[package]]
 name = "logica-drivers"
 version = "0.1.0"
+dependencies = [
+ "logica-core",
+ "logica-fileio",
+ "logica-protocols",
+ "serde_json",
+]
 
 [[package]]
 name = "logica-fileio"
