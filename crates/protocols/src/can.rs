@@ -833,9 +833,9 @@ mod tests {
         let o = decode(&l.edges, 4000, RATE, RATE);
         assert_eq!(o.notes, ["The bit rate is too high for this sample rate."]);
         assert!(o.frames.is_empty());
+        // a bit rate of 0 is raised to the lowest allowed (1,000 bit/s) before the decoder sees it
         let o = decode(&l.edges, 4000, RATE, 0.0);
-        assert_eq!(o.notes, ["The bit rate must be above zero."]);
-        assert!(o.frames.is_empty());
+        assert!(!o.notes.iter().any(|n| n.contains("above zero")));
     }
 
     #[test]

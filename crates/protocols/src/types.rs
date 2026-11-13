@@ -139,13 +139,15 @@ impl SettingSpec {
     pub fn value(&self, given: &Settings) -> SettingValue {
         let v = given.get(&self.key);
         match &self.kind {
-            SettingKind::Number { default, .. } => {
+            SettingKind::Number { default, min, max, .. } => {
                 let n = match v {
                     Some(SettingValue::Number(n)) => *n,
                     Some(SettingValue::Text(t)) => t.trim().parse().unwrap_or(f64::NAN),
                     _ => f64::NAN,
                 };
-                SettingValue::Number(if n.is_finite() { n } else { *default })
+                // a safety net: the command API (M1) rejects out-of-range values with a message
+                let n = if n.is_finite() { n } else { *default };
+                SettingValue::Number(n.max(min.unwrap_or(f64::MIN)).min(max.unwrap_or(f64::MAX)))
             }
             SettingKind::Boolean { default } => SettingValue::Bool(match v {
                 Some(SettingValue::Bool(b)) => *b,
