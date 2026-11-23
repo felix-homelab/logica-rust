@@ -245,6 +245,17 @@ details summary {
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-popover);
 }
+.drawer-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-drawer) - 1);
+  background: var(--scrim);
+}
+.inspector__close {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-1) var(--space-1) 0;
+}
 .center {
   display: flex;
   flex-direction: column;

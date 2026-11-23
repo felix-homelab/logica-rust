@@ -80,6 +80,10 @@ export function Workbench() {
   const [inspectorW, setInspectorW] = useStored('logica.inspectorW', 340);
   const [bottomH, setBottomH] = useStored('logica.bottomH', 240);
   const [narrow, setNarrow] = useState(window.innerWidth < 1280);
+  // below 1280 px the inspector is a drawer over the workspace (doc 08): closed until asked for
+  const [drawer, setDrawer] = useState(false);
+  const inspectorOpen = narrow ? drawer : showInspector;
+  const openInspector = useCallback(() => (narrow ? setDrawer(true) : setShowInspector(true)), [narrow, setShowInspector]);
   const expert = settings?.expert ?? false;
 
   useEffect(() => {
@@ -200,11 +204,11 @@ export function Workbench() {
       'history.redo': () => void run('history.redo', {}),
       palette: () => setPalette(true),
       search: () => {
-        setShowInspector(true);
+        openInspector();
         setInspector('search');
       },
       'view.sidebar': () => setShowSidebar(!showSidebar),
-      'view.inspector': () => setShowInspector(!showInspector),
+      'view.inspector': () => (narrow ? setDrawer(!drawer) : setShowInspector(!showInspector)),
       'view.bottom': () => setShowBottom(!showBottom),
       'zoom.in': () => zoom(0.5),
       'zoom.out': () => zoom(2),
@@ -217,10 +221,19 @@ export function Workbench() {
       demo: () => void demo(),
       settings: () => bridge().openSettings(),
     }),
-    [openDialog, save, active, run, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo],
+    [openDialog, save, active, run, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo, narrow, drawer, openInspector],
   );
 
   useEffect(() => bridge().onMenu((id) => actions[id]?.()), [actions]);
+  useEffect(() => {
+    if (!narrow) setDrawer(false);
+    if (!(narrow && drawer)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [narrow, drawer]);
   useEffect(() => bridge().onOpenFiles((files) => void openFiles(files)), [openFiles]);
 
   // every shortcut is handled here (doc 08: everything has a keyboard shortcut); the menu only
@@ -303,7 +316,7 @@ export function Workbench() {
       title: d.config.name,
       hint: `${int(d.packets)} packets`,
       run: () => {
-        setShowInspector(true);
+        openInspector();
         setInspector('decoders');
       },
     }));
@@ -372,7 +385,7 @@ export function Workbench() {
               Save
             </Button>
             <IconButton label="Bottom panel" shortcut={[mod(), 'J']} pressed={showBottom} icon={<PanelBottom />} onClick={actions['view.bottom']} />
-            <IconButton label="Inspector" shortcut={[mod(), 'I']} pressed={showInspector} icon={<PanelRight />} onClick={actions['view.inspector']} />
+            <IconButton label="Inspector" shortcut={[mod(), 'I']} pressed={inspectorOpen} icon={<PanelRight />} onClick={actions['view.inspector']} />
           </div>
         )}
       </header>
@@ -417,10 +430,26 @@ export function Workbench() {
                 </>
               )}
             </main>
-            {showInspector && (
-              <aside className="inspector" data-drawer={narrow || undefined} aria-label="Inspector">
+            {narrow && drawer && <div className="drawer-scrim" aria-hidden="true" onClick={() => setDrawer(false)} />}
+            {inspectorOpen && (
+              <aside
+                className="inspector"
+                data-drawer={narrow || undefined}
+                aria-label="Inspector"
+                onKeyDown={(e) => {
+                  if (narrow && e.key === 'Escape') {
+                    e.stopPropagation();
+                    setDrawer(false);
+                  }
+                }}
+              >
                 {!narrow && <Splitter orientation="vertical" label="Inspector width" value={inspectorW} min={260} max={560} onChange={setInspectorW} invert />}
                 <div className="inspector__content" style={{ width: inspectorW }}>
+                  {narrow && (
+                    <div className="inspector__close">
+                      <IconButton label="Close the inspector" shortcut={['Esc']} icon={<X />} onClick={() => setDrawer(false)} />
+                    </div>
+                  )}
                   <TabsRoot value={inspector} onValueChange={setInspector} className="tabs-fill">
                     <TabsList label="Inspector">
                       <TabsTrigger value="analysis">Analysis</TabsTrigger>

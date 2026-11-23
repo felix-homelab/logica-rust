@@ -133,3 +133,29 @@ test('app:// serves the window and nothing outside its folder', async () => {
   expect(await status('app://logica/%2e%2e%2f%2e%2e%2fpackage.json')).toBe(404);
   await app.close();
 });
+
+test('in a narrow window the inspector is a drawer that starts closed and closes again', async () => {
+  const { app, page } = await start([fixture('captures/1_UART_easy.demo')]);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1100, 760));
+  await expect(captureTab(page, '1_UART_easy.demo')).toBeVisible();
+  const inspector = page.getByRole('complementary', { name: 'Inspector' });
+  await expect(inspector).toHaveCount(0);
+  // nothing covers the bottom panel
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible();
+
+  await page.getByRole('toolbar', { name: 'Capture' }).getByRole('button', { name: 'Inspector' }).click();
+  await expect(inspector).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(inspector).toHaveCount(0);
+
+  await page.keyboard.press('Control+F');
+  await expect(inspector.getByRole('tab', { name: 'Search', selected: true })).toBeVisible();
+  await inspector.getByRole('button', { name: 'Close the inspector' }).click();
+  await expect(inspector).toHaveCount(0);
+
+  // wide again: the docked inspector is back
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1440, 900));
+  await expect(inspector).toBeVisible();
+  await app.close();
+});
