@@ -1,0 +1,14 @@
+# Text files are checked out with LF on every system. Generated files and snapshots are compared
+# byte for byte with what the code produces, so a CRLF checkout (Git's default on Windows) would
+# make them look out of date.
+* text=auto eol=lf
+
+# Capture and format fixtures are kept exactly as they are: importers must see the real bytes,
+# line endings included.
+fixtures/** -text
+
+# Binary files by extension, in case auto-detection guesses wrong
+*.png binary
+*.demo binary
+*.sr binary
+*.lacap binary
