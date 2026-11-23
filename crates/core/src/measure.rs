@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Level, Sample};
 
 /// A half-open stretch of samples; fractional ends come from averaged periods.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Span {
     pub start: f64,
     pub end: f64,
@@ -20,7 +20,7 @@ pub fn total_length(spans: &[Span]) -> f64 {
 }
 
 /// A group of similar pulse widths.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WidthCluster {
     pub min: u64,
@@ -31,7 +31,7 @@ pub struct WidthCluster {
     pub low: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Periodicity {
     /// Average rising-to-rising period inside bursts, in samples.
@@ -48,13 +48,13 @@ pub struct Periodicity {
     pub bursts: Vec<Span>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Narrowest {
     pub samples: f64,
     pub count: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelMeasurement {
     /// Physical channel number.

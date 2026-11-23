@@ -2,7 +2,7 @@
   "name": "logica-workspace",
   "private": true,
   "license": "Apache-2.0",
-  "description": "npm workspace for the Logica window (packages/, apps/); empty until M1",
+  "description": "npm workspace for the Logica window (packages/, apps/)",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -13,6 +13,8 @@
   "scripts": {
     "build": "node scripts/run-workspaces.mjs build",
     "lint": "node scripts/run-workspaces.mjs lint",
-    "test": "node scripts/run-workspaces.mjs test"
+    "test": "node scripts/run-workspaces.mjs test",
+    "start": "npm run start -w apps/desktop",
+    "package": "npm run build && npm run package -w apps/desktop"
   }
 }

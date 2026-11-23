@@ -1,0 +1,22 @@
+# Installers (doc 03): NSIS, AppImage and .deb, dmg. The engine module ships next to the app,
+# outside the asar archive, because a native module cannot be loaded from inside it.
+appId: app.logica.desktop
+productName: Logica
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: native
+    to: native
+    filter: ["*.node"]
+linux:
+  # not "logica": that name belongs to the command-line tool on the PATH
+  executableName: logica-app
+  target: [AppImage, deb]
+  category: Development
+win:
+  target: nsis
+mac:
+  target: dmg

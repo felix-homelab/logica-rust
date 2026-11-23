@@ -39,7 +39,7 @@ talking to the DLA-32 Plus at all, is tested right after M2, before any driver w
 - `engine`: command API with its contract and generated TypeScript types, events, actors, undo
   history and device leases (ADR 0008); in-process use and the Node-API binding.
 - MCP server over Streamable HTTP with the curated tools and `run_command` (doc 07); `logica mcp`
-  as stdio relay and in `--headless` mode; `logica convert`, `logica open`, `logica inspect`.
+  as stdio relay and in `--headless` mode; `logica convert`, `logica inspect`.
 - Spike S7 (Electron skeleton with an empty window attached to the engine).
 - `render`; resources; the `diagnose-bus` prompt.
 - **Exit:** from Claude Code, an agent opens `mystery_C.demo`, gets a summary naming I2C on CH4/CH5
@@ -49,7 +49,7 @@ talking to the DLA-32 Plus at all, is tested right after M2, before any driver w
 ### M2 Desktop app and viewer UI
 - Electron app (doc 03): engine process, security baseline, native frame and menus, native dialogs,
   file associations, drag and drop, tabs, settings window, lock file; `logica mcp` starting the app
-  when it is not running (ADR 0007).
+  when it is not running (ADR 0007); `logica open <file>` handing a file to the app the same way.
 - Design system and components in `packages/ui` (doc 08), command palette.
 - LOD waveform, cursors, markers, channel list, analysis panel, decoders, decoded table, search with
   query builder, activity feed with undo and "stop agent actions", lease display; shared session

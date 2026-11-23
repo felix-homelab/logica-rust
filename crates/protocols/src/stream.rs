@@ -24,6 +24,7 @@ pub type Res<T> = Result<T, Pending>;
 
 /// One channel bound to a decoder role.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BoundChannel {
     pub role: String,
     /// Physical channel number (the lane frames are drawn under).
@@ -33,6 +34,7 @@ pub struct BoundChannel {
 
 /// What a decoder is created from.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DecoderSetup {
     pub sample_rate_hz: f64,
     /// First sample of the decode; edges from here on are pushed.
@@ -62,6 +64,7 @@ struct SlotEdges {
 
 /// The edges of a decoder's channels received so far.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Edges {
     slots: Vec<SlotEdges>,
     /// Every edge before this has been received.
@@ -252,6 +255,7 @@ fn level_after_count(start: Level, n: u64) -> Level {
 
 /// What a decoder emitted since the last drain.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Output {
     pub frames: Vec<Frame>,
     /// Packets that are complete (a later packet has started, or the stream ended).
@@ -311,6 +315,7 @@ impl NewFrame {
 /// Collects frames and packets while a machine runs. With `keep` off (trial decodes during
 /// detection) nothing is stored.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Out {
     keep: bool,
     frames: Vec<Frame>,

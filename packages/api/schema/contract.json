@@ -1,0 +1,4618 @@
+{
+  "$defs": {
+    "Actor": {
+      "description": "Who sent a command: user, agent:<client name> or cli.",
+      "pattern": "^(user|cli|agent:.+)$",
+      "type": "string"
+    },
+    "AddCustomIn": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "description": "A custom protocol as JSON: the \"pulse-code\" or \"preset\" family (doc 06)."
+        }
+      },
+      "required": [
+        "config"
+      ],
+      "type": "object"
+    },
+    "Bus": {
+      "properties": {
+        "channels": {
+          "description": "Physical channel numbers, ascending.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the channels were put together (or left alone), in plain words.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "channels",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "BusAnalysis": {
+      "properties": {
+        "alternatives": {
+          "description": "Other candidates, for comparison and learning.",
+          "items": {
+            "$ref": "#/$defs/Detection"
+          },
+          "type": "array"
+        },
+        "bus": {
+          "$ref": "#/$defs/Bus"
+        },
+        "chosen": {
+          "description": "The best non-overlapping explanation of the bus, most confident first.",
+          "items": {
+            "$ref": "#/$defs/Detection"
+          },
+          "type": "array"
+        },
+        "rejections": {
+          "items": {
+            "$ref": "#/$defs/Rejection"
+          },
+          "type": "array"
+        },
+        "unexplained": {
+          "description": "Channels of the bus that no detection explains.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "bus",
+        "chosen",
+        "alternatives",
+        "rejections",
+        "unexplained"
+      ],
+      "type": "object"
+    },
+    "ByteAnalysis": {
+      "properties": {
+        "bytes": {
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "i2cFirstByte": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/I2cByte"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The first byte read as an I2C address byte, when that makes sense."
+        },
+        "isText": {
+          "type": "boolean"
+        },
+        "pairs": {
+          "description": "Pairs read as 16-bit values, when the bytes are not text.",
+          "items": {
+            "$ref": "#/$defs/PairRow"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "bytes",
+        "isText",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "BytesIn": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hex": {
+          "description": "Hex as typed by a person: \"48 65 6C\", \"0x48,0x65\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Capabilities": {
+      "properties": {
+        "channels": {
+          "description": "Physical channel numbers.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "limits": {
+          "description": "Rate limits by number of enabled channels, fewest channels first.",
+          "items": {
+            "$ref": "#/$defs/RateLimit"
+          },
+          "type": "array"
+        },
+        "maxSamples": {
+          "description": "Most samples per channel in one capture, where limited (buffer depth).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "modes": {
+          "items": {
+            "$ref": "#/$defs/CaptureMode"
+          },
+          "type": "array"
+        },
+        "outputs": {
+          "description": "Outputs (PWM); added with the first device that has them (M3).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ratesHz": {
+          "description": "Rates offered.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "threshold": {
+          "description": "Adjustable threshold: lowest, highest and step in volts.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "channels",
+        "ratesHz",
+        "limits",
+        "modes",
+        "outputs"
+      ],
+      "type": "object"
+    },
+    "CaptureAnalysis": {
+      "properties": {
+        "buses": {
+          "items": {
+            "$ref": "#/$defs/BusAnalysis"
+          },
+          "type": "array"
+        },
+        "measurements": {
+          "items": {
+            "$ref": "#/$defs/ChannelMeasurement"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "description": "Observations across buses (a TX/RX pair), and why the window is short if it is.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "window": {
+          "description": "The samples detection looked at.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "window",
+        "measurements",
+        "buses",
+        "notes"
+      ],
+      "type": "object"
+    },
+    "CaptureConfig": {
+      "properties": {
+        "channels": {
+          "description": "Enabled physical channels, ascending.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/CaptureMode"
+        },
+        "sampleRateHz": {
+          "format": "double",
+          "type": "number"
+        },
+        "samples": {
+          "description": "Samples per channel.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "thresholdVolts": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "channels",
+        "sampleRateHz",
+        "samples",
+        "mode"
+      ],
+      "type": "object"
+    },
+    "CaptureMode": {
+      "oneOf": [
+        {
+          "const": "buffer",
+          "description": "Record to device memory, then download.",
+          "type": "string"
+        },
+        {
+          "const": "stream",
+          "description": "Samples arrive while capturing.",
+          "type": "string"
+        }
+      ]
+    },
+    "CaptureOut": {
+      "properties": {
+        "capture": {
+          "$ref": "#/$defs/CaptureSummary"
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "CaptureRef": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "CaptureRenameIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "title"
+      ],
+      "type": "object"
+    },
+    "CaptureStartIn": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "title": {
+          "description": "The tab title; \"Capture N\" when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "wait": {
+          "description": "Wait until the capture ends (default). Without waiting, the capture runs on and\n`capture.done` follows.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "type": "object"
+    },
+    "CaptureStartOut": {
+      "properties": {
+        "capture": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The finished capture, when waited for."
+        },
+        "id": {
+          "description": "The id the capture gets.",
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "running"
+      ],
+      "type": "object"
+    },
+    "CaptureState": {
+      "enum": [
+        "capturing",
+        "complete",
+        "aborted"
+      ],
+      "type": "string"
+    },
+    "CaptureSummary": {
+      "properties": {
+        "artefact": {
+          "description": "Samples left out of analysis (a start-up artefact).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "channels": {
+          "items": {
+            "$ref": "#/$defs/ChannelEntry"
+          },
+          "type": "array"
+        },
+        "decoders": {
+          "items": {
+            "$ref": "#/$defs/DecoderSummary"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "markers": {
+          "items": {
+            "$ref": "#/$defs/Marker"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/Note"
+          },
+          "type": "array"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sampleCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sampleRateHz": {
+          "format": "double",
+          "type": "number"
+        },
+        "savedDecoders": {
+          "description": "Decoder settings found in the file: for comparison, never used by detection.",
+          "items": {
+            "$ref": "#/$defs/SavedDecoder"
+          },
+          "type": "array"
+        },
+        "seconds": {
+          "format": "double",
+          "type": "number"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "state": {
+          "$ref": "#/$defs/CaptureState"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trigger": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "view": {
+          "$ref": "#/$defs/View"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "source",
+        "sampleRateHz",
+        "sampleCount",
+        "seconds",
+        "state",
+        "notes",
+        "channels",
+        "decoders",
+        "markers",
+        "view",
+        "savedDecoders"
+      ],
+      "type": "object"
+    },
+    "ChannelColourIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "colour": {
+          "description": "\"#rrggbb\", or none for the default.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "channel"
+      ],
+      "type": "object"
+    },
+    "ChannelEntry": {
+      "properties": {
+        "colour": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "index": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "hidden"
+      ],
+      "type": "object"
+    },
+    "ChannelGroupIn": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "additionalProperties": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "description": "Replaces every group at once (what an undo uses).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "capture": {
+          "type": "string"
+        },
+        "channels": {
+          "description": "Its channels; none or empty removes the group. A channel leaves any other group.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "group": {
+          "description": "The bus group to set.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "ChannelHideIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "capture",
+        "channel",
+        "hidden"
+      ],
+      "type": "object"
+    },
+    "ChannelMeasurement": {
+      "properties": {
+        "burstGap": {
+          "format": "double",
+          "type": "number"
+        },
+        "bursts": {
+          "description": "Stretches of activity, split at pauses longer than `burst_gap`.",
+          "items": {
+            "$ref": "#/$defs/Span"
+          },
+          "type": "array"
+        },
+        "channel": {
+          "description": "Physical channel number.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "clusters": {
+          "description": "Pulse widths grouped, narrowest first.",
+          "items": {
+            "$ref": "#/$defs/WidthCluster"
+          },
+          "type": "array"
+        },
+        "edgeCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "firstEdge": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "glitches": {
+          "description": "Pulses well under half the narrowest repeated width.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "highFraction": {
+          "description": "Fraction of the active stretch spent high.",
+          "format": "double",
+          "type": "number"
+        },
+        "lastEdge": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "narrowest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Narrowest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Narrowest pulse that occurs repeatedly (single glitches ignored)."
+        },
+        "periodic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Periodicity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restLevel": {
+          "$ref": "#/$defs/Level",
+          "description": "Level during quiet stretches."
+        }
+      },
+      "required": [
+        "channel",
+        "edgeCount",
+        "restLevel",
+        "glitches",
+        "clusters",
+        "highFraction",
+        "bursts",
+        "burstGap"
+      ],
+      "type": "object"
+    },
+    "ChannelRenameIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "channel": {
+          "description": "Physical channel number.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "channel",
+        "name"
+      ],
+      "type": "object"
+    },
+    "CommandError": {
+      "description": "An error worded for the person or agent: what is wrong and what to do.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "DecodedQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "decoder": {
+          "description": "A decoder id on the capture.",
+          "type": "string"
+        },
+        "hasProblem": {
+          "default": false,
+          "description": "Only frames with any problem.",
+          "type": "boolean"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "description": "Exact label, such as \"NACK\" or \"4F\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProblemCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only frames with this problem."
+        },
+        "text": {
+          "description": "Contained in the label or detail (any case).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "decoder"
+      ],
+      "type": "object"
+    },
+    "DecoderAddIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "id": {
+          "description": "The decoder id to use (redo and undo use the id it had); a new one when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocol": {
+          "description": "A protocol id from protocol.list, such as \"i2c\".",
+          "type": "string"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "description": "Role to physical channel, such as {\"scl\": 5, \"sda\": 4}.",
+          "type": "object"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "capture",
+        "protocol",
+        "roles"
+      ],
+      "type": "object"
+    },
+    "DecoderConfig": {
+      "description": "A decoder's configuration: what `decoder.add` takes and an undo restores.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "protocol",
+        "roles",
+        "settings",
+        "name"
+      ],
+      "type": "object"
+    },
+    "DecoderFramesIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "cursor": {
+          "description": "From the previous page's `nextCursor`.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "decoder": {
+          "type": "string"
+        },
+        "explain": {
+          "default": false,
+          "description": "Group the problems and explain likely causes.",
+          "type": "boolean"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only frames of this kind."
+        },
+        "limit": {
+          "description": "Items per page (default 100, at most 1,000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "packets": {
+          "default": false,
+          "description": "Packets (a UART line, an I2C transaction) instead of single frames.",
+          "type": "boolean"
+        },
+        "problems": {
+          "default": false,
+          "description": "Only frames (or packets with frames) that have problems.",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "Only items whose label, detail, title or text contains this (any case).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "decoder"
+      ],
+      "type": "object"
+    },
+    "DecoderFramesOut": {
+      "properties": {
+        "explanation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Explanation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "packets": {
+          "items": {
+            "$ref": "#/$defs/PacketItem"
+          },
+          "type": "array"
+        },
+        "total": {
+          "description": "Items that match, over all pages.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "frames",
+        "packets"
+      ],
+      "type": "object"
+    },
+    "DecoderOut": {
+      "properties": {
+        "decoder": {
+          "$ref": "#/$defs/DecoderSummary"
+        }
+      },
+      "required": [
+        "decoder"
+      ],
+      "type": "object"
+    },
+    "DecoderRef": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "decoder": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "decoder"
+      ],
+      "type": "object"
+    },
+    "DecoderSummary": {
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/DecoderConfig"
+        },
+        "frames": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packets": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "problemCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "checksum": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame-error": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "glitch": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "incomplete": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "parity-error": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "protocol": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stuffing": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "timing": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "config",
+        "frames",
+        "packets",
+        "problemCounts",
+        "notes"
+      ],
+      "type": "object"
+    },
+    "DecoderUpdateIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "decoder": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replaceSettings": {
+          "default": false,
+          "description": "Replace all settings instead of merging (what an undo uses).",
+          "type": "boolean"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "description": "New roles (all of them).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "description": "Settings to change; the others keep their values.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "decoder"
+      ],
+      "type": "object"
+    },
+    "DecoderUpdateOut": {
+      "properties": {
+        "decoder": {
+          "$ref": "#/$defs/DecoderSummary"
+        },
+        "problemChanges": {
+          "description": "How the problem counts changed.",
+          "items": {
+            "$ref": "#/$defs/ProblemChange"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "decoder",
+        "problemChanges"
+      ],
+      "type": "object"
+    },
+    "Detection": {
+      "properties": {
+        "channels": {
+          "description": "Physical channels this detection explains, ascending.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "confidence": {
+          "description": "0 to 1.",
+          "format": "double",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingNote"
+          },
+          "description": "Why each setting (or role, keyed \"role:<key>\") has its value.",
+          "type": "object"
+        },
+        "protocolId": {
+          "type": "string"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocolId",
+        "channels",
+        "roles",
+        "settings",
+        "notes",
+        "confidence",
+        "evidence",
+        "warnings"
+      ],
+      "type": "object"
+    },
+    "DeviceConfigureIn": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/CaptureConfig"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device",
+        "config"
+      ],
+      "type": "object"
+    },
+    "DeviceEntry": {
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "capturing": {
+          "description": "Whether a capture is running on it.",
+          "type": "boolean"
+        },
+        "connected": {
+          "type": "boolean"
+        },
+        "holder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Actor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who holds the lease, if anyone."
+        },
+        "info": {
+          "$ref": "#/$defs/DeviceInfo"
+        }
+      },
+      "required": [
+        "info",
+        "capabilities",
+        "connected",
+        "capturing"
+      ],
+      "type": "object"
+    },
+    "DeviceInfo": {
+      "properties": {
+        "channels": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "driver": {
+          "description": "Driver id: \"synthetic\", \"fnirsi-dla\", \"fx2lafw\".",
+          "type": "string"
+        },
+        "firmware": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Stable id, such as \"synthetic/mix\" or a USB serial.",
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "serial": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "driver",
+        "model",
+        "channels"
+      ],
+      "type": "object"
+    },
+    "DeviceListOut": {
+      "properties": {
+        "devices": {
+          "items": {
+            "$ref": "#/$defs/DeviceEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "devices"
+      ],
+      "type": "object"
+    },
+    "DeviceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "description": "A device id from device.list, such as \"synthetic/mix\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "type": "object"
+    },
+    "Direction": {
+      "enum": [
+        "rising",
+        "falling",
+        "any"
+      ],
+      "type": "string"
+    },
+    "EdgeOut": {
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "level": {
+          "$ref": "#/$defs/Level",
+          "description": "Level from this sample on."
+        },
+        "sample": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "seconds": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "channel",
+        "sample",
+        "seconds",
+        "level"
+      ],
+      "type": "object"
+    },
+    "EdgeQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        }
+      },
+      "required": [
+        "channel",
+        "direction"
+      ],
+      "type": "object"
+    },
+    "ErrorCode": {
+      "oneOf": [
+        {
+          "enum": [
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "invalid-input",
+          "description": "The input does not match the contract or is impossible (\"300 MHz with 20 channels\").",
+          "type": "string"
+        },
+        {
+          "const": "not-found",
+          "description": "A capture, decoder, marker, device or history entry that does not exist.",
+          "type": "string"
+        },
+        {
+          "const": "busy",
+          "description": "The device is leased by someone else, or a capture is running.",
+          "type": "string"
+        },
+        {
+          "const": "not-allowed",
+          "description": "Outputs are switched off, or an agent's actions are paused by the person.",
+          "type": "string"
+        },
+        {
+          "const": "not-undoable",
+          "description": "Asked for something this command cannot do (undo of a file write).",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Anything else; the message says what happened and what to do.",
+          "type": "string"
+        }
+      ]
+    },
+    "Event": {
+      "description": "Sent to every attached client (doc 03).",
+      "oneOf": [
+        {
+          "properties": {
+            "capture": {
+              "type": "string"
+            },
+            "event": {
+              "const": "capture.progress",
+              "type": "string"
+            },
+            "fraction": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "samples": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "event",
+            "capture",
+            "samples"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "capture": {
+              "type": "string"
+            },
+            "event": {
+              "const": "capture.done",
+              "type": "string"
+            },
+            "samples": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stopped": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "event",
+            "capture",
+            "samples",
+            "stopped"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Also after undo, redo, open and close.",
+          "properties": {
+            "capture": {
+              "type": "string"
+            },
+            "decoder": {
+              "type": "string"
+            },
+            "event": {
+              "const": "decoder.updated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "capture",
+            "decoder"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "actor": {
+              "$ref": "#/$defs/Actor"
+            },
+            "capture": {
+              "type": "string"
+            },
+            "event": {
+              "const": "view.changed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "capture",
+            "actor"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "device": {
+              "type": "string"
+            },
+            "event": {
+              "const": "lease.changed",
+              "type": "string"
+            },
+            "holder": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Actor"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "event",
+            "device"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "device": {
+              "type": "string"
+            },
+            "event": {
+              "const": "device.disconnected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "device"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "actor": {
+              "$ref": "#/$defs/Actor"
+            },
+            "command": {
+              "type": "string"
+            },
+            "entry": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "event": {
+              "const": "command.executed",
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "actor",
+            "command",
+            "summary"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Read the session again: after any recorded command, undo, redo or lease change.",
+          "properties": {
+            "event": {
+              "const": "state.changed",
+              "type": "string"
+            },
+            "revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "event",
+            "revision"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Evidence": {
+      "properties": {
+        "supports": {
+          "description": "Whether the observation supports the protocol or counts against it.",
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "supports"
+      ],
+      "type": "object"
+    },
+    "Explanation": {
+      "properties": {
+        "causes": {
+          "description": "Symptoms, causes and actions for this protocol (doc 06, symptom tables).",
+          "items": {
+            "$ref": "#/$defs/Symptom"
+          },
+          "type": "array"
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/ProblemGroup"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "problems",
+        "causes"
+      ],
+      "type": "object"
+    },
+    "FileOpenIn": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The capture id to use (redo uses the id it had); a new one when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "A path on the machine running the engine.",
+          "type": "string"
+        },
+        "title": {
+          "description": "The tab title; the file name when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "FileSaveIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Where to save; a path ending in .lacap. Without it, the .lacap the capture came from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "FileSaveOut": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "Finding": {
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/FindingId"
+        },
+        "mono": {
+          "description": "Monospace excerpt (decoded text, BCD digits).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "tone": {
+          "$ref": "#/$defs/Tone"
+        }
+      },
+      "required": [
+        "id",
+        "tone",
+        "title",
+        "body"
+      ],
+      "type": "object"
+    },
+    "FindingId": {
+      "enum": [
+        "text",
+        "transformed-text",
+        "modbus",
+        "checksum-sum",
+        "checksum-xor",
+        "bcd",
+        "all-ff",
+        "all00",
+        "none"
+      ],
+      "type": "string"
+    },
+    "Frame": {
+      "description": "One annotation.",
+      "properties": {
+        "detail": {
+          "description": "Longer explanation for the table and tooltips.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/FrameKind"
+        },
+        "label": {
+          "description": "Short label under the waveform, such as \"4F\".",
+          "type": "string"
+        },
+        "lane": {
+          "description": "Physical channel it belongs under.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "packet": {
+          "description": "Index of the packet it belongs to.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/Problem"
+          },
+          "type": "array"
+        },
+        "row": {
+          "description": "Annotation row under the lane: 0 for bytes and fields, 1 for single bits.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "value": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "lane",
+        "kind",
+        "label",
+        "problems",
+        "packet",
+        "row"
+      ],
+      "type": "object"
+    },
+    "FrameKind": {
+      "enum": [
+        "data",
+        "address",
+        "start",
+        "repeated-start",
+        "stop",
+        "ack",
+        "nack",
+        "break",
+        "reset",
+        "presence",
+        "field",
+        "command",
+        "sample",
+        "cycle",
+        "info"
+      ],
+      "type": "string"
+    },
+    "HistoryEntry": {
+      "description": "One entry of the engine-wide history (ADR 0008).",
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "discarded": {
+          "description": "Undone, and then the same actor did something new: it can no longer be redone.",
+          "type": "boolean"
+        },
+        "done": {
+          "$ref": "#/$defs/Invocation"
+        },
+        "id": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "inverse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Invocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`None` when the command cannot be undone."
+        },
+        "neverBecause": {
+          "description": "Why it cannot be undone, when it cannot.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "description": "Plain-language line for the activity feed: \"Claude added an I2C decoder on CH4 and CH5\".",
+          "type": "string"
+        },
+        "undone": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "actor",
+        "done",
+        "undone",
+        "discarded",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "HistoryListIn": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "Most entries to return (default 50).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "HistoryListOut": {
+      "properties": {
+        "entries": {
+          "description": "Newest first.",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "HistoryOut": {
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/HistoryEntry"
+        }
+      },
+      "required": [
+        "entry"
+      ],
+      "type": "object"
+    },
+    "HistoryPick": {
+      "additionalProperties": false,
+      "properties": {
+        "entry": {
+          "description": "A history entry by id; without it, the actor's own last action.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Hit": {
+      "properties": {
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "seconds": {
+          "format": "double",
+          "type": "number"
+        },
+        "start": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "what": {
+          "description": "What was found: a frame label, \"rising edge on CH5\", \"high pulse of 80 ns on CH3\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "seconds",
+        "what"
+      ],
+      "type": "object"
+    },
+    "I2cByte": {
+      "properties": {
+        "address": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "device": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "read": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "address",
+        "read"
+      ],
+      "type": "object"
+    },
+    "Invocation": {
+      "description": "A command call as data: what the history stores and `run_command` takes.",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "input": true
+      },
+      "required": [
+        "command",
+        "input"
+      ],
+      "type": "object"
+    },
+    "LeaseOut": {
+      "properties": {
+        "holder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Actor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Level": {
+      "description": "A digital level.",
+      "enum": [
+        "low",
+        "high"
+      ],
+      "type": "string"
+    },
+    "LevelQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "level": {
+          "$ref": "#/$defs/Level"
+        }
+      },
+      "required": [
+        "channel",
+        "level"
+      ],
+      "type": "object"
+    },
+    "Marker": {
+      "properties": {
+        "at": {
+          "description": "Sample of the marker, or the start of a range note.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "by": {
+          "$ref": "#/$defs/Actor",
+          "description": "Who placed it; agents' markers carry an \"agent\" badge in the window."
+        },
+        "end": {
+          "description": "End of a range note.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "at",
+        "label",
+        "by"
+      ],
+      "type": "object"
+    },
+    "MarkerAddIn": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Actor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who placed it, when an undo restores someone else's marker (honoured for the person only)."
+        },
+        "capture": {
+          "type": "string"
+        },
+        "end": {
+          "description": "End of a range note.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The marker id to use (redo and undo use the id it had); a new one when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "moveView": {
+          "default": false,
+          "description": "Move the view so the marker is in the middle.",
+          "type": "boolean"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "at",
+        "label"
+      ],
+      "type": "object"
+    },
+    "MarkerOut": {
+      "properties": {
+        "marker": {
+          "$ref": "#/$defs/Marker"
+        }
+      },
+      "required": [
+        "marker"
+      ],
+      "type": "object"
+    },
+    "MarkerRef": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "marker": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "marker"
+      ],
+      "type": "object"
+    },
+    "MarkerUpdateIn": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "capture": {
+          "type": "string"
+        },
+        "clearEnd": {
+          "default": false,
+          "type": "boolean"
+        },
+        "clearNote": {
+          "default": false,
+          "type": "boolean"
+        },
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marker": {
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "marker"
+      ],
+      "type": "object"
+    },
+    "MeasureBetweenIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capture",
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "MeasureBetweenOut": {
+      "properties": {
+        "frequencyHz": {
+          "description": "1 ÷ the time, when it is not zero.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "samples": {
+          "format": "int128",
+          "type": "integer"
+        },
+        "seconds": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "samples",
+        "seconds"
+      ],
+      "type": "object"
+    },
+    "MeasureEdgesIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "channels": {
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "cursor": {
+          "description": "From the previous page's `nextCursor`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "limit": {
+          "description": "Edges per page (default 1,000, at least 64, at most 10,000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "channels"
+      ],
+      "type": "object"
+    },
+    "MeasureEdgesOut": {
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/EdgeOut"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "edges"
+      ],
+      "type": "object"
+    },
+    "MeasureStatsIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "channel"
+      ],
+      "type": "object"
+    },
+    "MeasureStatsOut": {
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dutyCycle": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "edges": {
+          "description": "Level changes in the range (exact).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frequencyHz": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "glitches": {
+          "description": "Pulses well under half the narrowest repeated width.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "highSeconds": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "narrowestPulseSeconds": {
+          "description": "Narrowest pulse that occurs repeatedly.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "note": {
+          "description": "Set when only part of the range was measured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "periodSeconds": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restLevel": {
+          "$ref": "#/$defs/Level"
+        },
+        "seconds": {
+          "format": "double",
+          "type": "number"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "channel",
+        "from",
+        "to",
+        "seconds",
+        "edges",
+        "restLevel",
+        "glitches"
+      ],
+      "type": "object"
+    },
+    "Narrowest": {
+      "properties": {
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "samples": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "samples",
+        "count"
+      ],
+      "type": "object"
+    },
+    "Note": {
+      "description": "Format surprises, dropped data, artefacts: shown to the person and in MCP summaries.",
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/NoteLevel"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "message"
+      ],
+      "type": "object"
+    },
+    "NoteLevel": {
+      "enum": [
+        "info",
+        "warning"
+      ],
+      "type": "string"
+    },
+    "Nothing": {
+      "additionalProperties": false,
+      "description": "Input of commands that take nothing.",
+      "type": "object"
+    },
+    "Origin": {
+      "enum": [
+        "built-in",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "Packet": {
+      "description": "A group of frames (a UART line, an I2C transaction, a chip-select frame) with its bytes.",
+      "properties": {
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "index": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "streams": {
+          "items": {
+            "$ref": "#/$defs/PacketStream"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "start",
+        "end",
+        "title",
+        "streams"
+      ],
+      "type": "object"
+    },
+    "PacketItem": {
+      "properties": {
+        "packet": {
+          "$ref": "#/$defs/Packet"
+        },
+        "text": {
+          "description": "Every stream as text, labelled: \"Write to 0x57: ·· | Read from 0x57: CALIBRATED 2026\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "packet",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PacketStream": {
+      "properties": {
+        "bytes": {
+          "items": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "label": {
+          "description": "\"MOSI\", \"Write to 0x50\", \"RX\", …",
+          "type": "string"
+        },
+        "lane": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "label",
+        "lane",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "PairRow": {
+      "properties": {
+        "bigEndian": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "bigEndianSigned": {
+          "format": "int16",
+          "maximum": 32767,
+          "minimum": -32768,
+          "type": "integer"
+        },
+        "hex": {
+          "type": "string"
+        },
+        "littleEndian": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "littleEndianSigned": {
+          "format": "int16",
+          "maximum": 32767,
+          "minimum": -32768,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hex",
+        "bigEndian",
+        "bigEndianSigned",
+        "littleEndian",
+        "littleEndianSigned"
+      ],
+      "type": "object"
+    },
+    "Periodicity": {
+      "properties": {
+        "bursts": {
+          "items": {
+            "$ref": "#/$defs/Span"
+          },
+          "type": "array"
+        },
+        "continuous": {
+          "description": "The signal never pauses between its first and last edge and spans most of the window.",
+          "type": "boolean"
+        },
+        "dutyCycle": {
+          "format": "double",
+          "type": "number"
+        },
+        "highSamples": {
+          "description": "Average high time, in samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "periodSamples": {
+          "description": "Average rising-to-rising period inside bursts, in samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "pulsesPerBurst": {
+          "description": "Clock pulses per burst (bursts split at pauses longer than 3 periods).",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "regularity": {
+          "description": "Fraction of periods within a few percent of the typical one (1 = perfectly regular).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "periodSamples",
+        "highSamples",
+        "dutyCycle",
+        "regularity",
+        "continuous",
+        "pulsesPerBurst",
+        "bursts"
+      ],
+      "type": "object"
+    },
+    "Problem": {
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ProblemCode"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "ProblemChange": {
+      "properties": {
+        "after": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "before": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "code": {
+          "$ref": "#/$defs/ProblemCode"
+        }
+      },
+      "required": [
+        "code",
+        "before",
+        "after"
+      ],
+      "type": "object"
+    },
+    "ProblemCode": {
+      "enum": [
+        "frame-error",
+        "parity-error",
+        "incomplete",
+        "glitch",
+        "checksum",
+        "stuffing",
+        "timing",
+        "protocol"
+      ],
+      "type": "string"
+    },
+    "ProblemGroup": {
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ProblemCode"
+        },
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first": {
+          "description": "Sample of the first one, to jump to.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "messages": {
+          "description": "Different messages seen (at most three).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "count",
+        "messages"
+      ],
+      "type": "object"
+    },
+    "ProtocolEntry": {
+      "properties": {
+        "aliasOf": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group": {
+          "type": "string"
+        },
+        "hasDecoder": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/RoleSpec"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/SettingSpec"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "group",
+        "origin",
+        "roles",
+        "settings",
+        "hasDecoder"
+      ],
+      "type": "object"
+    },
+    "ProtocolInfo": {
+      "description": "What the person (or agent) can learn about a protocol from the tool itself.",
+      "properties": {
+        "confirm": {
+          "description": "How to confirm it on the waveform.",
+          "type": "string"
+        },
+        "decoderTips": {
+          "description": "What to set in the decoder.",
+          "type": "string"
+        },
+        "lookalikes": {
+          "description": "What else looks similar and how to tell them apart.",
+          "type": "string"
+        },
+        "symptoms": {
+          "items": {
+            "$ref": "#/$defs/Symptom"
+          },
+          "type": "array"
+        },
+        "what": {
+          "description": "What it is and where you meet it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "what",
+        "confirm",
+        "decoderTips",
+        "lookalikes",
+        "symptoms"
+      ],
+      "type": "object"
+    },
+    "ProtocolInfoOut": {
+      "properties": {
+        "info": {
+          "$ref": "#/$defs/ProtocolInfo"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProtocolEntry"
+        }
+      },
+      "required": [
+        "protocol",
+        "info"
+      ],
+      "type": "object"
+    },
+    "ProtocolListOut": {
+      "properties": {
+        "protocols": {
+          "items": {
+            "$ref": "#/$defs/ProtocolEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocols"
+      ],
+      "type": "object"
+    },
+    "ProtocolRef": {
+      "additionalProperties": false,
+      "properties": {
+        "protocol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol"
+      ],
+      "type": "object"
+    },
+    "PulseQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "level": {
+          "$ref": "#/$defs/Level"
+        },
+        "longerThan": {
+          "description": "Seconds.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "shorterThan": {
+          "description": "Seconds.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "channel",
+        "level"
+      ],
+      "type": "object"
+    },
+    "Query": {
+      "description": "A search (doc 06): a typed structure, not a text grammar. `decoded`, `edge` and `pulse` produce\nhits; `within`, `level`, `not` and further producers filter them inside `all`.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "items": {
+                "$ref": "#/$defs/Query"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "all"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "items": {
+                "$ref": "#/$defs/Query"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/Query"
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "decoded": {
+              "$ref": "#/$defs/DecodedQuery"
+            }
+          },
+          "required": [
+            "decoded"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edge": {
+              "$ref": "#/$defs/EdgeQuery"
+            }
+          },
+          "required": [
+            "edge"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pulse": {
+              "$ref": "#/$defs/PulseQuery"
+            }
+          },
+          "required": [
+            "pulse"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/LevelQuery"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "within": {
+              "$ref": "#/$defs/WithinQuery"
+            }
+          },
+          "required": [
+            "within"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RangeIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "First sample; after the start-up artefact when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "End sample (exclusive); the end of the detection window when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "RateLimit": {
+      "description": "The fastest rate with up to `max_channels` channels enabled.",
+      "properties": {
+        "maxChannels": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxRateHz": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxChannels",
+        "maxRateHz"
+      ],
+      "type": "object"
+    },
+    "Rejection": {
+      "properties": {
+        "because": {
+          "type": "string"
+        },
+        "protocolId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocolId",
+        "because"
+      ],
+      "type": "object"
+    },
+    "RenderIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "First sample; the person's view when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "End sample (exclusive); the person's view, or the whole capture, when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "width": {
+          "description": "Pixels (default 1200, 320 to 4000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "RenderOut": {
+      "properties": {
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pngBase64": {
+          "description": "The PNG, base64-encoded.",
+          "type": "string"
+        },
+        "rows": {
+          "description": "What the picture shows, top to bottom: the time axis, channels, decoder rows, markers.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pngBase64",
+        "width",
+        "height",
+        "from",
+        "to",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "RoleSpec": {
+      "description": "A channel a protocol needs.",
+      "properties": {
+        "help": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "noun": {
+          "description": "Short noun for setup messages: \"the data line\" in \"Choose a channel for the data line.\"",
+          "type": "string"
+        },
+        "optional": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "noun",
+        "help",
+        "optional"
+      ],
+      "type": "object"
+    },
+    "RunningEntry": {
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device",
+        "capture"
+      ],
+      "type": "object"
+    },
+    "SavedDecoder": {
+      "description": "Decoder settings found in an imported file: shown for comparison, never used by detection.",
+      "properties": {
+        "channels": {
+          "description": "Role name to physical channel; `None` where the file leaves it unassigned.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "options": {
+          "description": "Option name to value, as text.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "protocol": {
+          "description": "The file's own protocol name, normalised to lower case (`uart`, `i2c`, `spi`, …).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol",
+        "channels",
+        "options"
+      ],
+      "type": "object"
+    },
+    "SearchIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "limit": {
+          "description": "Most hits (default 100, at most 1,000).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "query": {
+          "$ref": "#/$defs/Query"
+        }
+      },
+      "required": [
+        "capture",
+        "query"
+      ],
+      "type": "object"
+    },
+    "SearchOut": {
+      "properties": {
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/Hit"
+          },
+          "type": "array"
+        },
+        "truncated": {
+          "description": "More hits exist than were returned.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hits",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "SessionOut": {
+      "properties": {
+        "active": {
+          "description": "The capture whose tab is in front.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "apiVersion": {
+          "description": "\"major.minor\" (doc 03).",
+          "type": "string"
+        },
+        "captures": {
+          "items": {
+            "$ref": "#/$defs/CaptureSummary"
+          },
+          "type": "array"
+        },
+        "devices": {
+          "items": {
+            "$ref": "#/$defs/DeviceEntry"
+          },
+          "type": "array"
+        },
+        "recent": {
+          "description": "The latest history entries, newest first.",
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "description": "Grows with every change; `state.changed` events carry it.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "running": {
+          "items": {
+            "$ref": "#/$defs/RunningEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "revision",
+        "captures",
+        "devices",
+        "running",
+        "recent"
+      ],
+      "type": "object"
+    },
+    "SettingKind": {
+      "oneOf": [
+        {
+          "properties": {
+            "default": {
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "number",
+              "type": "string"
+            },
+            "max": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "presets": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "default",
+            "presets"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "default": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "choice",
+              "type": "string"
+            },
+            "options": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "default",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "default": {
+              "type": "boolean"
+            },
+            "kind": {
+              "const": "boolean",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "default"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SettingNote": {
+      "properties": {
+        "confidence": {
+          "description": "0 to 1.",
+          "format": "double",
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "confidence",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "SettingSpec": {
+      "properties": {
+        "help": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SettingKind"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "SettingValue": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "format": "double",
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "A setting's value: a number, a choice (text) or a switch."
+    },
+    "Source": {
+      "properties": {
+        "detail": {
+          "description": "For example \"FNIRSI .demo file mystery_D.demo\" or \"synthetic device, program mix\".",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind"
+        }
+      },
+      "required": [
+        "kind",
+        "detail"
+      ],
+      "type": "object"
+    },
+    "SourceKind": {
+      "description": "Where a capture came from.",
+      "enum": [
+        "device",
+        "file",
+        "synthetic"
+      ],
+      "type": "string"
+    },
+    "Span": {
+      "description": "A half-open stretch of samples; fractional ends come from averaged periods.",
+      "properties": {
+        "end": {
+          "format": "double",
+          "type": "number"
+        },
+        "start": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "Symptom": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "cause": {
+          "type": "string"
+        },
+        "symptom": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "symptom",
+        "cause",
+        "action"
+      ],
+      "type": "object"
+    },
+    "Tone": {
+      "enum": [
+        "info",
+        "warn"
+      ],
+      "type": "string"
+    },
+    "Unit": {
+      "enum": [
+        "s",
+        "ms",
+        "us",
+        "ns",
+        "samples"
+      ],
+      "type": "string"
+    },
+    "View": {
+      "description": "A tab's view (doc 08): the visible range, cursors and selection.",
+      "properties": {
+        "cursorA": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cursorB": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "selection": {
+          "description": "Selected range, start and end.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "ViewOut": {
+      "properties": {
+        "view": {
+          "$ref": "#/$defs/View"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "type": "object"
+    },
+    "ViewSetIn": {
+      "additionalProperties": false,
+      "properties": {
+        "activate": {
+          "default": false,
+          "description": "Bring this capture's tab to the front.",
+          "type": "boolean"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "clearCursors": {
+          "default": false,
+          "type": "boolean"
+        },
+        "clearSelection": {
+          "default": false,
+          "type": "boolean"
+        },
+        "cursorA": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cursorB": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "selection": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture"
+      ],
+      "type": "object"
+    },
+    "WidthCluster": {
+      "description": "A group of similar pulse widths.",
+      "properties": {
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "high": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "low": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mean": {
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "mean",
+        "count",
+        "high",
+        "low"
+      ],
+      "type": "object"
+    },
+    "WithinQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "format": "double",
+          "type": "number"
+        },
+        "to": {
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Unit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Seconds by default."
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "apiVersion": "1.0",
+  "commands": {
+    "analysis.bytes": {
+      "input": {
+        "$ref": "#/$defs/BytesIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/ByteAnalysis"
+      },
+      "safety": "read",
+      "summary": "What a run of bytes might mean: text, hidden text, Modbus, checksums, BCD, 16-bit pairs.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "analysis.detect": {
+      "input": {
+        "$ref": "#/$defs/RangeIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/CaptureAnalysis"
+      },
+      "safety": "read",
+      "summary": "Measure channels, group them into buses and detect protocols with evidence, for the whole capture or a range.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "capture.close": {
+      "input": {
+        "$ref": "#/$defs/CaptureRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Close a capture and free its memory.",
+      "undo": {
+        "kind": "never",
+        "reason": "Closing drops the capture; open it again from its file."
+      }
+    },
+    "capture.rename": {
+      "input": {
+        "$ref": "#/$defs/CaptureRenameIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Rename a capture.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "capture.start": {
+      "input": {
+        "$ref": "#/$defs/CaptureStartIn"
+      },
+      "lease": true,
+      "longRunning": true,
+      "output": {
+        "$ref": "#/$defs/CaptureStartOut"
+      },
+      "safety": "capture",
+      "summary": "Start a capture with the device's configuration; the capture appears while it streams in.",
+      "undo": {
+        "kind": "never",
+        "reason": "Captured data cannot be undone; close the capture instead."
+      }
+    },
+    "capture.stop": {
+      "input": {
+        "$ref": "#/$defs/DeviceRef"
+      },
+      "lease": true,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "capture",
+      "summary": "Stop a running capture.",
+      "undo": {
+        "kind": "never",
+        "reason": "Hardware actions cannot be undone."
+      }
+    },
+    "channel.colour": {
+      "input": {
+        "$ref": "#/$defs/ChannelColourIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Change a channel's colour.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "channel.group": {
+      "input": {
+        "$ref": "#/$defs/ChannelGroupIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Put channels into a named bus group, or ungroup them.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "channel.hide": {
+      "input": {
+        "$ref": "#/$defs/ChannelHideIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Hide or show a channel.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "channel.rename": {
+      "input": {
+        "$ref": "#/$defs/ChannelRenameIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Rename a channel.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "decoder.add": {
+      "input": {
+        "$ref": "#/$defs/DecoderAddIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/DecoderOut"
+      },
+      "safety": "read",
+      "summary": "Add a decoder (protocol, roles, settings), or one from a detection; undo removes it.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "decoder.frames": {
+      "input": {
+        "$ref": "#/$defs/DecoderFramesIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/DecoderFramesOut"
+      },
+      "safety": "read",
+      "summary": "Decoded packets or frames by time range, kind, problem and text, paged; optionally explained.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "decoder.remove": {
+      "input": {
+        "$ref": "#/$defs/DecoderRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Remove a decoder; undo restores it with the same id.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "decoder.update": {
+      "input": {
+        "$ref": "#/$defs/DecoderUpdateIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/DecoderUpdateOut"
+      },
+      "safety": "read",
+      "summary": "Change a decoder's roles or settings; returns how its problem counts changed.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "device.configure": {
+      "input": {
+        "$ref": "#/$defs/DeviceConfigureIn"
+      },
+      "lease": true,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "capture",
+      "summary": "Set channels, rate, length, mode and threshold; rejected with a reason when impossible.",
+      "undo": {
+        "kind": "never",
+        "reason": "Hardware actions cannot be undone."
+      }
+    },
+    "device.connect": {
+      "input": {
+        "$ref": "#/$defs/DeviceRef"
+      },
+      "lease": true,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/DeviceEntry"
+      },
+      "safety": "capture",
+      "summary": "Connect a device and take its lease; returns its capabilities.",
+      "undo": {
+        "kind": "never",
+        "reason": "Hardware actions cannot be undone."
+      }
+    },
+    "device.disconnect": {
+      "input": {
+        "$ref": "#/$defs/DeviceRef"
+      },
+      "lease": true,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "capture",
+      "summary": "Disconnect a device and release its lease.",
+      "undo": {
+        "kind": "never",
+        "reason": "Hardware actions cannot be undone."
+      }
+    },
+    "device.list": {
+      "input": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/DeviceListOut"
+      },
+      "safety": "read",
+      "summary": "Connected and available devices with capabilities, lease holders and setup hints.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "file.open": {
+      "input": {
+        "$ref": "#/$defs/FileOpenIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/CaptureOut"
+      },
+      "safety": "read",
+      "summary": "Open a capture file (.lacap, .demo, .sr, .vcd) from a path on this machine; undo closes it.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "file.save": {
+      "input": {
+        "$ref": "#/$defs/FileSaveIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/FileSaveOut"
+      },
+      "safety": "read",
+      "summary": "Save a capture as .lacap, or export it as .sr or VCD.",
+      "undo": {
+        "kind": "never",
+        "reason": "Writing a file cannot be undone."
+      }
+    },
+    "history.list": {
+      "input": {
+        "$ref": "#/$defs/HistoryListIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/HistoryListOut"
+      },
+      "safety": "read",
+      "summary": "Recent history entries with actors, newest first.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "history.redo": {
+      "input": {
+        "$ref": "#/$defs/HistoryPick"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/HistoryOut"
+      },
+      "safety": "read",
+      "summary": "Redo the actor's own last undone action, or any entry by id.",
+      "undo": {
+        "kind": "never",
+        "reason": "Redo is undone with history.undo."
+      }
+    },
+    "history.undo": {
+      "input": {
+        "$ref": "#/$defs/HistoryPick"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/HistoryOut"
+      },
+      "safety": "read",
+      "summary": "Undo the actor's own last action, or any entry by id.",
+      "undo": {
+        "kind": "never",
+        "reason": "Undo is undone with history.redo."
+      }
+    },
+    "lease.release": {
+      "input": {
+        "$ref": "#/$defs/DeviceRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/LeaseOut"
+      },
+      "safety": "read",
+      "summary": "Release a device's lease.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "lease.take": {
+      "input": {
+        "$ref": "#/$defs/DeviceRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/LeaseOut"
+      },
+      "safety": "read",
+      "summary": "Take a device's lease (the person can always take it from an agent).",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "marker.add": {
+      "input": {
+        "$ref": "#/$defs/MarkerAddIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/MarkerOut"
+      },
+      "safety": "read",
+      "summary": "Add a marker or range note (with an agent badge when an agent adds it); optionally move the view there.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "marker.remove": {
+      "input": {
+        "$ref": "#/$defs/MarkerRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Remove a marker; undo restores it with the same id.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "marker.update": {
+      "input": {
+        "$ref": "#/$defs/MarkerUpdateIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/MarkerOut"
+      },
+      "safety": "read",
+      "summary": "Change a marker's label, note or place.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "measure.between": {
+      "input": {
+        "$ref": "#/$defs/MeasureBetweenIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/MeasureBetweenOut"
+      },
+      "safety": "read",
+      "summary": "Time between two edges.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "measure.edges": {
+      "input": {
+        "$ref": "#/$defs/MeasureEdgesIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/MeasureEdgesOut"
+      },
+      "safety": "read",
+      "summary": "Edges of chosen channels in a range, paged.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "measure.stats": {
+      "input": {
+        "$ref": "#/$defs/MeasureStatsIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/MeasureStatsOut"
+      },
+      "safety": "read",
+      "summary": "Frequency, period, duty, pulse widths and edge count of a channel in a range.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "protocol.addCustom": {
+      "input": {
+        "$ref": "#/$defs/AddCustomIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/ProtocolEntry"
+      },
+      "safety": "read",
+      "summary": "Add a custom JSON protocol (pulse-code or preset) for this session.",
+      "undo": {
+        "kind": "never",
+        "reason": "Custom protocols are removed with protocol.removeCustom."
+      }
+    },
+    "protocol.info": {
+      "input": {
+        "$ref": "#/$defs/ProtocolRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/ProtocolInfoOut"
+      },
+      "safety": "read",
+      "summary": "What a protocol is, how to confirm it, decoder tips, lookalikes and symptoms.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "protocol.list": {
+      "input": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/ProtocolListOut"
+      },
+      "safety": "read",
+      "summary": "Every protocol the engine knows, with its roles and settings.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "protocol.removeCustom": {
+      "input": {
+        "$ref": "#/$defs/ProtocolRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Remove a custom protocol.",
+      "undo": {
+        "kind": "never",
+        "reason": "Add it again with protocol.addCustom."
+      }
+    },
+    "render": {
+      "input": {
+        "$ref": "#/$defs/RenderIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/RenderOut"
+      },
+      "safety": "read",
+      "summary": "A PNG image of a time range with decoder rows and markers, for agents that can see images.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "search.run": {
+      "input": {
+        "$ref": "#/$defs/SearchIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/SearchOut"
+      },
+      "safety": "read",
+      "summary": "Search edges and decoded content with a typed query; hits with times.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "session.get": {
+      "input": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/SessionOut"
+      },
+      "safety": "read",
+      "summary": "Open captures and their state, decoders with problem counts, markers, views, leases, recent activity.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "view.set": {
+      "input": {
+        "$ref": "#/$defs/ViewSetIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/ViewOut"
+      },
+      "safety": "read",
+      "summary": "Move a tab's view: visible range, cursors A and B, selection.",
+      "undo": {
+        "kind": "inverse"
+      }
+    }
+  },
+  "error": {
+    "$ref": "#/$defs/CommandError"
+  },
+  "event": {
+    "$ref": "#/$defs/Event"
+  },
+  "historyEntry": {
+    "$ref": "#/$defs/HistoryEntry"
+  },
+  "invocation": {
+    "$ref": "#/$defs/Invocation"
+  },
+  "title": "Logica command API"
+}

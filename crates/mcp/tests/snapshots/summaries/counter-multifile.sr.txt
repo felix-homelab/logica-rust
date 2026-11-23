@@ -1,0 +1,43 @@
+open_file: Opened c1 "counter-multifile.sr": 9,000,000 samples at 10 MHz (900 ms), channels CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7.
+
+summarize:
+I2S: sck on CH0, sd on CH1, ws on CH3; format i2s, leftWhen low, wordBits 4; confidence 60 %.
+  for: Channel 0 is a clock at 1.22 kHz that never stops: the bit clock.
+  for: Channel 3 is a square wave at 152.6 Hz, exactly 8 clock pulses per cycle: the word select.
+  for: So each sample slot has 4 bits, and the audio sample rate is 152.6 Hz.
+PWM: signal on CH2; activeLevel high; confidence 70 %.
+  for: Channel 2 repeats every 3.277 ms (305.2 Hz) and is high for 1.638 ms each time: 50.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  against: Other channels are busy at the same moments, so this may be the clock of a bus.
+  for: With 50 % duty it may simply be a clock.
+PWM: signal on CH4; activeLevel high; confidence 70 %.
+  for: Channel 4 repeats every 13.11 ms (76.3 Hz) and is high for 6.554 ms each time: 50.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  against: Other channels are busy at the same moments, so this may be the clock of a bus.
+  for: With 50 % duty it may simply be a clock.
+PWM: signal on CH5; activeLevel high; confidence 70 %.
+  for: Channel 5 repeats every 26.21 ms (38.1 Hz) and is high for 13.11 ms each time: 50.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  against: Other channels are busy at the same moments, so this may be the clock of a bus.
+  for: With 50 % duty it may simply be a clock.
+PWM: signal on CH6; activeLevel high; confidence 70 %.
+  for: Channel 6 repeats every 52.43 ms (19.1 Hz) and is high for 26.21 ms each time: 50.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  against: Other channels are busy at the same moments, so this may be the clock of a bus.
+  for: With 50 % duty it may simply be a clock.
+PWM: signal on CH7; activeLevel high; confidence 70 %.
+  for: Channel 7 repeats every 104.9 ms (9.5 Hz) and is high for 52.43 ms each time: 50.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  against: Other channels are busy at the same moments, so this may be the clock of a bus.
+  for: With 50 % duty it may simply be a clock.
+  also possible: pwm (70 %), spi (40 %)
+Channels:
+- CH0: 2,197 edges, rests low, clock-like at 1.22 kHz, narrowest pulse 409.6 µs
+- CH1: 1,098 edges, rests low, clock-like at 610.4 Hz, narrowest pulse 819.2 µs
+- CH2: 549 edges, rests low, clock-like at 305.2 Hz, narrowest pulse 1.638 ms
+- CH3: 274 edges, rests low, clock-like at 152.6 Hz, narrowest pulse 3.277 ms
+- CH4: 137 edges, rests low, clock-like at 76.3 Hz, narrowest pulse 6.554 ms
+- CH5: 68 edges, rests low, clock-like at 38.1 Hz, narrowest pulse 13.11 ms
+- CH6: 34 edges, rests low, clock-like at 19.1 Hz, narrowest pulse 26.21 ms
+- CH7: 17 edges, rests low, clock-like at 9.5 Hz, narrowest pulse 52.43 ms
+Analysed 0 s (sample 0) to 900 ms (sample 9,000,000).

@@ -125,6 +125,47 @@ fn an_interrupted_save_opens_the_previous_state_and_the_next_save_cuts_it_off() 
 }
 
 #[test]
+fn the_index_reads_without_opening_and_reports_an_unfinished_save() {
+    let count = C + 100;
+    let file = Arc::new(MemFile::new());
+    let s = record(file.clone(), &models(count), count, 1 << 30);
+    let session = serde_json::json!({ "markers": [] });
+    lacap::save(&s, &meta(3), &session).unwrap();
+    let good = file.to_bytes();
+    let i = lacap::read_index(&MemFile::from_bytes(good.clone())).unwrap();
+    assert_eq!(i.version, (lacap::MAJOR, lacap::MINOR));
+    assert!(!i.recovered);
+    assert_eq!((i.unfinished_bytes, i.size), (0, good.len() as u64));
+    assert_eq!(i.index["format"], "lacap");
+    assert_eq!(i.index["sampleCount"], count);
+    assert_eq!(i.index["capture"]["title"], "Test capture");
+    assert_eq!(i.index["session"], session);
+    assert_eq!(i.index["tables"].as_array().unwrap().len(), 3);
+
+    // a save that stopped half way: the previous index, and how much is unfinished
+    let mut m2 = meta(3);
+    m2.title = "second".into();
+    lacap::save(&s, &m2, &session).unwrap();
+    let cut = file.to_bytes()[..good.len() + 50].to_vec();
+    let i = lacap::read_index(&MemFile::from_bytes(cut)).unwrap();
+    assert!(i.recovered);
+    assert_eq!(i.unfinished_bytes, 50);
+    assert_eq!(i.index["capture"]["title"], "Test capture");
+
+    // not a .lacap, and a newer format
+    assert!(matches!(
+        lacap::read_index(&MemFile::from_bytes(b"PK\x03\x04 not ours".to_vec())),
+        Err(LacapError::NotLacap)
+    ));
+    let mut newer = good.clone();
+    newer[8] = 9;
+    assert!(matches!(
+        lacap::read_index(&MemFile::from_bytes(newer)),
+        Err(LacapError::Newer { major: 9, .. })
+    ));
+}
+
+#[test]
 fn truncated_files_never_panic_and_say_why() {
     let count = C + 10;
     let file = Arc::new(MemFile::new());

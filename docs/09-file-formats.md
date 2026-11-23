@@ -19,7 +19,8 @@ third-party formats follow the clean-room rule (published specifications and our
 only, [clean-room.md](clean-room.md)) and have a `PROVENANCE.md`.
 
 Opening files: menu, command palette, drag and drop onto the window, double-click in the file
-manager (file associations for `.lacap`, `.demo`, `.sr`, `.vcd`), or `logica open <file>`.
+manager (file associations for `.lacap`, `.demo`, `.sr`, `.vcd`), or `logica open <file>` (hands the
+file to the running app, or starts the app with it).
 `logica convert <in> <out>` converts between formats without the app.
 
 ## Export
@@ -88,4 +89,7 @@ footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserve
 - Packed start levels: bit k of byte k / 8 (least significant bit first) is the level at the start
   of bucket k. Offsets are the chunk-relative transition positions, ascending; raw bits are least
   significant bit first, sample 0 of the chunk in bit 0 of byte 0.
-- `logica inspect <file>` prints the index (the file cannot be opened with `unzip`).
+- `logica inspect <file> --index` prints the index of the last complete save as stored, without
+  opening the capture (the file cannot be opened with `unzip`), and says so on stderr when the
+  end of the file is an interrupted save. Without `--index`, `inspect` summarises any capture file
+  it can open; `--json` prints that summary as the command API's capture summary.

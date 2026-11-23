@@ -69,7 +69,18 @@ pub const fn offset_in_chunk(sample: Sample) -> u32 {
 
 /// A digital level.
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, serde::Serialize, serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "lowercase")]
 #[repr(u8)]

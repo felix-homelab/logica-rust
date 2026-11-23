@@ -20,6 +20,15 @@ MCP is the only protocol outside the app (ADR 0006).
   (stdio through WSL interop; starts the Windows app if needed), or HTTP with mirrored networking
   (doc 02, spike S8).
 - The settings window shows connected agents and a copyable setup command.
+- The lock file is `logica.lock` in the data folder (Electron's user-data folder, `Logica`; the
+  CLI computes the same path, and `LOGICA_DATA_DIR` overrides it): JSON with the process id, port,
+  token, API version and whether a windowless engine wrote it. A lock nobody answers for is stale
+  and replaced. Until the app exists (M2), the first `logica mcp` becomes the windowless engine and
+  later ones relay to it; that engine ends with the agent that started it.
+
+Protocol versions: the server speaks MCP 2026-07-28, where requests are stateless and carry their
+client information, and the earlier session-based versions that current clients use (through the
+official Rust SDK, `rmcp`). Either way, a client's name becomes its actor `agent:<name>`.
 
 ## Security
 
@@ -69,7 +78,11 @@ indices, so follow-up calls are exact.
 | `run_command` | per command | Any command of the command API by name (for example `history.undo`, `analysis.bytes`, `capture.close`), validated by its contract; the command's own safety class and lease rules apply. The list is the resource `logica://commands` |
 
 Tools change only deliberately (schema snapshot tests); a new capability first goes through
-`run_command` and earns its own tool when agents need it often.
+`run_command` and earns its own tool when agents need it often. `compare` joins with capture
+comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
+exist, the tools are not offered. A tool that has several actions (`device`, `capture`, `measure`,
+`decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
+`oneOf`.
 
 ## Resources
 

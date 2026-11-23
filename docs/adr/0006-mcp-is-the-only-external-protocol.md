@@ -11,8 +11,10 @@ session, and many similar tools make agents pick the wrong one.
 - Outside the app, the engine speaks only MCP over Streamable HTTP on 127.0.0.1 (token, `Origin`
   check; doc 07). There is no custom local-socket protocol.
 - `logica mcp` is a stdio-to-HTTP relay to that endpoint (and starts the app when needed, ADR 0007).
-- Other CLI subcommands (`logica convert`, `logica open`, `logica inspect`) run an engine
-  in-process; they do not attach to the app.
+- Other CLI subcommands (`logica convert`, `logica inspect`) run an engine in-process; they do
+  not attach to the app. `logica open <file>` sends no commands either: it hands the file to the
+  app as a double-click does, starting it if needed (doc 09; amended when M1 found doc 03 and doc
+  09 disagreeing).
 - Inside the app, the window reaches the engine over a `MessagePort`. Tests call the engine
   in-process.
 - The MCP surface is a hand-designed set of about 15 task-shaped tools (doc 07), plus `run_command`,

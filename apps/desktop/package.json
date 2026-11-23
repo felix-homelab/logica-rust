@@ -1,0 +1,34 @@
+{
+  "name": "@logica/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Logica's desktop app: the Electron window with the Rust engine in its engine process (doc 03)",
+  "productName": "Logica",
+  "main": "out/main/index.js",
+  "scripts": {
+    "electron": "install-electron",
+    "engine": "node scripts/build-engine.mjs",
+    "build": "node scripts/build-engine.mjs && electron-vite build",
+    "start": "install-electron && node scripts/build-engine.mjs && electron-vite preview",
+    "dev": "install-electron && node scripts/build-engine.mjs && electron-vite dev",
+    "lint": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "test": "node --test \"test/*.test.mjs\"",
+    "package": "electron-builder",
+    "package:dir": "electron-builder --dir",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@logica/api": "0.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "electron": "45.4.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

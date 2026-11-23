@@ -42,10 +42,14 @@ Available: `cargo build`, `cargo test`, `cargo bench` (numbers for `docs/benchma
 `cargo fmt --all --check`,
 `cargo clippy --workspace --all-targets -- -D warnings`,
 `cargo build -p logica-core -p logica-protocols --target wasm32-unknown-unknown`; `npm install`,
-`npm run build`, `npm run lint`, `npm test` (no packages until M1; they say so and succeed). The
-toolchain is pinned in `rust-toolchain.toml`.
+`npm run build`, `npm run lint`, `npm test`, `npm start` (the desktop app; the first run downloads
+Electron), `npm run package` (installers for this OS), `npm run package:dir -w apps/desktop` then
+`npm run smoke -w apps/desktop` (the packaged app starts and reaches the engine; prints the cold
+start); `logica mcp` (MCP over stdio: relays to the running engine or becomes it). After
+changing a command's input or output types:
+`LOGICA_UPDATE_CONTRACT=1 cargo test -p logica-engine --test contract`, then
+`npm run generate -w packages/api`, and commit both generated files. The toolchain is pinned in
+`rust-toolchain.toml`.
 
-Planned: `npm run test:e2e` (Playwright against Electron),
-`npm start` (desktop app in development), `npm run package` (installers for this OS);
-`logica mcp` (MCP over stdio; relays to the running app, starts it if needed, or runs headless with
-`--headless`).
+Planned: `npm run test:e2e` (Playwright against Electron); `logica mcp` starting the app when it is
+not running (M2).

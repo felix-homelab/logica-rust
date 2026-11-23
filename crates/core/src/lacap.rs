@@ -424,8 +424,17 @@ fn decode_table(
     Ok(chunks)
 }
 
-/// Opens a `.lacap` file. Chunks stay in the file and are read when needed.
-pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Opened> {
+/// The index of the last complete save, unpacked.
+struct LastSave {
+    version: (u16, u16),
+    json: Vec<u8>,
+    /// Where the last complete save ends.
+    valid_end: u64,
+    recovered: bool,
+    size: u64,
+}
+
+fn last_save(file: &dyn RandomAccess) -> LacapResult<LastSave> {
     let size = file.size()?;
     if size < HEADER_LEN {
         return Err(LacapError::NotLacap);
@@ -439,9 +448,42 @@ pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Ope
     if major > MAJOR {
         return Err(LacapError::Newer { major, minor });
     }
-    let (packed, valid_end, recovered) = find_last_save(&*file, size)?;
+    let (packed, valid_end, recovered) = find_last_save(file, size)?;
     let json = miniz_oxide::inflate::decompress_to_vec_with_limit(&packed, MAX_INDEX)
         .map_err(|_| LacapError::Damaged("the index cannot be unpacked".into()))?;
+    Ok(LastSave { version: (major, minor), json, valid_end, recovered, size })
+}
+
+/// What `logica inspect --index` shows: the index of the last complete save as it is stored.
+#[derive(Debug)]
+pub struct IndexInfo {
+    /// Format version from the header.
+    pub version: (u16, u16),
+    pub index: serde_json::Value,
+    /// Set when the end of the file is an interrupted save and an earlier one was read.
+    pub recovered: bool,
+    /// Bytes after the last complete save (an interrupted save), and the file size.
+    pub unfinished_bytes: u64,
+    pub size: u64,
+}
+
+/// Reads the index without opening the capture.
+pub fn read_index(file: &dyn RandomAccess) -> LacapResult<IndexInfo> {
+    let s = last_save(file)?;
+    let index = serde_json::from_slice(&s.json)
+        .map_err(|e| LacapError::Damaged(format!("the index cannot be read ({e})")))?;
+    Ok(IndexInfo {
+        version: s.version,
+        index,
+        recovered: s.recovered,
+        unfinished_bytes: s.size - s.valid_end,
+        size: s.size,
+    })
+}
+
+/// Opens a `.lacap` file. Chunks stay in the file and are read when needed.
+pub fn open(file: Arc<dyn RandomAccess>, cache_budget: usize) -> LacapResult<Opened> {
+    let LastSave { json, valid_end, recovered, .. } = last_save(&*file)?;
     let index: Index = serde_json::from_slice(&json)
         .map_err(|e| LacapError::Damaged(format!("the index cannot be read ({e})")))?;
     if index.format != "lacap" || index.chunk_size != CHUNK_SAMPLES {

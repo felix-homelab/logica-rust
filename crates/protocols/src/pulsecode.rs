@@ -14,7 +14,7 @@ use crate::protocol::{DetectContext, DetectorOutput, Origin, Protocol, ProtocolI
 use crate::stream::{DecoderSetup, Edges, Machine, NewFrame, Out, Res, StreamDecoder, decoder, run_steps};
 use crate::types::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum LevelName {
     High,
@@ -36,7 +36,7 @@ impl LevelName {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SegmentSpec {
     pub level: LevelName,
@@ -46,14 +46,14 @@ pub struct SegmentSpec {
     pub label: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Encoding {
     First,
     Second,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct BitSpec {
     /// Level of the first of the two segments that make up one bit.
     pub first: LevelName,
@@ -65,13 +65,13 @@ pub struct BitSpec {
     pub other: [f64; 2],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct BitCount {
     pub min: f64,
     pub max: f64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PulseFrameSpec {
     pub name: String,
     pub preamble: Vec<SegmentSpec>,
@@ -81,14 +81,14 @@ pub struct PulseFrameSpec {
     pub trailer: Option<Vec<SegmentSpec>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Signed {
     Twos,
     SignMagnitude,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FieldSpec {
     pub name: String,
     pub bits: u32,
@@ -98,7 +98,7 @@ pub struct FieldSpec {
     pub signed: Option<Signed>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CheckSpec {
     Sum8 { bytes: Vec<usize>, equals: usize, message: Option<String> },
@@ -107,7 +107,7 @@ pub enum CheckSpec {
 
 /// Knowledge texts of a data-defined protocol. Learn-tab fields (fingerprint, sketch, timing)
 /// are accepted and ignored (decision D12).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InfoSpec {
     pub what: String,
@@ -130,14 +130,14 @@ impl InfoSpec {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BitOrder {
     Msb,
     Lsb,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PulseCodeConfig {
     pub id: String,
@@ -164,14 +164,14 @@ pub struct PulseCodeConfig {
 
 // ------------------------------------------------------------------ matching
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 struct Seg {
     start: Sample,
     end: Sample,
     label: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 struct Bit {
     start: Sample,
     end: Sample,
@@ -373,7 +373,7 @@ fn field_value(f: &FieldSpec, raw: u64) -> String {
 }
 
 /// Statistics of a run, for detection.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PulseStats {
     /// Complete frames that have bits or a preamble.
     pub complete: u64,
@@ -387,7 +387,7 @@ pub struct PulseStats {
     pub fixed_bits: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 struct PulseMachine {
     cfg: PulseCodeConfig,
     per_us: f64,

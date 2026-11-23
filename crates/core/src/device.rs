@@ -14,7 +14,8 @@ use crate::capture::{CaptureMeta, CaptureState, ChannelInfo, Note, NoteLevel, So
 use crate::import::StoreTarget;
 use crate::store::{CaptureStore, Level, Sample};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DeviceInfo {
     /// Stable id, such as "synthetic/mix" or a USB serial.
     pub id: String,
@@ -26,7 +27,7 @@ pub struct DeviceInfo {
     pub channels: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureMode {
     /// Record to device memory, then download.
@@ -36,14 +37,14 @@ pub enum CaptureMode {
 }
 
 /// The fastest rate with up to `max_channels` channels enabled.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimit {
     pub max_channels: u32,
     pub max_rate_hz: f64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     /// Physical channel numbers.
@@ -61,7 +62,7 @@ pub struct Capabilities {
     pub outputs: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureConfig {
     /// Enabled physical channels, ascending.
@@ -221,14 +222,16 @@ pub trait VirtualDriver: Send + Sync {
 }
 
 /// USB devices a driver may handle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UsbFilter {
     pub vendor_id: u16,
     pub product_id: Option<u16>,
 }
 
 /// A USB control request (bmRequestType, bRequest, wValue, wIndex).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ControlRequest {
     pub request_type: u8,
     pub request: u8,

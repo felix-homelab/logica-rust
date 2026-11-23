@@ -9,7 +9,8 @@ use logica_core::measure::{ChannelMeasurement, Span, total_length};
 
 use crate::window::{WinChannel, Window};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Bus {
     pub id: String,
     /// Physical channel numbers, ascending.

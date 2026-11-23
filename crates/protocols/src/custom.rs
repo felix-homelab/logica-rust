@@ -14,7 +14,7 @@ use crate::pulsecode::{InfoSpec, PulseCode, PulseCodeConfig};
 use crate::stream::{DecoderSetup, StreamDecoder};
 use crate::types::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PresetConfig {
     pub id: String,
@@ -29,7 +29,7 @@ pub struct PresetConfig {
     pub info: InfoSpec,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "family", rename_all = "kebab-case")]
 pub enum CustomConfig {
     PulseCode(PulseCodeConfig),
