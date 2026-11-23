@@ -207,6 +207,19 @@ impl Engine {
         })
     }
 
+    /// Marks the capture a command changed as unsaved. Views are not stored in files, and opening,
+    /// saving and closing set the state themselves.
+    fn touch(&mut self, inv: &Invocation) {
+        if matches!(inv.command.as_str(), "view.set" | "file.open" | "file.save" | "capture.close") {
+            return;
+        }
+        if let Some(c) =
+            inv.input.get("capture").and_then(Value::as_str).and_then(|id| self.captures.get_mut(id))
+        {
+            c.unsaved = true;
+        }
+    }
+
     pub(crate) fn add_capture(
         &mut self,
         id: String,
@@ -216,6 +229,7 @@ impl Engine {
         backed: bool,
     ) {
         let to = store.sample_count();
+        let unsaved = path.is_none();
         self.captures.insert(
             id.clone(),
             Capture {
@@ -228,6 +242,8 @@ impl Engine {
                 view: crate::state::View { from: 0, to, ..Default::default() },
                 groups: BTreeMap::new(),
                 hidden: Default::default(),
+                // a capture from a device exists nowhere else; an opened file is on disk
+                unsaved,
             },
         );
         self.active = Some(id);
@@ -265,6 +281,9 @@ impl Engine {
         }
         let ctx = Ctx { actor: actor.clone() };
         let done = crate::cmd::dispatch(self, &ctx, &inv.command, inv.input.clone())?;
+        if done.record {
+            self.touch(inv);
+        }
         if s.undo != Undo::Query && done.record {
             // a new action by an actor discards that actor's redo entries
             for e in self.history.iter_mut().filter(|e| e.actor == *actor && e.undone) {
@@ -347,6 +366,7 @@ impl Engine {
         };
         let ctx = Ctx { actor: actor.clone() };
         crate::cmd::dispatch(self, &ctx, &inv.command, inv.input.clone())?;
+        self.touch(inv);
         self.history[idx].undone = true;
         let entry = self.history[idx].clone();
         self.emit(Event::CommandExecuted {
@@ -389,6 +409,7 @@ impl Engine {
         }
         let ctx = Ctx { actor: actor.clone() };
         crate::cmd::dispatch(self, &ctx, &e.done.command, e.done.input.clone())?;
+        self.touch(&e.done);
         self.history[idx].undone = false;
         let entry = self.history[idx].clone();
         self.emit(Event::CommandExecuted {

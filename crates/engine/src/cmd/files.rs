@@ -192,6 +192,12 @@ pub(crate) fn save(e: &mut Engine, _: &Ctx, i: FileSaveIn) -> Result<Done, Comma
     let target = match (&i.path, c.backed_by_path, &c.path) {
         (Some(p), _, _) => PathBuf::from(p),
         (None, true, Some(p)) => p.clone(),
+        // saved before with "save as": save to that file again
+        (None, false, Some(p))
+            if p.extension().and_then(|x| x.to_str()).is_some_and(|x| x.eq_ignore_ascii_case("lacap")) =>
+        {
+            p.clone()
+        }
         _ => return Err(err(ErrorCode::InvalidInput, "Choose where to save: a path ending in .lacap.")),
     };
     if target.extension().and_then(|x| x.to_str()).map(str::to_ascii_lowercase).as_deref() != Some("lacap") {
@@ -220,6 +226,7 @@ pub(crate) fn save(e: &mut Engine, _: &Ctx, i: FileSaveIn) -> Result<Done, Comma
     let bytes = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
     let title = c.meta.title.clone();
     let c = e.capture_mut(&i.capture)?;
+    c.unsaved = false;
     if !same {
         c.path = Some(target.clone());
         c.backed_by_path = false;
