@@ -49,6 +49,22 @@ test('a window comes back where it was, if that is still on a screen', () => {
   assert.ok(restorable({ bounds: { x: -1500, y: 50, width: 1000, height: 700 } }, two));
 });
 
+test('a window saved on a bigger screen comes back no bigger than the screen it opens on', () => {
+  const small = [{ x: 0, y: 0, width: 1024, height: 728 }];
+  assert.deepEqual(restorable({ bounds: { x: 200, y: 100, width: 1440, height: 900 } }, small), {
+    bounds: { x: 0, y: 0, width: 1024, height: 728 },
+    maximized: false,
+  });
+  // only one side too big: that side shrinks, the window moves just enough to fit
+  assert.deepEqual(restorable({ bounds: { x: 300, y: 20, width: 900, height: 800 }, maximized: true }, small), {
+    bounds: { x: 124, y: 0, width: 900, height: 728 },
+    maximized: true,
+  });
+  // on the second of two screens, measured against that one
+  const two = [{ x: 0, y: 0, width: 1920, height: 1080 }, { x: 1920, y: 0, width: 1280, height: 1024 }];
+  assert.deepEqual(restorable({ bounds: { x: 2000, y: 10, width: 1600, height: 900 } }, two)?.bounds, { x: 1920, y: 10, width: 1280, height: 900 });
+});
+
 test('the log rotates at its size limit and keeps three old files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'logica-log-'));
   const f = join(dir, 'logica.log');

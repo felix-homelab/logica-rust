@@ -1,6 +1,7 @@
 // What happens when things go wrong: the engine crashes or cannot start, work is unsaved when a
 // tab or the app closes, the window is reopened; and every failure leaves a line in the log.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication } from '@playwright/test';
 import { fixture, start } from './helpers';
@@ -98,13 +99,34 @@ test('quitting with unsaved work asks first, and cancelling keeps the window', a
 
 test('the window opens again where it was, at its size', async () => {
   const first = await start([], { keepSize: true });
-  await first.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setBounds({ x: 40, y: 40, width: 1210, height: 790 }));
+  // a size that fits the screen of any machine this runs on (CI runners have small ones), above
+  // the window's minimum of 960 × 600
+  const wanted = await first.app.evaluate(({ BrowserWindow, screen }) => {
+    const area = screen.getPrimaryDisplay().workArea;
+    const bounds = { x: area.x + 10, y: area.y + 10, width: Math.min(1210, area.width - 20), height: Math.min(790, area.height - 20) };
+    BrowserWindow.getAllWindows()[0]!.setBounds(bounds);
+    return [bounds.width, bounds.height];
+  });
+  expect(wanted[0]).toBeGreaterThanOrEqual(960);
   await first.app.close();
   expect(existsSync(join(first.dataDir, 'window.json'))).toBe(true);
   const second = await start([], { dataDir: first.dataDir, keepSize: true });
   const size = await second.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getSize());
-  expect(size).toEqual([1210, 790]);
+  expect(size).toEqual(wanted);
   await second.app.close();
+});
+
+test('a window saved on a bigger screen opens no bigger than this one', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'logica-e2e-'));
+  writeFileSync(join(dataDir, 'window.json'), JSON.stringify({ bounds: { x: 0, y: 0, width: 5000, height: 3000 }, maximized: false }));
+  const { app } = await start([], { dataDir, keepSize: true });
+  const [size, area] = await app.evaluate(({ BrowserWindow, screen }) => [
+    BrowserWindow.getAllWindows()[0]!.getSize(),
+    screen.getPrimaryDisplay().workArea,
+  ] as const);
+  expect(size[0]).toBeLessThanOrEqual(area.width);
+  expect(size[1]).toBeLessThanOrEqual(area.height);
+  await app.close();
 });
 
 test('a file that arrives twice at once opens once', async () => {

@@ -53,6 +53,14 @@ export function restorable(saved: unknown, displays: Rect[]): WindowState | null
   const b = s?.bounds;
   if (!b || ![b.x, b.y, b.width, b.height].every(Number.isFinite) || b.width < 400 || b.height < 300) return null;
   // enough of the title bar on some display to grab it
-  const visible = displays.some((d) => b.x + b.width - 100 > d.x && b.x + 100 < d.x + d.width && b.y >= d.y - 10 && b.y + 40 < d.y + d.height);
-  return visible ? { bounds: b, maximized: s?.maximized === true } : null;
+  const d = displays.find((d) => b.x + b.width - 100 > d.x && b.x + 100 < d.x + d.width && b.y >= d.y - 10 && b.y + 40 < d.y + d.height);
+  if (!d) return null;
+  // never bigger than that display (it may be smaller than the one the size was saved on; Windows
+  // would shrink the window anyway): then it is moved to lie fully on it
+  if (b.width <= d.width && b.height <= d.height) return { bounds: b, maximized: s?.maximized === true };
+  const width = Math.min(b.width, d.width);
+  const height = Math.min(b.height, d.height);
+  const x = Math.min(Math.max(b.x, d.x), d.x + d.width - width);
+  const y = Math.min(Math.max(b.y, d.y), d.y + d.height - height);
+  return { bounds: { x, y, width, height }, maximized: s?.maximized === true };
 }
