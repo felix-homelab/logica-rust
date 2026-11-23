@@ -405,6 +405,17 @@ export const COMMANDS: readonly CommandSpec[] = [
     }
   },
   {
+    "name": "session.pauseAgents",
+    "summary": "The person's switch to stop agents' capture and output commands, and to let them run again.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "never",
+      "reason": "A safety switch, not an edit; switch it back instead."
+    }
+  },
+  {
     "name": "view.set",
     "summary": "Move a tab's view: visible range, cursors A and B, selection.",
     "safety": "read",
@@ -412,6 +423,16 @@ export const COMMANDS: readonly CommandSpec[] = [
     "longRunning": false,
     "undo": {
       "kind": "inverse"
+    }
+  },
+  {
+    "name": "waveform.get",
+    "summary": "What to draw for a range: per channel the edges, or level-of-detail buckets when zoomed out, and decoder frames.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
     }
   }
 ];

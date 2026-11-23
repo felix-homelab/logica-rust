@@ -52,6 +52,15 @@ pub const COMMANDS: &[CommandSpec] = &[
         "session.get",
         "Open captures and their state, decoders with problem counts, markers, views, leases, recent activity.",
     ),
+    never(
+        "session.pauseAgents",
+        "The person's switch to stop agents' capture and output commands, and to let them run again.",
+        "A safety switch, not an edit; switch it back instead.",
+    ),
+    query(
+        "waveform.get",
+        "What to draw for a range: per channel the edges, or level-of-detail buckets when zoomed out, and decoder frames.",
+    ),
     // files
     edit(
         "file.open",

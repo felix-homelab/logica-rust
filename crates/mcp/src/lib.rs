@@ -2,6 +2,7 @@
 //! every other command, resources, subscriptions and prompts, all as a client of the command API.
 //! The transports (stdio here; Streamable HTTP with its lock file) only carry it.
 
+pub mod app;
 pub mod http;
 pub mod lock;
 pub mod prompts;
@@ -54,6 +55,8 @@ pub struct Options {
     /// Where an engine started here keeps its working files.
     pub work_dir: std::path::PathBuf,
     pub allow_outputs: bool,
+    /// Never start the app; become a windowless engine when none runs.
+    pub headless: bool,
 }
 
 /// `logica mcp`: relays to the running engine if there is one (ADR 0007: one engine per
@@ -62,6 +65,26 @@ pub struct Options {
 pub async fn stdio_entry(o: Options) -> std::io::Result<()> {
     if let Some(l) = lock::running(&o.data_dir) {
         return relay::relay(tokio::io::stdin(), tokio::io::stdout(), l.port, &l.token).await;
+    }
+    // no engine yet: on a desktop, start the app (minimised) and relay to it (ADR 0007)
+    if !o.headless
+        && app::display_available()
+        && let Some(installed) = app::installed(&o.data_dir)
+    {
+        app::launch(&installed, &[std::ffi::OsStr::new(app::STARTED_BY_AGENT)])?;
+        let dir = o.data_dir.clone();
+        let found = tokio::task::spawn_blocking(move || {
+            app::wait_for_engine(&dir, std::time::Duration::from_secs(20))
+        })
+        .await
+        .map_err(std::io::Error::other)?;
+        return match found {
+            Some(l) => relay::relay(tokio::io::stdin(), tokio::io::stdout(), l.port, &l.token).await,
+            None => Err(std::io::Error::other(format!(
+                "Logica ({}) was started but did not offer MCP within 20 s. Check that MCP is on in its settings, or run logica mcp --headless.",
+                installed.executable.display()
+            ))),
+        };
     }
     let engine = logica_engine::Engine::new(logica_engine::EngineConfig {
         data_dir: Some(o.work_dir.clone()),
