@@ -115,10 +115,25 @@ test('the component gallery passes axe in both themes', async () => {
   });
   await test.step('light', async () => {
     await page.getByRole('button', { name: 'Light', exact: true }).click();
+    await shot(page, 'gallery-light');
     await axe(page, 'the gallery (light)');
+  });
+  await test.step('switch knobs sit inside their track, on and off', async () => {
+    const sw = page.getByRole('switch', { name: 'Let agents connect' });
+    for (const state of ['on', 'off']) {
+      await page.waitForTimeout(250);
+      const track = (await sw.boundingBox())!;
+      const knob = (await sw.locator('.lg-switch__thumb').boundingBox())!;
+      const where = `knob ${JSON.stringify(knob)} in track ${JSON.stringify(track)} (${state})`;
+      expect(Math.abs(knob.y + knob.height / 2 - (track.y + track.height / 2)), where).toBeLessThanOrEqual(1);
+      expect(knob.x, where).toBeGreaterThanOrEqual(track.x + 1);
+      expect(knob.x + knob.width, where).toBeLessThanOrEqual(track.x + track.width - 1);
+      await sw.click();
+    }
   });
   await test.step('dark', async () => {
     await page.getByRole('button', { name: 'Dark', exact: true }).click();
+    await shot(page, 'gallery-dark');
     await axe(page, 'the gallery (dark)');
   });
   await app.close();

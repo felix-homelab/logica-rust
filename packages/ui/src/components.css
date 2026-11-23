@@ -270,6 +270,10 @@ body {
 .lg-switch {
   position: relative;
   flex: none;
+  /* a Radix switch is a <button>: drop the browser's button padding, centre the knob */
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   width: 34px;
   height: 20px;
   border: 1px solid var(--border-strong);
