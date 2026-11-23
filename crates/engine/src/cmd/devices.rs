@@ -214,6 +214,8 @@ pub(crate) fn start(e: &mut Engine, ctx: &Ctx, i: CaptureStartIn) -> Result<Done
     let target = match &e.cfg.data_dir {
         Some(dir) => {
             let work = dir.join(format!("{id}.lacap"));
+            // the working folder may not exist yet (a first start)
+            let _ = std::fs::create_dir_all(dir);
             match logica_fileio::StdFile::create(&work) {
                 Ok(f) => StoreTarget { backing: Arc::new(f), cache_budget: e.cfg.cache_budget },
                 Err(x) => {

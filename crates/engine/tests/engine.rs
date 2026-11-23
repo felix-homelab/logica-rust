@@ -717,3 +717,37 @@ fn the_person_can_stop_and_resume_agent_actions() {
         entries.as_array().unwrap().iter().map(|h| h["summary"].as_str().unwrap()).collect();
     assert!(says.contains(&"stopped agent actions") && says.contains(&"let agents act again"), "{says:?}");
 }
+
+#[test]
+fn a_working_folder_that_does_not_exist_yet_is_made() {
+    let dir =
+        std::env::temp_dir().join(format!("logica-engine-work-{}", std::process::id())).join("captures");
+    assert!(!dir.exists());
+    let mut e = Engine::new(EngineConfig { data_dir: Some(dir.clone()), ..EngineConfig::default() });
+    let c = open(&mut e, "1_UART_easy.demo");
+    assert!(dir.join(format!("{c}.lacap")).is_file());
+    let dev = "synthetic/nec";
+    run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
+    let caps = run(&mut e, &agent(), "device.list", json!({}))["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["info"]["id"] == dev)
+        .unwrap()["capabilities"]
+        .clone();
+    let rate = caps["ratesHz"][0].as_f64().unwrap();
+    run(
+        &mut e,
+        &agent(),
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [0], "sampleRateHz": rate, "samples": 1000, "mode": caps["modes"][0] } }),
+    );
+    let o = run(&mut e, &agent(), "capture.start", json!({ "device": dev }));
+    assert!(dir.join(format!("{}.lacap", o["id"].as_str().unwrap())).is_file());
+    drop(e);
+    for f in std::fs::read_dir(&dir).unwrap().flatten() {
+        std::fs::remove_file(f.path()).unwrap();
+    }
+    std::fs::remove_dir(&dir).unwrap();
+    std::fs::remove_dir(dir.parent().unwrap()).unwrap();
+}
