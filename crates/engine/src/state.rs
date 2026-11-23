@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use logica_core::Sample;
 use logica_core::capture::{CaptureMeta, CaptureState, Note, SavedDecoder, Source};
 use logica_core::store::CaptureStore;
-use logica_protocols::types::{DecodeResult, ProblemCode, Roles, Settings};
+use logica_protocols::types::{DataFormat, DecodeResult, FrameKind, ProblemCode, Roles, Settings};
 
 use crate::contract::Actor;
 
@@ -22,12 +22,30 @@ pub struct DecoderConfig {
     pub roles: Roles,
     pub settings: Settings,
     pub name: String,
+    /// How its data is written in the waveform's text row (ASCII unless chosen).
+    #[serde(default)]
+    pub data_format: DataFormat,
 }
 
 pub struct Decoder {
     pub config: DecoderConfig,
     /// The whole-capture decode (paged by `decoder.frames`).
     pub result: DecodeResult,
+    /// Channels its data frames are drawn under, in order.
+    pub lanes: Vec<u32>,
+}
+
+/// Frames that carry data (bytes, words, samples): what the waveform's text row writes out.
+pub fn is_data(kind: FrameKind) -> bool {
+    matches!(kind, FrameKind::Data | FrameKind::Sample)
+}
+
+impl Decoder {
+    pub fn new(config: DecoderConfig, result: DecodeResult) -> Self {
+        let lanes: BTreeSet<u32> =
+            result.frames.iter().filter(|f| f.row == 0 && is_data(f.kind)).map(|f| f.lane).collect();
+        Decoder { config, result, lanes: lanes.into_iter().collect() }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -94,6 +112,8 @@ pub struct ChannelEntry {
 pub struct DecoderSummary {
     pub id: String,
     pub config: DecoderConfig,
+    /// Channels its data appears under (SPI: MOSI and MISO; UART: RX and TX), in order.
+    pub lanes: Vec<u32>,
     pub frames: usize,
     pub packets: usize,
     pub problem_counts: BTreeMap<ProblemCode, u64>,
@@ -105,6 +125,7 @@ impl DecoderSummary {
         DecoderSummary {
             id: id.into(),
             config: d.config.clone(),
+            lanes: d.lanes.clone(),
             frames: d.result.frames.len(),
             packets: d.result.packets.len(),
             problem_counts: d.result.problem_counts.clone(),
@@ -183,4 +204,17 @@ pub struct SavedSession {
     pub markers: Vec<Marker>,
     pub groups: BTreeMap<String, Vec<u32>>,
     pub hidden: Vec<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decoders_saved_before_data_formats_existed_open_as_ascii() {
+        let old =
+            r#"{ "protocol": "uart", "roles": { "data": 0 }, "settings": { "baud": 9600 }, "name": "UART" }"#;
+        let cfg: DecoderConfig = serde_json::from_str(old).unwrap();
+        assert_eq!(cfg.data_format, DataFormat::Ascii);
+    }
 }

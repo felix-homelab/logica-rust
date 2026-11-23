@@ -152,7 +152,7 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
                 continue;
             }
         };
-        e.capture_mut(&id)?.decoders.insert(did, Decoder { config: cfg, result });
+        e.capture_mut(&id)?.decoders.insert(did, Decoder::new(cfg, result));
     }
     let c = e.capture_mut(&id)?;
     for m in session.markers {

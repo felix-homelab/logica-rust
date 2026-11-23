@@ -209,6 +209,21 @@ pub fn roles(pairs: &[(&str, Option<u32>)]) -> Roles {
     pairs.iter().map(|(k, v)| ((*k).to_string(), *v)).collect()
 }
 
+/// How a decoder's data values are written out for people (the waveform's text row, doc 08).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum DataFormat {
+    /// Characters: "Hello\r\n"; bytes that are not printable as "·".
+    #[default]
+    Ascii,
+    /// "48 65 6C"
+    Hex,
+    /// "72 101 108"
+    Decimal,
+    /// "01001000 01100101"
+    Binary,
+}
+
 // ------------------------------------------------------------------ decoded output
 
 #[derive(

@@ -9,7 +9,9 @@ use logica_core::Sample;
 use logica_protocols::analyse::{Batching, decode_store};
 use logica_protocols::format::as_text;
 use logica_protocols::protocol::Symptom;
-use logica_protocols::types::{DecodeResult, Frame, FrameKind, Packet, ProblemCode, Roles, Settings};
+use logica_protocols::types::{
+    DataFormat, DecodeResult, Frame, FrameKind, Packet, ProblemCode, Roles, Settings,
+};
 
 use crate::contract::{CommandError, ErrorCode, Event};
 use crate::engine::{Ctx, Done, Engine, err};
@@ -51,6 +53,8 @@ pub struct DecoderAddIn {
     #[serde(default)]
     pub settings: Settings,
     pub name: Option<String>,
+    /// How its data is written in the waveform's text row (default ASCII).
+    pub data_format: Option<DataFormat>,
     /// The decoder id to use (redo and undo use the id it had); a new one when absent.
     pub id: Option<String>,
 }
@@ -80,6 +84,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
         roles: i.roles.clone(),
         settings: i.settings.clone(),
         name: i.name.clone().unwrap_or_else(|| title.clone()),
+        data_format: i.data_format.unwrap_or_default(),
     };
     let result = run_decode(e, &i.capture, &cfg)?;
     let id = match &i.id {
@@ -93,11 +98,16 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
     if c.decoders.contains_key(&id) {
         return Err(err(ErrorCode::InvalidInput, format!("A decoder with the id \"{id}\" already exists.")));
     }
-    let d = Decoder { config: cfg.clone(), result };
+    let d = Decoder::new(cfg.clone(), result);
     let summary = DecoderSummary::of(&id, &d);
     c.decoders.insert(id.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: id.clone() });
-    let canonical = DecoderAddIn { id: Some(id.clone()), name: Some(cfg.name.clone()), ..i.clone() };
+    let canonical = DecoderAddIn {
+        id: Some(id.clone()),
+        name: Some(cfg.name.clone()),
+        data_format: Some(cfg.data_format),
+        ..i.clone()
+    };
     Ok(Done::edit(
         out(&DecoderOut { decoder: summary }),
         inv("decoder.remove", &DecoderRef { capture: i.capture.clone(), decoder: id }),
@@ -119,6 +129,9 @@ pub struct DecoderUpdateIn {
     #[serde(default)]
     pub replace_settings: bool,
     pub name: Option<String>,
+    /// How its data is written in the waveform's text row; changing only this does not decode
+    /// again.
+    pub data_format: Option<DataFormat>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -172,10 +185,24 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: DecoderUpdateIn) -> Result<Done
     if let Some(n) = &i.name {
         cfg.name = n.clone();
     }
-    let result = run_decode(e, &i.capture, &cfg)?;
+    if let Some(f) = i.data_format {
+        cfg.data_format = f;
+    }
+    // the name and the data format do not change what is decoded
+    let same = cfg.roles == old.roles && cfg.settings == old.settings;
+    let result = if same {
+        let c = e.capture_mut(&i.capture)?;
+        let d = c
+            .decoders
+            .get_mut(&i.decoder)
+            .ok_or_else(|| err(ErrorCode::NotFound, "There is no such decoder."))?;
+        std::mem::take(&mut d.result)
+    } else {
+        run_decode(e, &i.capture, &cfg)?
+    };
     let after = result.problem_counts.clone();
     let c = e.capture_mut(&i.capture)?;
-    let d = Decoder { config: cfg, result };
+    let d = Decoder::new(cfg, result);
     let summary = DecoderSummary::of(&i.decoder, &d);
     c.decoders.insert(i.decoder.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: i.decoder.clone() });
@@ -196,6 +223,7 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: DecoderUpdateIn) -> Result<Done
         settings: Some(old.settings),
         replace_settings: true,
         name: Some(old.name.clone()),
+        data_format: Some(old.data_format),
     };
     Ok(Done::edit(
         out(&DecoderUpdateOut { decoder: summary, problem_changes }),
@@ -216,6 +244,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: DecoderRef) -> Result<Done, Com
         roles: d.config.roles.clone(),
         settings: d.config.settings.clone(),
         name: Some(d.config.name.clone()),
+        data_format: Some(d.config.data_format),
         id: Some(i.decoder.clone()),
     };
     Ok(Done::edit(

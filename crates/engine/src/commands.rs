@@ -130,7 +130,10 @@ pub const COMMANDS: &[CommandSpec] = &[
         "decoder.add",
         "Add a decoder (protocol, roles, settings), or one from a detection; undo removes it.",
     ),
-    edit("decoder.update", "Change a decoder's roles or settings; returns how its problem counts changed."),
+    edit(
+        "decoder.update",
+        "Change a decoder's roles, settings, name or data format (how its data is written in the waveform); returns how its problem counts changed.",
+    ),
     edit("decoder.remove", "Remove a decoder; undo restores it with the same id."),
     query(
         "decoder.frames",

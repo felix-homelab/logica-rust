@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use logica_core::Sample;
 use logica_core::store::Level;
+use logica_protocols::format::value_as;
 use logica_protocols::types::FrameKind;
 
 use crate::contract::{CommandError, ErrorCode};
 use crate::engine::{Ctx, Done, Engine, err};
+use crate::state::is_data;
 
 use super::out;
 
@@ -53,9 +55,14 @@ pub struct WaveFrame {
     pub end: Sample,
     pub label: String,
     pub kind: FrameKind,
-    /// Physical channel it belongs under.
+    /// Physical channel it is drawn under: one of the decoder's data channels (`lanes` in the
+    /// session); frames on another channel (an I2C start on SCL) go under the first of them.
     pub lane: u32,
     pub problem: bool,
+    /// For data frames: the value in the decoder's data format ("A", "65", "01000001").
+    pub text: Option<String>,
+    /// Packet it belongs to: neighbours in one packet join into a string in the text row.
+    pub packet: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -65,8 +72,9 @@ pub struct WaveDecoder {
     pub name: String,
     /// Frames in the range, when there are few enough to draw one by one.
     pub frames: Option<Vec<WaveFrame>>,
-    /// Otherwise stretches of frames closer than a bucket, as (start, end, any problem).
-    pub spans: Option<Vec<(Sample, Sample, bool)>>,
+    /// Otherwise stretches of frames closer than a bucket, per channel drawn under, as
+    /// (start, end, any problem, lane).
+    pub spans: Option<Vec<(Sample, Sample, bool, u32)>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -141,6 +149,10 @@ pub(crate) fn get(e: &mut Engine, _: &Ctx, i: WaveformIn) -> Result<Done, Comman
         for (id, d) in &c.decoders {
             let inside: Vec<&logica_protocols::types::Frame> =
                 d.result.frames.iter().filter(|f| f.row == 0 && f.end > i.from && f.start < to).collect();
+            let lane = |l: u32| match d.lanes.first() {
+                Some(&first) if !d.lanes.contains(&l) => first,
+                _ => l,
+            };
             let (frames, spans) = if inside.len() as u64 <= u64::from(i.buckets) {
                 let frames = inside
                     .iter()
@@ -149,23 +161,26 @@ pub(crate) fn get(e: &mut Engine, _: &Ctx, i: WaveformIn) -> Result<Done, Comman
                         end: f.end,
                         label: f.label.clone(),
                         kind: f.kind,
-                        lane: f.lane,
+                        lane: lane(f.lane),
                         problem: !f.problems.is_empty(),
+                        text: f.value.filter(|_| is_data(f.kind)).map(|v| value_as(v, d.config.data_format)),
+                        packet: f.packet,
                     })
                     .collect();
                 (Some(frames), None)
             } else {
-                let mut spans: Vec<(Sample, Sample, bool)> = Vec::new();
+                let mut spans: Vec<(Sample, Sample, bool, u32)> = Vec::new();
                 let mut sorted = inside;
-                sorted.sort_by_key(|f| f.start);
+                sorted.sort_by_key(|f| (lane(f.lane), f.start));
                 for f in sorted {
                     let problem = !f.problems.is_empty();
+                    let l = lane(f.lane);
                     match spans.last_mut() {
-                        Some(last) if f.start <= last.1.saturating_add(bucket) => {
+                        Some(last) if last.3 == l && f.start <= last.1.saturating_add(bucket) => {
                             last.1 = last.1.max(f.end);
                             last.2 |= problem;
                         }
-                        _ => spans.push((f.start, f.end, problem)),
+                        _ => spans.push((f.start, f.end, problem, l)),
                     }
                 }
                 (None, Some(spans))

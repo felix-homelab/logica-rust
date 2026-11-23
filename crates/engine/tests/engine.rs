@@ -146,6 +146,10 @@ fn every_mutating_command_is_undone_and_redone_exactly() {
     let mk = capture(&s, &c)["markers"][0]["id"].as_str().unwrap().to_string();
     for (cmd, input) in [
         ("decoder.update", json!({ "capture": c, "decoder": dec, "settings": { "addressFormat": "8bit" } })),
+        (
+            "decoder.update",
+            json!({ "capture": c, "decoder": dec, "dataFormat": "binary", "name": "EEPROM bus" }),
+        ),
         ("marker.update", json!({ "capture": c, "marker": mk, "label": "there", "note": "a note" })),
         ("decoder.remove", json!({ "capture": c, "decoder": dec })),
         ("marker.remove", json!({ "capture": c, "marker": mk })),
@@ -218,7 +222,7 @@ fn saving_and_reopening_keeps_decoders_markers_and_groups() {
         &mut e,
         &Actor::User,
         "decoder.add",
-        json!({ "capture": c, "protocol": "i2c", "roles": { "scl": 1, "sda": 2 }, "id": "bus" }),
+        json!({ "capture": c, "protocol": "i2c", "roles": { "scl": 1, "sda": 2 }, "id": "bus", "dataFormat": "hex" }),
     );
     run(
         &mut e,
@@ -236,6 +240,7 @@ fn saving_and_reopening_keeps_decoders_markers_and_groups() {
     let id = o["capture"]["id"].as_str().unwrap().to_string();
     let after = capture(&session(&mut f), &id).clone();
     assert_eq!(after["decoders"], before["decoders"]);
+    assert_eq!(after["decoders"][0]["config"]["dataFormat"], "hex");
     assert_eq!(after["markers"], before["markers"]);
     assert_eq!(after["channels"], before["channels"]);
     assert_eq!(after["sampleCount"], before["sampleCount"]);
@@ -802,4 +807,142 @@ fn captures_know_when_they_have_unsaved_changes() {
     drop(e);
     std::fs::remove_file(&path).unwrap();
     std::fs::remove_dir(&dir).unwrap();
+}
+
+/// The texts of the data frames `waveform.get` gives for a decoder in a range of seconds.
+fn wave_texts(e: &mut Engine, c: &str, dec: &str, from_s: f64, to_s: f64) -> Vec<Value> {
+    let rate = capture(&session(e), c)["sampleRateHz"].as_f64().unwrap();
+    let w = run(
+        e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": (from_s * rate) as u64, "to": (to_s * rate) as u64, "buckets": 4000 }),
+    );
+    let d = w["decoders"].as_array().unwrap().iter().find(|d| d["id"] == dec).unwrap();
+    d["frames"].as_array().unwrap().iter().map(|f| f["text"].clone()).collect()
+}
+
+#[test]
+fn decoders_write_their_data_in_the_format_chosen() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "1_UART_easy.demo");
+    let added = run(
+        &mut e,
+        &Actor::User,
+        "decoder.add",
+        json!({ "capture": c, "protocol": "uart", "roles": { "data": 0 }, "settings": { "baud": 115200 }, "id": "u" }),
+    );
+    // ASCII unless chosen; the data is drawn under its channel
+    assert_eq!(added["decoder"]["config"]["dataFormat"], "ascii");
+    assert_eq!(added["decoder"]["lanes"], json!([0]));
+    // "OK\r\n" at 0.100 s
+    assert_eq!(
+        wave_texts(&mut e, &c, "u", 0.0995, 0.1012),
+        json!(["O", "K", "\\r", "\\n"]).as_array().unwrap().clone()
+    );
+
+    let frames = added["decoder"]["frames"].clone();
+    let u = run(
+        &mut e,
+        &Actor::User,
+        "decoder.update",
+        json!({ "capture": c, "decoder": "u", "dataFormat": "hex" }),
+    );
+    assert_eq!(u["decoder"]["config"]["dataFormat"], "hex");
+    // only how it is written changed: the same frames, no problem changes
+    assert_eq!(u["decoder"]["frames"], frames);
+    assert_eq!(u["problemChanges"], json!([]));
+    assert_eq!(
+        wave_texts(&mut e, &c, "u", 0.0995, 0.1012),
+        json!(["4F", "4B", "0D", "0A"]).as_array().unwrap().clone()
+    );
+    run(
+        &mut e,
+        &Actor::User,
+        "decoder.update",
+        json!({ "capture": c, "decoder": "u", "dataFormat": "binary" }),
+    );
+    assert_eq!(wave_texts(&mut e, &c, "u", 0.0995, 0.1012)[0], "01001111");
+    // undo goes back one format at a time
+    run(&mut e, &Actor::User, "history.undo", json!({}));
+    run(&mut e, &Actor::User, "history.undo", json!({}));
+    assert_eq!(wave_texts(&mut e, &c, "u", 0.0995, 0.1012)[1], "K");
+
+    let (code, msg) = fail(
+        &mut e,
+        &Actor::User,
+        "decoder.update",
+        json!({ "capture": c, "decoder": "u", "dataFormat": "octal" }),
+    );
+    assert_eq!(code, ErrorCode::InvalidInput, "{msg}");
+}
+
+#[test]
+fn only_data_frames_have_text_and_lanes_are_the_data_channels() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "3_I2C_bus.demo");
+    let added = run(
+        &mut e,
+        &Actor::User,
+        "decoder.add",
+        json!({ "capture": c, "protocol": "i2c", "roles": { "scl": 1, "sda": 2 }, "dataFormat": "decimal", "id": "bus" }),
+    );
+    // I2C's bytes belong under SDA, not SCL
+    assert_eq!(added["decoder"]["lanes"], json!([2]));
+    let rate = capture(&session(&mut e), &c)["sampleRateHz"].as_f64().unwrap();
+    let count = capture(&session(&mut e), &c)["sampleCount"].as_u64().unwrap();
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 0, "to": count, "buckets": 8192 }),
+    );
+    let frames = w["decoders"][0]["frames"].as_array().expect("few enough frames to list");
+    assert!(rate > 0.0 && !frames.is_empty());
+    for f in frames {
+        let data = f["kind"] == "data";
+        assert_eq!(f["text"].is_string(), data, "{f}");
+        if data {
+            let v: u64 = f["text"].as_str().unwrap().parse().expect("a decimal");
+            assert_eq!(format!("{v:02X}"), f["label"].as_str().unwrap(), "{f}");
+        }
+        assert!(f["packet"].is_u64());
+        // a start or stop on SCL is drawn under SDA, with the bytes
+        assert_eq!(f["lane"], 2, "{f}");
+    }
+}
+
+#[test]
+fn spi_data_has_a_row_per_line_zoomed_in_and_out() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "4_SPI_wrong_mode.demo");
+    let added = run(
+        &mut e,
+        &Actor::User,
+        "decoder.add",
+        json!({ "capture": c, "protocol": "spi", "roles": { "clk": 3, "miso": 4, "cs": 5, "mosi": 6 }, "settings": { "mode": "1" }, "id": "spi" }),
+    );
+    // MOSI and MISO each carry data; CLK and CS none
+    assert_eq!(added["decoder"]["lanes"], json!([4, 6]));
+    let count = capture(&session(&mut e), &c)["sampleCount"].as_u64().unwrap();
+    // zoomed out: merged stretches, kept apart per line
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 0, "to": count, "buckets": 8 }),
+    );
+    let spans = w["decoders"][0]["spans"].as_array().expect("too many frames to list at 8 columns");
+    let lanes: std::collections::BTreeSet<u64> = spans.iter().map(|s| s[3].as_u64().unwrap()).collect();
+    assert_eq!(lanes.into_iter().collect::<Vec<_>>(), vec![4, 6], "{spans:?}");
+    // zoomed in: every frame is drawn under one of the two lines
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 0, "to": count, "buckets": 8192 }),
+    );
+    let frames = w["decoders"][0]["frames"].as_array().expect("few enough frames to list");
+    assert!(frames.iter().all(|f| f["lane"] == 4 || f["lane"] == 6), "{frames:?}");
+    assert!(frames.iter().any(|f| f["lane"] == 4) && frames.iter().any(|f| f["lane"] == 6));
 }
