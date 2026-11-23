@@ -23,6 +23,9 @@ export async function start(files: string[] = [], env: Record<string, string> = 
     env: { ...process.env, LOGICA_DATA_DIR: dataDir, ...env } as Record<string, string>,
   });
   const page = await app.firstWindow();
+  // the same layout on every machine, whatever its screen (CI runners have small ones); the
+  // narrow-window test makes its own size
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1440, 900));
   await page.waitForSelector('.app, .boot');
   return { app, page, dataDir };
 }
