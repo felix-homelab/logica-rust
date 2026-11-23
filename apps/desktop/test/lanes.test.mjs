@@ -5,7 +5,7 @@ import { groupChannels, layoutRows, runs, joinRun, roleOf, ROW_HEIGHT } from '..
 
 const ch = (index, extra = {}) => ({ index, name: `CH${index}`, hidden: false, ...extra });
 const channels = [0, 1, 2, 3, 4, 5, 6].map((i) => ch(i));
-const spi = { id: 'spi-1', config: { name: 'SPI mode 1', roles: { clk: 3, miso: 4, cs: 5, mosi: 6 }, dataFormat: 'hex' }, lanes: [4, 6] };
+const spi = { id: 'spi-1', config: { name: 'SPI mode 1', roles: { clk: 3, miso: 4, cs: 5, mosi: 6 }, dataFormat: 'hex' }, lanes: [4, 6], channels: [3, 5, 6, 4] };
 const i2c = { id: 'i2c-1', config: { name: 'I2C', roles: { scl: 1, sda: 2 } }, lanes: [2] };
 const shape = (rows) => rows.map((r) => `${r.kind}:${r.label}`);
 
@@ -15,7 +15,7 @@ test("a decoder's channels are grouped together, in the capture's channel order"
     g.groups.map((x) => [x.decoder.id, x.channels.map((c) => c.index)]),
     [
       ['i2c-1', [1, 2]],
-      ['spi-1', [3, 4, 5, 6]],
+      ['spi-1', [3, 5, 6, 4]],
     ],
   );
   assert.deepEqual(
@@ -64,12 +64,12 @@ test('rows: a header per group, data rows under the channel the data is on, othe
     'text:ASCII',
     'group:SPI mode 1',
     'channel:CH3 CLK',
-    'channel:CH4 MISO',
-    'data:MISO',
-    'text:Hex',
     'channel:CH5 CS',
     'channel:CH6 MOSI',
     'data:MOSI',
+    'text:Hex',
+    'channel:CH4 MISO',
+    'data:MISO',
     'text:Hex',
     'channel:CH0',
   ]);
@@ -115,4 +115,27 @@ test('a run is one string: ASCII together, the other formats spaced', () => {
   assert.equal(joinRun(['O', 'K', '\\r', '\\n'], 'ascii'), 'OK\\r\\n');
   assert.equal(joinRun(['4F', '4B'], 'hex'), '4F 4B');
   assert.equal(joinRun(['79'], 'decimal'), '79');
+});
+
+test("a group follows the protocol's role order, whatever wires the signals are on", () => {
+  // wired MISO, CS, CLK, MOSI on CH0 to CH3: shown CLK, CS, MOSI, MISO
+  const wired = { id: 's', config: { name: 'SPI', roles: { miso: 0, cs: 1, clk: 2, mosi: 3 } }, lanes: [0, 3], channels: [2, 1, 3, 0] };
+  const g = groupChannels(channels.slice(0, 4), [wired]);
+  assert.deepEqual(
+    g.groups[0].channels.map((c) => roleOf(wired, c.index)),
+    ['CLK', 'CS', 'MOSI', 'MISO'],
+  );
+  // an engine that does not say (older) keeps the capture's order
+  const unordered = { ...wired, channels: undefined };
+  assert.deepEqual(
+    groupChannels(channels.slice(0, 4), [unordered]).groups[0].channels.map((c) => c.index),
+    [0, 1, 2, 3],
+  );
+  // groups are still placed by where their channels are in the capture
+  const uart = { id: 'u', config: { name: 'UART', roles: { data: 5 } }, lanes: [5], channels: [5] };
+  const late = { ...wired, config: { ...wired.config, roles: { miso: 6, cs: 1, clk: 2, mosi: 3 } }, channels: [2, 1, 3, 6] };
+  assert.deepEqual(
+    groupChannels(channels, [uart, late]).groups.map((x) => x.decoder.id),
+    ['s', 'u'],
+  );
 });

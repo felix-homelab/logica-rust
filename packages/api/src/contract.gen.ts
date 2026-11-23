@@ -866,6 +866,11 @@ index: number
 name: string
 }
 export interface DecoderSummary {
+/**
+ * Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO): the order they are
+ * shown in, grouped under the decoder.
+ */
+channels: number[]
 config: DecoderConfig
 frames: number
 id: string

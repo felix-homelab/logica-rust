@@ -13,7 +13,7 @@ use logica_fileio::StdFile;
 
 use crate::contract::{CommandError, ErrorCode};
 use crate::engine::{Ctx, Done, Engine, err};
-use crate::state::{CaptureSummary, Decoder, SavedSession};
+use crate::state::{CaptureSummary, SavedSession};
 
 use super::{Nothing, inv, out};
 
@@ -152,7 +152,8 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
                 continue;
             }
         };
-        e.capture_mut(&id)?.decoders.insert(did, Decoder::new(cfg, result));
+        let d = super::decoders::decoder(e, cfg, result);
+        e.capture_mut(&id)?.decoders.insert(did, d);
     }
     let c = e.capture_mut(&id)?;
     for m in session.markers {

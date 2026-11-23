@@ -18,12 +18,14 @@ export interface LaneDecoder {
   config: { name: string; roles: Record<string, number | null | undefined>; dataFormat?: DataFormat | undefined };
   /** Channels its data frames are drawn under. */
   lanes: number[];
+  /** Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO). */
+  channels?: number[];
 }
 
 export interface Group<C, D> {
   /** The decoder the group is named after. */
   decoder: D;
-  /** Its channels, in the capture's order (hidden ones too). */
+  /** Its channels in the protocol's role order (hidden ones too). */
   channels: C[];
   /** Decoders on channels of this group only (a second decoder on the same wires). */
   extra: D[];
@@ -47,7 +49,8 @@ export function roleOf(d: LaneDecoder, channel: number): string | null {
 
 /**
  * Groups channels by the decoders that use them. A channel belongs to the first decoder that uses
- * it; groups are in the order of their first channel, so the capture's channel order is kept.
+ * it. Inside a group the channels follow the protocol's role order (SPI: CLK, CS, MOSI, MISO),
+ * whatever wires they were on; the groups follow the capture's channel order.
  */
 export function groupChannels<C extends LaneChannel, D extends LaneDecoder>(channels: C[], decoders: D[]): Grouping<C, D> {
   const owner = new Map<number, Group<C, D>>();
@@ -55,7 +58,10 @@ export function groupChannels<C extends LaneChannel, D extends LaneDecoder>(chan
   const loose: D[] = [];
   for (const d of decoders) {
     const wires = new Set(used(d));
-    const own = channels.filter((c) => wires.has(c.index) && !owner.has(c.index));
+    const order = d.channels ?? [];
+    const rank = (c: C) => (order.includes(c.index) ? order.indexOf(c.index) : order.length);
+    // a stable sort: channels the order does not name keep the capture's order, at the end
+    const own = channels.filter((c) => wires.has(c.index) && !owner.has(c.index)).sort((a, b) => rank(a) - rank(b));
     if (own.length) {
       const g: Group<C, D> = { decoder: d, channels: own, extra: [] };
       groups.push(g);
@@ -67,7 +73,8 @@ export function groupChannels<C extends LaneChannel, D extends LaneDecoder>(chan
     else loose.push(d);
   }
   const position = new Map(channels.map((c, i) => [c.index, i]));
-  groups.sort((a, b) => position.get(a.channels[0]!.index)! - position.get(b.channels[0]!.index)!);
+  const first = (g: Group<C, D>) => Math.min(...g.channels.map((c) => position.get(c.index)!));
+  groups.sort((a, b) => first(a) - first(b));
   return { groups, other: channels.filter((c) => !owner.has(c.index)), loose };
 }
 

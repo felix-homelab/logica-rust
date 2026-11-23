@@ -33,6 +33,8 @@ pub struct Decoder {
     pub result: DecodeResult,
     /// Channels its data frames are drawn under, in order.
     pub lanes: Vec<u32>,
+    /// Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO).
+    pub channels: Vec<u32>,
 }
 
 /// Frames that carry data (bytes, words, samples): what the waveform's text row writes out.
@@ -41,10 +43,20 @@ pub fn is_data(kind: FrameKind) -> bool {
 }
 
 impl Decoder {
-    pub fn new(config: DecoderConfig, result: DecodeResult) -> Self {
+    /// `role_order`: the protocol's role keys in display order; roles it does not name follow.
+    pub fn new(config: DecoderConfig, result: DecodeResult, role_order: &[&str]) -> Self {
         let lanes: BTreeSet<u32> =
             result.frames.iter().filter(|f| f.row == 0 && is_data(f.kind)).map(|f| f.lane).collect();
-        Decoder { config, result, lanes: lanes.into_iter().collect() }
+        let named = role_order.iter().filter_map(|k| config.roles.get(*k).copied().flatten());
+        let rest =
+            config.roles.iter().filter(|(k, _)| !role_order.contains(&k.as_str())).filter_map(|(_, c)| *c);
+        let mut channels: Vec<u32> = Vec::new();
+        for c in named.chain(rest) {
+            if !channels.contains(&c) {
+                channels.push(c);
+            }
+        }
+        Decoder { config, result, lanes: lanes.into_iter().collect(), channels }
     }
 }
 
@@ -114,6 +126,9 @@ pub struct DecoderSummary {
     pub config: DecoderConfig,
     /// Channels its data appears under (SPI: MOSI and MISO; UART: RX and TX), in order.
     pub lanes: Vec<u32>,
+    /// Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO): the order they are
+    /// shown in, grouped under the decoder.
+    pub channels: Vec<u32>,
     pub frames: usize,
     pub packets: usize,
     pub problem_counts: BTreeMap<ProblemCode, u64>,
@@ -126,6 +141,7 @@ impl DecoderSummary {
             id: id.into(),
             config: d.config.clone(),
             lanes: d.lanes.clone(),
+            channels: d.channels.clone(),
             frames: d.result.frames.len(),
             packets: d.result.packets.len(),
             problem_counts: d.result.problem_counts.clone(),

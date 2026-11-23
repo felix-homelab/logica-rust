@@ -59,8 +59,10 @@ What is done, what is next, and decisions made on the way. Newest first.
 ### Decoder groups and data as text (after the reliability review)
 
 - A decoder's channels are grouped together under its name, in the waveform and in the channel
-  list; channels no decoder uses come last. A channel belongs to the first decoder that uses it; a
-  second decoder on the same wires joins that group.
+  list; channels no decoder uses come last. Inside a group the channels follow the protocol's role
+  order (SPI: CLK, CS, MOSI, MISO; `channels` in the decoder summary), whatever wires they are on.
+  A channel belongs to the first decoder that uses it; a second decoder on the same wires joins
+  that group.
 - Each decoder's frames are drawn under the channel its data is on (SPI: MOSI and MISO; UART: RX
   and TX), no longer all on one row; frames on other channels (an I2C start on SCL) go under the
   first data channel. The engine reports these channels (`lanes` in the decoder summary) and keeps

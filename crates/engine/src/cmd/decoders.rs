@@ -19,6 +19,17 @@ use crate::state::{Decoder, DecoderConfig, DecoderSummary};
 
 use super::{Nothing, inv, out};
 
+/// A decoder from its configuration and decode, its channels in the protocol's role order.
+pub(crate) fn decoder(e: &Engine, cfg: DecoderConfig, result: DecodeResult) -> Decoder {
+    let order: Vec<String> = e
+        .registry
+        .get(&cfg.protocol)
+        .map(|p| p.roles().iter().map(|r| r.key.clone()).collect())
+        .unwrap_or_default();
+    let keys: Vec<&str> = order.iter().map(String::as_str).collect();
+    Decoder::new(cfg, result, &keys)
+}
+
 /// Decodes a whole capture with a configuration.
 pub(crate) fn run_decode(
     e: &Engine,
@@ -94,11 +105,11 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
         }
         None => e.new_id(&format!("{}-", i.protocol)),
     };
+    let d = decoder(e, cfg.clone(), result);
     let c = e.capture_mut(&i.capture)?;
     if c.decoders.contains_key(&id) {
         return Err(err(ErrorCode::InvalidInput, format!("A decoder with the id \"{id}\" already exists.")));
     }
-    let d = Decoder::new(cfg.clone(), result);
     let summary = DecoderSummary::of(&id, &d);
     c.decoders.insert(id.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: id.clone() });
@@ -201,8 +212,8 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: DecoderUpdateIn) -> Result<Done
         run_decode(e, &i.capture, &cfg)?
     };
     let after = result.problem_counts.clone();
+    let d = decoder(e, cfg, result);
     let c = e.capture_mut(&i.capture)?;
-    let d = Decoder::new(cfg, result);
     let summary = DecoderSummary::of(&i.decoder, &d);
     c.decoders.insert(i.decoder.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: i.decoder.clone() });

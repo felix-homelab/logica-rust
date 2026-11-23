@@ -39,7 +39,8 @@ test('a recording opens, is analysed, decoded with one click and read in the tab
   const { app, page } = await start([fixture('captures/mystery_C.demo')]);
   await expect(captureTab(page, 'mystery_C.demo')).toBeVisible();
   const card = page.getByRole('region', { name: /Bus CH4, CH5/ });
-  await expect(card.getByText('I2C', { exact: true })).toBeVisible();
+  // the first analysis of a run can take longer than the usual wait on a cold CI machine
+  await expect(card.getByText('I2C', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(card.getByText('100 % sure')).toBeVisible();
   await expect(card.getByText(/The clock runs at 400 kHz/)).toBeVisible();
   await card.getByRole('button', { name: 'Add decoder' }).click();

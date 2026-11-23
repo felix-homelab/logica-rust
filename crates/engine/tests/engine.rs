@@ -889,6 +889,7 @@ fn only_data_frames_have_text_and_lanes_are_the_data_channels() {
     );
     // I2C's bytes belong under SDA, not SCL
     assert_eq!(added["decoder"]["lanes"], json!([2]));
+    assert_eq!(added["decoder"]["channels"], json!([1, 2]), "SCL, SDA");
     let rate = capture(&session(&mut e), &c)["sampleRateHz"].as_f64().unwrap();
     let count = capture(&session(&mut e), &c)["sampleCount"].as_u64().unwrap();
     let w = run(
@@ -924,6 +925,8 @@ fn spi_data_has_a_row_per_line_zoomed_in_and_out() {
     );
     // MOSI and MISO each carry data; CLK and CS none
     assert_eq!(added["decoder"]["lanes"], json!([4, 6]));
+    // the channels in SPI's role order, CLK, CS, MOSI, MISO, not in the file's (MISO is CH4)
+    assert_eq!(added["decoder"]["channels"], json!([3, 5, 6, 4]));
     let count = capture(&session(&mut e), &c)["sampleCount"].as_u64().unwrap();
     // zoomed out: merged stretches, kept apart per line
     let w = run(

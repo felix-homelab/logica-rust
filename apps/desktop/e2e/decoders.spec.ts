@@ -28,10 +28,11 @@ test("a decoder's channels are grouped, and its data is shown in the format chos
   }
   await add.getByRole('button', { name: /^Add SPI/ }).click();
 
-  // the four SPI channels under the decoder's name; this file names them after their roles
-  // already, so the role is not repeated ("CS#" says CS); no other channels are left
+  // the four SPI channels under the decoder's name, in SPI's order (CLK, CS, MOSI, MISO) rather
+  // than the file's (MISO is CH4); the file names them after their roles already, so the role is
+  // not repeated ("CS#" says CS); no other channels are left
   const group = channels.getByRole('region', { name: /^Channels of SPI/ });
-  await expect(group.getByRole('button', { name: /^CH/ })).toHaveText(['CH3 CLK', 'CH4 MISO', 'CH5 CS#', 'CH6 MOSI']);
+  await expect(group.getByRole('button', { name: /^CH/ })).toHaveText(['CH3 CLK', 'CH5 CS#', 'CH6 MOSI', 'CH4 MISO']);
   await expect(channels.getByRole('region', { name: 'Other channels' })).toHaveCount(0);
 
   const card = page.getByRole('region', { name: /^Decoder SPI/ });

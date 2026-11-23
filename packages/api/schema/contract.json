@@ -1167,6 +1167,15 @@
     },
     "DecoderSummary": {
       "properties": {
+        "channels": {
+          "description": "Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO): the order they are\nshown in, grouped under the decoder.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
         "config": {
           "$ref": "#/$defs/DecoderConfig"
         },
@@ -1249,6 +1258,7 @@
         "id",
         "config",
         "lanes",
+        "channels",
         "frames",
         "packets",
         "problemCounts",
