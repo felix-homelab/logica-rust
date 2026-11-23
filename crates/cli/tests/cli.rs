@@ -82,9 +82,14 @@ struct Mcp {
 
 impl Mcp {
     fn start(data_dir: &str, name: &str) -> Mcp {
+        Mcp::start_with(data_dir, name, &["mcp", "--headless"], &[])
+    }
+
+    fn start_with(data_dir: &str, name: &str, args: &[&str], env: &[(&str, &str)]) -> Mcp {
         use std::io::BufRead;
         let mut child = Command::new(env!("CARGO_BIN_EXE_logica"))
-            .args(["mcp", "--headless"])
+            .args(args)
+            .envs(env.iter().copied())
             .env("LOGICA_DATA_DIR", data_dir)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -382,4 +387,106 @@ impl SpawnAndWait for Command {
         let id = child.id();
         (id, child.wait().unwrap().code().unwrap())
     }
+}
+
+/// A stand-in for the desktop app: records its arguments and serves as an engine (a windowless
+/// `logica mcp` kept alive for 20 s), as the app does once started. Unix only (a shell script).
+#[cfg(unix)]
+fn fake_app(dir: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let script = dir.join("fake-app.sh");
+    let body = format!(
+        r#"#!/bin/sh
+echo "$@" > "{args}"
+sleep 20 | exec "{logica}" mcp --headless
+"#,
+        args = dir.join("args.txt").display(),
+        logica = env!("CARGO_BIN_EXE_logica")
+    );
+    std::fs::write(&script, body).unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let info = serde_json::json!({ "executable": script, "version": "test" });
+    std::fs::write(dir.join("app.json"), info.to_string()).unwrap();
+    script
+}
+
+/// Ends the engine the fake app started (its process id is in the lock file).
+#[cfg(unix)]
+fn stop_engine(dir: &Path) {
+    if let Some(pid) = std::fs::read_to_string(dir.join("logica.lock"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v["pid"].as_u64())
+    {
+        let _ = Command::new("kill").arg(pid.to_string()).status();
+    }
+    for _ in 0..50 {
+        if !dir.join("logica.lock").exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn logica_mcp_starts_the_app_when_no_engine_runs() {
+    let s = Scratch::new("mcp-starts-app");
+    fake_app(&s.0);
+    let dir = s.0.display().to_string();
+    // a desktop (a display), no engine yet, the app known: it is started and relayed to
+    let mut m = Mcp::start_with(&dir, "claude-code", &["mcp"], &[("DISPLAY", ":0")]);
+    let session = m.tool("session", serde_json::json!({}));
+    assert!(session.starts_with("No captures are open."), "{session}");
+    let args = std::fs::read_to_string(s.0.join("args.txt")).unwrap();
+    assert_eq!(args.trim(), "--started-by-agent");
+    assert_eq!(m.finish().0, Some(EXIT_OK));
+    stop_engine(&s.0);
+}
+
+#[cfg(unix)]
+#[test]
+fn logica_open_hands_the_file_to_the_app() {
+    let s = Scratch::new("open");
+    let dir = s.0.display().to_string();
+    let run = |args: &[&str]| {
+        let o = Command::new(env!("CARGO_BIN_EXE_logica"))
+            .args(args)
+            .env("LOGICA_DATA_DIR", &dir)
+            .output()
+            .unwrap();
+        (
+            o.status.code(),
+            String::from_utf8_lossy(&o.stdout).to_string(),
+            String::from_utf8_lossy(&o.stderr).to_string(),
+        )
+    };
+    let file = fixture("captures/mystery_A.demo");
+    // the app has never run here: say so
+    let (code, _, err) = run(&["open", &file]);
+    assert_eq!(code, Some(EXIT_FAILED));
+    assert!(err.contains("has not run on this machine yet"), "{err}");
+
+    fake_app(&s.0);
+    let (code, out, _) = run(&["open", &file]);
+    assert_eq!(code, Some(EXIT_OK));
+    assert!(out.starts_with("Opening ") && out.contains("mystery_A.demo"), "{out}");
+    let mut args = String::new();
+    for _ in 0..50 {
+        args = std::fs::read_to_string(s.0.join("args.txt")).unwrap_or_default();
+        if !args.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let expected = Path::new(&file).canonicalize().unwrap();
+    assert_eq!(args.trim(), expected.display().to_string(), "the app gets the absolute path");
+    stop_engine(&s.0);
+
+    let (code, _, err) = run(&["open", &s.file("missing.demo")]);
+    assert_eq!(code, Some(EXIT_FAILED));
+    assert!(err.contains("could not be opened"), "{err}");
+    let (code, _, err) = run(&["open"]);
+    assert_eq!(code, Some(EXIT_USAGE));
+    assert!(err.contains("open needs a file"), "{err}");
 }

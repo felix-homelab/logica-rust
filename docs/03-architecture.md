@@ -150,8 +150,6 @@ user-data folder) and computed the same way by the CLI.
 - The preload exposes one object: the typed command API client, an event subscription, and the
   few window services (native dialogs, the path of a dropped file, the platform). No
   `ipcRenderer`, no file system, no shell.
-- The skeleton (spike S7) loads its packaged files with `loadFile` and a strict CSP; the custom
-  `app://` protocol below replaces that in M2.
 - Strict Content Security Policy; the renderer loads only packaged files through a custom `app://`
   protocol, never remote content. Navigation and `window.open` are blocked.
 - Paths the person picks in native dialogs are passed to the engine as command inputs; the engine

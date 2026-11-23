@@ -505,6 +505,8 @@
           "description": "The command's name.",
           "enum": [
             "session.get",
+            "session.pauseAgents",
+            "waveform.get",
             "file.open",
             "file.save",
             "capture.close",

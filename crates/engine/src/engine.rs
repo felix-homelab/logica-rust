@@ -117,6 +117,9 @@ pub struct Engine {
     pub(crate) devices: BTreeMap<String, OpenDevice>,
     pub(crate) leases: BTreeMap<String, Actor>,
     pub(crate) running: Vec<Running>,
+    /// The person's "stop agent actions" switch (doc 08): agents' capture and output commands
+    /// are refused while it is on.
+    pub(crate) agents_paused: bool,
     /// Every device the drivers offer: driver index, info, capabilities (filled on first use).
     pub(crate) catalogue: Vec<(usize, logica_core::device::DeviceInfo, logica_core::device::Capabilities)>,
     subscribers: Vec<mpsc::Sender<Event>>,
@@ -141,6 +144,7 @@ impl Engine {
             devices: BTreeMap::new(),
             leases: BTreeMap::new(),
             running: Vec::new(),
+            agents_paused: false,
             catalogue: Vec::new(),
             subscribers: Vec::new(),
             revision: 0,
@@ -246,6 +250,18 @@ impl Engine {
             "history.undo" => return self.undo(actor, &inv.input),
             "history.redo" => return self.redo(actor, &inv.input),
             _ => {}
+        }
+        if self.agents_paused
+            && matches!(actor, Actor::Agent(_))
+            && matches!(s.safety, crate::contract::Safety::Capture | crate::contract::Safety::Output)
+        {
+            return Err(err(
+                ErrorCode::NotAllowed,
+                format!(
+                    "The person has stopped agent actions in the window, so {} is not run. Ask them to resume agent actions.",
+                    inv.command
+                ),
+            ));
         }
         let ctx = Ctx { actor: actor.clone() };
         let done = crate::cmd::dispatch(self, &ctx, &inv.command, inv.input.clone())?;

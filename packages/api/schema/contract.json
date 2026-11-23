@@ -2805,6 +2805,38 @@
       ],
       "type": "object"
     },
+    "PauseAgentsIn": {
+      "additionalProperties": false,
+      "properties": {
+        "paused": {
+          "description": "true stops agents' capture and output commands; false lets them run again.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "paused"
+      ],
+      "type": "object"
+    },
+    "PauseAgentsOut": {
+      "properties": {
+        "agentsPaused": {
+          "type": "boolean"
+        },
+        "stopped": {
+          "description": "Captures started by agents that were stopped by this switch.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentsPaused",
+        "stopped"
+      ],
+      "type": "object"
+    },
     "Periodicity": {
       "properties": {
         "bursts": {
@@ -3504,6 +3536,10 @@
             "null"
           ]
         },
+        "agentsPaused": {
+          "description": "Agents' capture and output commands are refused (the person's \"stop agent actions\").",
+          "type": "boolean"
+        },
         "apiVersion": {
           "description": "\"major.minor\" (doc 03).",
           "type": "string"
@@ -3546,7 +3582,8 @@
         "captures",
         "devices",
         "running",
-        "recent"
+        "recent",
+        "agentsPaused"
       ],
       "type": "object"
     },
@@ -3926,6 +3963,236 @@
       },
       "required": [
         "capture"
+      ],
+      "type": "object"
+    },
+    "WaveDecoder": {
+      "properties": {
+        "frames": {
+          "description": "Frames in the range, when there are few enough to draw one by one.",
+          "items": {
+            "$ref": "#/$defs/WaveFrame"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "spans": {
+          "description": "Otherwise stretches of frames closer than a bucket, as (start, end, any problem).",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "type": "array"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "WaveFrame": {
+      "properties": {
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/FrameKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "lane": {
+          "description": "Physical channel it belongs under.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "problem": {
+          "type": "boolean"
+        },
+        "start": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "label",
+        "kind",
+        "lane",
+        "problem"
+      ],
+      "type": "object"
+    },
+    "WaveTrace": {
+      "properties": {
+        "channel": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "counts": {
+          "description": "Otherwise transitions per bucket of `bucket` samples from `from`.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "edges": {
+          "description": "Every edge in the range (first samples at a new level), when there are few enough to draw.",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "levels": {
+          "description": "And the level at the start of each bucket: \"0\" or \"1\" per bucket.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startLevel": {
+          "$ref": "#/$defs/Level",
+          "description": "Level at `from`."
+        }
+      },
+      "required": [
+        "channel",
+        "startLevel"
+      ],
+      "type": "object"
+    },
+    "WaveformIn": {
+      "additionalProperties": false,
+      "properties": {
+        "buckets": {
+          "description": "Pixel columns to fill (1 to 8192).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "channels": {
+          "description": "Physical channels; the visible ones when absent.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "decoders": {
+          "description": "Include decoder frames (default true).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "description": "End sample (exclusive); limited to the capture's length.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capture",
+        "from",
+        "to",
+        "buckets"
+      ],
+      "type": "object"
+    },
+    "WaveformOut": {
+      "properties": {
+        "bucket": {
+          "description": "Samples per bucket (at least 1).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "decoders": {
+          "items": {
+            "$ref": "#/$defs/WaveDecoder"
+          },
+          "type": "array"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "traces": {
+          "items": {
+            "$ref": "#/$defs/WaveTrace"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bucket",
+        "traces",
+        "decoders"
       ],
       "type": "object"
     },
@@ -4586,6 +4853,22 @@
         "kind": "query"
       }
     },
+    "session.pauseAgents": {
+      "input": {
+        "$ref": "#/$defs/PauseAgentsIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/PauseAgentsOut"
+      },
+      "safety": "read",
+      "summary": "The person's switch to stop agents' capture and output commands, and to let them run again.",
+      "undo": {
+        "kind": "never",
+        "reason": "A safety switch, not an edit; switch it back instead."
+      }
+    },
     "view.set": {
       "input": {
         "$ref": "#/$defs/ViewSetIn"
@@ -4599,6 +4882,21 @@
       "summary": "Move a tab's view: visible range, cursors A and B, selection.",
       "undo": {
         "kind": "inverse"
+      }
+    },
+    "waveform.get": {
+      "input": {
+        "$ref": "#/$defs/WaveformIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/WaveformOut"
+      },
+      "safety": "read",
+      "summary": "What to draw for a range: per channel the edges, or level-of-detail buckets when zoomed out, and decoder frames.",
+      "undo": {
+        "kind": "query"
       }
     }
   },

@@ -1,0 +1,180 @@
+/*
+ * Logica's design tokens (doc 08). Components use these, never raw values. Light is the default;
+ * dark follows the operating system, or is forced with data-theme on <html>. The waveform stays
+ * dark in both. Contrast of every text pair is checked in test/tokens.test.mjs (WCAG AA).
+ */
+
+:root {
+  /* type: the system font, tabular figures for every number */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "SF Pro Text", Cantarell, Inter,
+    "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --font-numeric: tabular-nums;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.45;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* 8 px grid, with half steps for dense rows */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-full: 999px;
+
+  /* sizes of dense controls (pointer targets stay at least 24 px, WCAG 2.2) */
+  --control-sm: 24px;
+  --control-md: 28px;
+  --control-lg: 32px;
+  --row: 26px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+
+  /* calm motion: panels and popovers only; exits shorter than entries */
+  --motion-fast: 120ms;
+  --motion-normal: 160ms;
+  --motion-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  --z-panel: 10;
+  --z-drawer: 20;
+  --z-popover: 40;
+  --z-dialog: 100;
+  --z-toast: 200;
+
+  /* the waveform: dark in both themes; the default channel palette (DLA_Logic's four) */
+  --wave-bg: #121418;
+  --wave-grid: #23272f;
+  --wave-axis-text: #9aa1ad;
+  --wave-cursor: #e6e8ec;
+  --wave-selection: rgb(139 141 255 / 0.16);
+  --wave-marker: #ffb020;
+  --wave-agent: #c08cff;
+  --wave-problem: #ff6b6b;
+  --channel-1: #e54242;
+  --channel-2: #ff7f00;
+  --channel-3: #007fff;
+  --channel-4: #26ad34;
+
+  /* light theme */
+  color-scheme: light;
+  --bg-app: #f5f6f8;
+  --bg-surface: #ffffff;
+  --bg-raised: #ffffff;
+  --bg-sunken: #eceef2;
+  --bg-hover: #e9ebef;
+  --bg-active: #dfe2e8;
+  --bg-selected: #e6e7fb;
+  --border: #dde1e7;
+  --border-strong: #868d99;
+  --text: #16181d;
+  --text-secondary: #454b57;
+  --text-muted: #5f6674;
+  --text-disabled: #9aa0aa;
+  --accent: #4648d4;
+  --accent-bg: #4648d4;
+  --accent-bg-hover: #3a3cc0;
+  --on-accent: #ffffff;
+  --focus-ring: #4648d4;
+  --danger: #c62828;
+  --danger-bg: #fdecec;
+  --warning: #8a5a00;
+  --warning-bg: #fff4dc;
+  --success: #1b7046;
+  --success-bg: #e5f5ec;
+  --agent: #7c3aed;
+  --agent-bg: #f1e9ff;
+  --shadow-popover: 0 8px 24px rgb(16 18 22 / 0.14), 0 1px 3px rgb(16 18 22 / 0.1);
+  --shadow-dialog: 0 16px 48px rgb(16 18 22 / 0.22);
+  --scrim: rgb(16 18 22 / 0.36);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg-app: #16181d;
+    --bg-surface: #1c1f26;
+    --bg-raised: #242830;
+    --bg-sunken: #121418;
+    --bg-hover: #2a2e37;
+    --bg-active: #333843;
+    --bg-selected: #2c2d55;
+    --border: #2e333d;
+    --border-strong: #6d7482;
+    --text: #e6e8ec;
+    --text-secondary: #b4bac4;
+    --text-muted: #8f97a4;
+    --text-disabled: #5d6472;
+    --accent: #8b8dff;
+    --accent-bg: #5b5ef0;
+    --accent-bg-hover: #4e51e6;
+    --on-accent: #ffffff;
+    --focus-ring: #8b8dff;
+    --danger: #ff6b6b;
+    --danger-bg: #3a1f22;
+    --warning: #f5b041;
+    --warning-bg: #3a2e17;
+    --success: #4cc38a;
+    --success-bg: #17322a;
+    --agent: #c08cff;
+    --agent-bg: #2e2340;
+    --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.04);
+    --shadow-dialog: 0 16px 48px rgb(0 0 0 / 0.55);
+    --scrim: rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-app: #16181d;
+  --bg-surface: #1c1f26;
+  --bg-raised: #242830;
+  --bg-sunken: #121418;
+  --bg-hover: #2a2e37;
+  --bg-active: #333843;
+  --bg-selected: #2c2d55;
+  --border: #2e333d;
+  --border-strong: #6d7482;
+  --text: #e6e8ec;
+  --text-secondary: #b4bac4;
+  --text-muted: #8f97a4;
+  --text-disabled: #5d6472;
+  --accent: #8b8dff;
+  --accent-bg: #5b5ef0;
+  --accent-bg-hover: #4e51e6;
+  --on-accent: #ffffff;
+  --focus-ring: #8b8dff;
+  --danger: #ff6b6b;
+  --danger-bg: #3a1f22;
+  --warning: #f5b041;
+  --warning-bg: #3a2e17;
+  --success: #4cc38a;
+  --success-bg: #17322a;
+  --agent: #c08cff;
+  --agent-bg: #2e2340;
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-dialog: 0 16px 48px rgb(0 0 0 / 0.55);
+  --scrim: rgb(0 0 0 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
+}

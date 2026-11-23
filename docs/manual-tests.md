@@ -38,8 +38,28 @@ Use a fresh data folder for a clean run: `LOGICA_DATA_DIR=/tmp/logica-manual cla
    ends the engine; the second then gets "cannot be reached" (known limit until the app, M2).
 10. **Nothing left behind.** After both sessions end, `logica.lock` is gone from the data folder.
 
-## The window (spike S7, M1)
+## The desktop app (M2)
 
-1. `npm start` (needs a display). A window opens and reports the engine as connected with its
-   command API version, the number of devices (12 synthetic ones) and the cold start time.
-2. Close the window: the app quits and no `logica` engine process remains.
+The end-to-end tests cover opening, analysing, decoding, an agent's marker appearing live, the
+palette, undo and axe (`npm run test:e2e`). These need a person:
+
+1. **Install and associations.** Install the build for your system from a release (or
+   `npm run package`). Double-click a `.demo`, `.sr`, `.vcd` or `.lacap` file: it opens in a tab;
+   with Logica already running, in the same window.
+2. **Drag and drop.** Drag a capture file onto the window: it opens.
+3. **Native dialogs and menus.** File > Open and File > Save as use the system's dialogs; every
+   menu item shows its shortcut and the shortcut works.
+4. **Look.** Light and dark follow the system (Settings > Theme overrides it); the waveform stays
+   dark in both; focus is visible when moving with Tab; nothing moves when reduced motion is on.
+5. **Waveform by hand.** Wheel and trackpad zoom and pan, pinch-zoom on a trackpad, click for
+   cursor A, Alt+click for cursor B, Shift+drag to select; the measurements tab follows.
+6. **Settings.** Switching MCP off removes `logica.lock`; on again writes it with a new port.
+7. **An agent starts the app (S8, the owner's setup).** Quit Logica. On Windows, register
+   `logica.exe mcp` (in the installation's `resources\bin`) with Claude Code in WSL
+   (`claude mcp add logica -- /mnt/c/…/resources/bin/logica.exe mcp`). Ask Claude to open
+   `mystery_C.demo` and mark the EEPROM read: the app starts minimised with "started by an
+   agent", the marker appears live, and the activity feed lists Claude's actions with undo.
+8. **Stop agent actions.** With an agent connected, switch "Stop agent actions" on and ask the
+   agent to capture from the synthetic device: it is refused with the reason.
+9. **Updates.** With a newer release published, the packaged app (Windows, Linux AppImage)
+   downloads it and says it installs on quit; with Settings > Updates off it does not look.

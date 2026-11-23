@@ -15,6 +15,7 @@
     "lint": "node scripts/run-workspaces.mjs lint",
     "test": "node scripts/run-workspaces.mjs test",
     "start": "npm run start -w apps/desktop",
-    "package": "npm run build && npm run package -w apps/desktop"
+    "package": "npm run build && npm run package -w apps/desktop",
+    "test:e2e": "npm run test:e2e -w apps/desktop"
   }
 }

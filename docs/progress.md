@@ -2,6 +2,54 @@
 
 What is done, what is next, and decisions made on the way. Newest first.
 
+## M2 Desktop app and viewer (November 2026)
+
+### Done
+
+- Engine: `waveform.get` (edges zoomed in, LOD buckets zoomed out, decoder frames or spans),
+  `session.pauseAgents` ("stop agent actions"), working folders made on demand; the app serves
+  MCP and writes the lock file; `logica mcp` starts the app minimised when no engine runs;
+  `logica open` hands files to the app.
+- `packages/ui`: tokens (light and dark, waveform dark in both, contrast checked in a test) and
+  components on Radix (buttons, menus, dialogs, tabs, switches, fields, badges, splitter,
+  virtual list, command palette).
+- `apps/desktop`: one app per desktop, native menus and dialogs, file associations, drag and drop,
+  `app://` for the window's files, settings window, the workbench of doc 08 (tabs, channels,
+  waveform with LOD, cursors, selection and markers, analysis with evidence, decoders with
+  settings, search builder, device panel, decoded table, measurements, activity feed with undo),
+  start screen, command palette over every command, keyboard map, live updates from agents.
+- Auto-update from GitHub Releases (Windows, Linux AppImage); a release workflow builds unsigned
+  installers for all three systems on a version tag; the `logica` binary ships in the app.
+- Tests: Playwright end-to-end tests with axe in both themes (also in CI on Linux and Windows),
+  the doc 08 budgets measured in the app (`docs/benchmarks.md`), unit tests for the view
+  arithmetic, formats, settings and tokens.
+
+### Decisions on the way
+
+- The ui-ux-pro-max skill shaped the grey scale and density; doc 08 kept the system font and
+  Lucide, and the accent is indigo because green is a channel colour.
+- The window handles every shortcut itself; the menu shows them without registering them.
+- The person's own pans are sent to the engine throttled and not recorded; the window adopts the
+  engine's view only when someone else changed it.
+- Capture tabs are a navigation list rather than ARIA tabs, because they hold close buttons (axe).
+- Canvas 2D meets the pan and zoom budget at 16 channels, so no WebGL ADR.
+- The component gallery is reachable only in unpackaged builds.
+
+### Not done or not verified
+
+- Not built yet: live view while capturing (captures appear when finished; comes with streaming
+  devices in M3), channel reordering by drag and the bus grouping editor, per-channel thresholds,
+  the trigger editor and output confirmations (M3, with real devices), compare (M5), the
+  capture folder setting, putting `logica` on the PATH from the installers (it ships in
+  `resources/bin`).
+- Not verified here: the budgets on the owner's reference machine, the Windows and macOS
+  installers and auto-update (they need a release), the owner's S8 run with Claude Code in WSL,
+  and the manual checklist (`docs/manual-tests.md`).
+
+### Next
+
+- Spike S3 (DLA-32 Plus feasibility), then M3.
+
 ## M1 Engine, CLI and MCP (November 2026)
 
 ### Done
@@ -73,12 +121,6 @@ What is done, what is next, and decisions made on the way. Newest first.
   `json-schema-to-typescript` (npm, MIT, dev only: types from the schema) and `typescript`
   (Apache-2.0). The generator rewrites 2020-12 tuples (`prefixItems`) to the form that tool reads,
   and objects without fields to `Record<string, never>`.
-
-### Next
-
-- M2: the desktop app and viewer UI (doc 11), starting with the app serving MCP and writing the
-  lock file, and `logica mcp` starting the app. Not verified yet: the Windows build and smoke test
-  (first run in CI), and Claude Code against `logica mcp` (`docs/manual-tests.md`).
 
 ## M0 Foundations (November 2026)
 

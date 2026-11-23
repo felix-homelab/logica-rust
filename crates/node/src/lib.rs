@@ -12,13 +12,81 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast::{self, error::TryRecvError};
 
 use logica_engine::{Actor, Engine, EngineConfig, Event};
-use logica_mcp::Shared;
+use logica_mcp::http::HttpServer;
+use logica_mcp::{Shared, lock};
+
+/// The app's MCP endpoint (doc 07, ADR 0007): served on 127.0.0.1 and announced in the lock
+/// file. Plain Rust, so it is tested without Node.
+pub struct McpEndpoint {
+    runtime: tokio::runtime::Runtime,
+    running: Mutex<Option<(HttpServer, std::path::PathBuf, lock::Lock)>>,
+}
+
+impl McpEndpoint {
+    pub fn new() -> Self {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("the engine's async runtime starts");
+        McpEndpoint { runtime, running: Mutex::new(None) }
+    }
+
+    /// Starts serving and writes the lock file in `dir`; returns the port. Starting again keeps the
+    /// first endpoint. Fails when another engine already serves this desktop.
+    pub fn start(&self, shared: &Arc<Shared>, dir: &std::path::Path) -> Result<u16, String> {
+        let mut slot = self.running.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((s, _, _)) = slot.as_ref() {
+            return Ok(s.addr.port());
+        }
+        let token = lock::new_token().map_err(|e| e.to_string())?;
+        let server = self
+            .runtime
+            .block_on(logica_mcp::http::serve(shared.clone(), token))
+            .map_err(|e| format!("MCP could not start: {e}"))?;
+        let me = lock::Lock {
+            pid: std::process::id(),
+            port: server.addr.port(),
+            token: server.token.clone(),
+            api_version: logica_engine::contract::api_version(),
+            headless: false,
+        };
+        if let Err(e) = lock::write(dir, &me) {
+            self.runtime.block_on(server.stop());
+            let why = if e.kind() == std::io::ErrorKind::AlreadyExists {
+                "another Logica engine already serves agents on this desktop".to_string()
+            } else {
+                e.to_string()
+            };
+            return Err(format!("MCP was not started: {why}."));
+        }
+        let port = me.port;
+        *slot = Some((server, dir.to_path_buf(), me));
+        Ok(port)
+    }
+
+    /// Stops serving and removes the lock file.
+    pub fn stop(&self) {
+        let taken = self.running.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        if let Some((server, dir, me)) = taken {
+            lock::remove_if_ours(&dir, &me);
+            self.runtime.block_on(server.stop());
+        }
+    }
+}
+
+impl Default for McpEndpoint {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// The engine of the app.
 #[napi]
 pub struct LogicaEngine {
     shared: Arc<Shared>,
     events: Arc<Mutex<broadcast::Receiver<Event>>>,
+    mcp: McpEndpoint,
 }
 
 #[napi]
@@ -30,7 +98,22 @@ impl LogicaEngine {
         // outputs need the person's confirmation in the window; until that exists (M3) they are refused
         let shared = Shared::new(engine, false);
         let events = Arc::new(Mutex::new(shared.events()));
-        LogicaEngine { shared, events }
+        LogicaEngine { shared, events, mcp: McpEndpoint::new() }
+    }
+
+    /// Serves MCP on 127.0.0.1 and announces it in the lock file in `dataDir`. Returns the port.
+    #[napi]
+    pub fn start_mcp(&self, data_dir: String) -> napi::Result<u32> {
+        self.mcp
+            .start(&self.shared, std::path::Path::new(&data_dir))
+            .map(u32::from)
+            .map_err(napi::Error::from_reason)
+    }
+
+    /// Stops serving MCP and removes the lock file.
+    #[napi]
+    pub fn stop_mcp(&self) {
+        self.mcp.stop();
     }
 
     /// The command API version, "major.minor".
@@ -153,6 +236,24 @@ impl Task for NextEvents {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_app_serves_mcp_once_and_announces_it() {
+        let dir = std::env::temp_dir().join(format!("logica-node-mcp-{}", std::process::id()));
+        let _ = std::fs::remove_file(lock::path(&dir));
+        let (s, mcp) = (shared(), McpEndpoint::new());
+        let port = mcp.start(&s, &dir).unwrap();
+        assert_eq!(mcp.start(&s, &dir).unwrap(), port, "a second start keeps the first");
+        let l = lock::running(&dir).expect("the lock names a live endpoint");
+        assert_eq!((l.port, l.headless), (port, false));
+        // a second app on the same desktop is told why it does not serve
+        let why = McpEndpoint::new().start(&shared(), &dir).unwrap_err();
+        assert!(why.contains("another Logica engine already serves agents"), "{why}");
+        mcp.stop();
+        assert!(!lock::path(&dir).exists());
+        mcp.stop();
+        let _ = std::fs::remove_dir(&dir);
+    }
+
     use super::*;
 
     fn shared() -> Arc<Shared> {

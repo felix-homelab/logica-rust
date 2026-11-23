@@ -593,3 +593,161 @@ fn events_reach_every_subscriber() {
         assert!(evs.iter().any(|x| matches!(x, Event::CommandExecuted { actor: Actor::Agent(_), summary, .. } if summary.contains("UART decoder on CH0"))));
     }
 }
+
+#[test]
+fn waveform_gives_edges_zoomed_in_and_buckets_zoomed_out() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "mystery_C.demo");
+    run(
+        &mut e,
+        &agent(),
+        "decoder.add",
+        json!({ "capture": c, "protocol": "i2c", "roles": { "scl": 5, "sda": 4 } }),
+    );
+    // zoomed in on the EEPROM read: every edge, and frames one by one
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 6_600_000, "to": 6_601_000, "buckets": 800 }),
+    );
+    assert_eq!(
+        (w["from"].as_u64(), w["to"].as_u64(), w["bucket"].as_u64()),
+        (Some(6_600_000), Some(6_601_000), Some(2))
+    );
+    let traces = w["traces"].as_array().unwrap();
+    assert_eq!(traces.iter().map(|t| t["channel"].as_u64().unwrap()).collect::<Vec<_>>(), [4, 5]);
+    let scl = &traces[1];
+    assert!(scl["counts"].is_null());
+    let edges: Vec<u64> = scl["edges"].as_array().unwrap().iter().map(|x| x.as_u64().unwrap()).collect();
+    assert!(
+        !edges.is_empty()
+            && edges.windows(2).all(|p| p[0] < p[1])
+            && edges.iter().all(|x| (6_600_000..6_601_000).contains(x))
+    );
+    let frames = w["decoders"][0]["frames"].as_array().unwrap();
+    assert!(frames.iter().any(|f| f["label"] == "57 W"), "{frames:?}");
+
+    // the whole capture in 50 columns (624 edges are more than two a column, 77 frames more than
+    // one): buckets with their levels, and frames merged into spans
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 0, "to": 10_000_008, "buckets": 50, "channels": [5] }),
+    );
+    assert_eq!(w["bucket"], 200_001);
+    let t = &w["traces"][0];
+    assert!(t["edges"].is_null());
+    let counts = t["counts"].as_array().unwrap();
+    let levels = t["levels"].as_str().unwrap();
+    assert_eq!((counts.len(), levels.len()), (50, 50));
+    assert!(levels.chars().all(|x| x == '0' || x == '1'));
+    let total: u64 = counts.iter().map(|x| x.as_u64().unwrap()).sum();
+    assert_eq!(total, 624, "the bucket counts add up to CH5's edges");
+    let spans = w["decoders"][0]["spans"].as_array().unwrap();
+    assert_eq!(spans.len(), 3, "three transactions at this zoom: {spans:?}");
+    assert!(w["decoders"][0]["frames"].is_null());
+
+    // without decoders, a range past the end, and refusals
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 10_000_000, "to": 99_000_000, "buckets": 10, "decoders": false }),
+    );
+    assert_eq!((w["to"].as_u64(), w["decoders"].as_array().unwrap().len()), (Some(10_000_008), 0));
+    for (input, says) in [
+        (json!({ "capture": c, "from": 5, "to": 5, "buckets": 10 }), "The range is empty"),
+        (json!({ "capture": c, "from": 0, "to": 50, "buckets": 0 }), "buckets must be 1 to 8192"),
+        (json!({ "capture": c, "from": 0, "to": 50, "buckets": 9000 }), "buckets must be 1 to 8192"),
+        (
+            json!({ "capture": c, "from": 0, "to": 50, "buckets": 10, "channels": [9] }),
+            "Channel 9 is not in capture",
+        ),
+    ] {
+        let (_, msg) = fail(&mut e, &Actor::User, "waveform.get", input);
+        assert!(msg.contains(says), "{msg}");
+    }
+    // hidden channels are left out unless asked for
+    run(&mut e, &Actor::User, "channel.hide", json!({ "capture": c, "channel": 4, "hidden": true }));
+    let w = run(
+        &mut e,
+        &Actor::User,
+        "waveform.get",
+        json!({ "capture": c, "from": 0, "to": 100, "buckets": 10 }),
+    );
+    assert_eq!(w["traces"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn the_person_can_stop_and_resume_agent_actions() {
+    let mut e = Engine::new(EngineConfig::default());
+    let dev = "synthetic/mix";
+    run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
+    let (code, msg) = fail(&mut e, &agent(), "session.pauseAgents", json!({ "paused": true }));
+    assert_eq!(code, ErrorCode::NotAllowed);
+    assert!(msg.contains("Only the person"), "{msg}");
+
+    let o = run(&mut e, &Actor::User, "session.pauseAgents", json!({ "paused": true }));
+    assert_eq!(o["agentsPaused"], true);
+    assert_eq!(session(&mut e)["agentsPaused"], true);
+    let (code, msg) = fail(
+        &mut e,
+        &agent(),
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [0], "sampleRateHz": 1e8, "samples": 1000, "mode": "stream" } }),
+    );
+    assert_eq!(code, ErrorCode::NotAllowed);
+    assert!(msg.contains("stopped agent actions") && msg.contains("device.configure"), "{msg}");
+    // reading and editing the view stay possible
+    let c = open(&mut e, "1_UART_easy.demo");
+    run(&mut e, &agent(), "analysis.detect", json!({ "capture": c }));
+    run(&mut e, &agent(), "marker.add", json!({ "capture": c, "at": 10, "label": "still allowed" }));
+
+    run(&mut e, &Actor::User, "session.pauseAgents", json!({ "paused": false }));
+    run(
+        &mut e,
+        &agent(),
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [0], "sampleRateHz": 1e8, "samples": 1000, "mode": "stream" } }),
+    );
+    let entries = run(&mut e, &Actor::User, "history.list", json!({}))["entries"].clone();
+    let says: Vec<&str> =
+        entries.as_array().unwrap().iter().map(|h| h["summary"].as_str().unwrap()).collect();
+    assert!(says.contains(&"stopped agent actions") && says.contains(&"let agents act again"), "{says:?}");
+}
+
+#[test]
+fn a_working_folder_that_does_not_exist_yet_is_made() {
+    let dir =
+        std::env::temp_dir().join(format!("logica-engine-work-{}", std::process::id())).join("captures");
+    assert!(!dir.exists());
+    let mut e = Engine::new(EngineConfig { data_dir: Some(dir.clone()), ..EngineConfig::default() });
+    let c = open(&mut e, "1_UART_easy.demo");
+    assert!(dir.join(format!("{c}.lacap")).is_file());
+    let dev = "synthetic/nec";
+    run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
+    let caps = run(&mut e, &agent(), "device.list", json!({}))["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["info"]["id"] == dev)
+        .unwrap()["capabilities"]
+        .clone();
+    let rate = caps["ratesHz"][0].as_f64().unwrap();
+    run(
+        &mut e,
+        &agent(),
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [0], "sampleRateHz": rate, "samples": 1000, "mode": caps["modes"][0] } }),
+    );
+    let o = run(&mut e, &agent(), "capture.start", json!({ "device": dev }));
+    assert!(dir.join(format!("{}.lacap", o["id"].as_str().unwrap())).is_file());
+    drop(e);
+    for f in std::fs::read_dir(&dir).unwrap().flatten() {
+        std::fs::remove_file(f.path()).unwrap();
+    }
+    std::fs::remove_dir(&dir).unwrap();
+    std::fs::remove_dir(dir.parent().unwrap()).unwrap();
+}

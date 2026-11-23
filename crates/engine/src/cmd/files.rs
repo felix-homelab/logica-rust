@@ -119,6 +119,8 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
         let target = match &e.cfg.data_dir {
             Some(dir) => {
                 let work = dir.join(format!("{id}.lacap"));
+                // the working folder may not exist yet (a first start)
+                std::fs::create_dir_all(dir).map_err(|x| io_err(dir, &x))?;
                 let f = StdFile::create(&work).map_err(|x| io_err(&work, &x))?;
                 StoreTarget { backing: Arc::new(f), cache_budget: budget }
             }

@@ -147,7 +147,9 @@ inputs: {
 render: RenderIn
 "search.run": SearchIn
 "session.get": Nothing
+"session.pauseAgents": PauseAgentsIn
 "view.set": ViewSetIn
+"waveform.get": WaveformIn
 }
 outputs: {
 "analysis.bytes": ByteAnalysis
@@ -188,7 +190,9 @@ outputs: {
 render: RenderOut
 "search.run": SearchOut
 "session.get": SessionOut
+"session.pauseAgents": PauseAgentsOut
 "view.set": ViewOut
+"waveform.get": WaveformOut
 }
 event: Event
 error: CommandError
@@ -553,6 +557,12 @@ to: number
  */
 unit?: (Unit | null)
 }
+export interface PauseAgentsIn {
+/**
+ * true stops agents' capture and output commands; false lets them run again.
+ */
+paused: boolean
+}
 export interface ViewSetIn {
 /**
  * Bring this capture's tab to the front.
@@ -570,6 +580,26 @@ from?: (number | null)
  */
 selection?: ([number, number] | null)
 to?: (number | null)
+}
+export interface WaveformIn {
+/**
+ * Pixel columns to fill (1 to 8192).
+ */
+buckets: number
+capture: string
+/**
+ * Physical channels; the visible ones when absent.
+ */
+channels?: (number[] | null)
+/**
+ * Include decoder frames (default true).
+ */
+decoders?: (boolean | null)
+from: number
+/**
+ * End sample (exclusive); limited to the capture's length.
+ */
+to: number
 }
 export interface ByteAnalysis {
 bytes: number[]
@@ -1282,6 +1312,10 @@ export interface SessionOut {
  */
 active?: (string | null)
 /**
+ * Agents' capture and output commands are refused (the person's "stop agent actions").
+ */
+agentsPaused: boolean
+/**
  * "major.minor" (doc 03).
  */
 apiVersion: string
@@ -1301,8 +1335,67 @@ export interface RunningEntry {
 capture: string
 device: string
 }
+export interface PauseAgentsOut {
+agentsPaused: boolean
+/**
+ * Captures started by agents that were stopped by this switch.
+ */
+stopped: string[]
+}
 export interface ViewOut {
 view: View
+}
+export interface WaveformOut {
+/**
+ * Samples per bucket (at least 1).
+ */
+bucket: number
+decoders: WaveDecoder[]
+from: number
+to: number
+traces: WaveTrace[]
+}
+export interface WaveDecoder {
+/**
+ * Frames in the range, when there are few enough to draw one by one.
+ */
+frames?: (WaveFrame[] | null)
+id: string
+name: string
+/**
+ * Otherwise stretches of frames closer than a bucket, as (start, end, any problem).
+ */
+spans?: ([number, number, boolean][] | null)
+}
+export interface WaveFrame {
+end: number
+kind: FrameKind
+label: string
+/**
+ * Physical channel it belongs under.
+ */
+lane: number
+problem: boolean
+start: number
+}
+export interface WaveTrace {
+channel: number
+/**
+ * Otherwise transitions per bucket of `bucket` samples from `from`.
+ */
+counts?: (number[] | null)
+/**
+ * Every edge in the range (first samples at a new level), when there are few enough to draw.
+ */
+edges?: (number[] | null)
+/**
+ * And the level at the start of each bucket: "0" or "1" per bucket.
+ */
+levels?: (string | null)
+/**
+ * A digital level.
+ */
+startLevel: ("low" | "high")
 }
 /**
  * An error worded for the person or agent: what is wrong and what to do.

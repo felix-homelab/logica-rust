@@ -29,11 +29,13 @@ Usage:
   logica inspect <file> --index      The index of a .lacap file as stored, without opening it.
   logica convert <in> <out>          Convert a capture (.lacap, FNIRSI .demo, sigrok .sr, VCD) to
                                      .lacap. Add --force to replace an existing <out>.
-  logica mcp [--allow-outputs]       Speak MCP on stdin and stdout for an agent (for Claude Code:
-                                     claude mcp add logica -- logica mcp). Relays to the running
-                                     engine; without one (no app yet), becomes that engine without a
-                                     window, which other agents then share. --allow-outputs permits
-                                     commands that drive device outputs.
+  logica open <file>                 Open a capture in the app, as a double-click does.
+  logica mcp [--headless]            Speak MCP on stdin and stdout for an agent (for Claude Code:
+             [--allow-outputs]       claude mcp add logica -- logica mcp). Relays to the running
+                                     app or engine; with none, starts the app (minimised). With
+                                     --headless, or without a display, it becomes an engine without
+                                     a window instead, which other agents then share.
+                                     --allow-outputs lets that engine drive device outputs.
   logica help                        This text.
   logica version                     The version of logica and of its command API.
 
@@ -64,6 +66,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         Some("inspect") => inspect(&args[1..], out, err),
         Some("convert") => convert(&args[1..], out),
         Some("mcp") => mcp(&args[1..]),
+        Some("open") => open(&args[1..], out),
         Some(other) => Err(Fail::Usage(format!("There is no command \"{other}\"."))),
     };
     match result {
@@ -383,6 +386,7 @@ fn mcp(args: &[String]) -> Result<()> {
         data_dir: logica_mcp::lock::data_dir(),
         work_dir: work.0.clone(),
         allow_outputs: a.has("--allow-outputs"),
+        headless: a.has("--headless"),
     };
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -393,4 +397,24 @@ fn mcp(args: &[String]) -> Result<()> {
     drop(runtime);
     drop(work);
     result.map_err(|e| Fail::Failed(e.to_string()))
+}
+
+/// `logica open <file>`: hands a file to the app, as a double-click does (doc 09). The app opens it
+/// in a tab, starting first if it is not running.
+fn open(args: &[String], out: &mut dyn Write) -> Result<()> {
+    let a = parse("open", args, &[])?;
+    let file = one_file("open", &a)?;
+    let file = file
+        .canonicalize()
+        .map_err(|e| Fail::Failed(format!("{} could not be opened: {e}.", file.display())))?;
+    let dir = logica_mcp::lock::data_dir();
+    let Some(installed) = logica_mcp::app::installed(&dir) else {
+        return Err(Fail::Failed(
+            "Logica's app has not run on this machine yet, so logica does not know where it is. Start the app once, or open the file from its window.".into(),
+        ));
+    };
+    logica_mcp::app::launch(&installed, &[file.as_os_str()]).map_err(|e| {
+        Fail::Failed(format!("{} could not be started: {e}.", installed.executable.display()))
+    })?;
+    write_out(out, &format!("Opening {} in Logica.\n", file.display()))
 }

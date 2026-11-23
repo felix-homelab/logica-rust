@@ -7,6 +7,7 @@ mod devices;
 mod edit;
 mod files;
 mod session;
+mod waveform;
 
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -22,6 +23,7 @@ pub use devices::*;
 pub use edit::*;
 pub use files::*;
 pub use session::*;
+pub use waveform::*;
 
 fn parse<T: DeserializeOwned>(command: &str, input: Value) -> Result<T, CommandError> {
     let input = if input.is_null() { Value::Object(Default::default()) } else { input };
@@ -73,6 +75,8 @@ macro_rules! commands {
 
 commands! {
     "session.get": Nothing => SessionOut = session::get;
+    "session.pauseAgents": PauseAgentsIn => PauseAgentsOut = session::pause_agents;
+    "waveform.get": WaveformIn => WaveformOut = waveform::get;
     "file.open": FileOpenIn => CaptureOut = files::open;
     "file.save": FileSaveIn => FileSaveOut = files::save;
     "capture.close": CaptureRef => Nothing = files::close;

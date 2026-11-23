@@ -16,7 +16,8 @@
     "test": "node --test \"test/*.test.mjs\"",
     "package": "electron-builder",
     "package:dir": "electron-builder --dir",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@logica/api": "0.1.0",
@@ -29,6 +30,13 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "@logica/ui": "0.1.0",
+    "lucide-react": "^1.78.0",
+    "@playwright/test": "^1.65.1",
+    "@axe-core/playwright": "^4.14.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }
