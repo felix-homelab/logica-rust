@@ -107,11 +107,16 @@ fn every_mutating_command_is_undone_and_redone_exactly() {
     let c = open(&mut e, "3_I2C_bus.demo");
     let state = |e: &mut Engine| {
         let mut s = session(e);
-        // revision and history move on; the capture itself must come back exactly
+        // revision and history move on, and an undone change still counts as unsaved; the
+        // capture itself must come back exactly
         capture(&s, &c)
             .clone()
             .as_object_mut()
             .map(std::mem::take)
+            .map(|mut m| {
+                m.remove("unsaved");
+                m
+            })
             .map(Value::Object)
             .unwrap_or_else(|| s.take())
     };
@@ -750,4 +755,51 @@ fn a_working_folder_that_does_not_exist_yet_is_made() {
     }
     std::fs::remove_dir(&dir).unwrap();
     std::fs::remove_dir(dir.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn captures_know_when_they_have_unsaved_changes() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open(&mut e, "1_UART_easy.demo");
+    let unsaved = |e: &mut Engine| capture(&session(e), &c)["unsaved"].as_bool().unwrap();
+    assert!(!unsaved(&mut e), "an opened file is on disk");
+    // views are not stored in files
+    run(&mut e, &agent(), "view.set", json!({ "capture": c, "from": 0, "to": 100 }));
+    run(&mut e, &Actor::User, "view.set", json!({ "capture": c, "from": 0, "to": 200 }));
+    assert!(!unsaved(&mut e));
+    run(&mut e, &Actor::User, "channel.rename", json!({ "capture": c, "channel": 0, "name": "RX" }));
+    assert!(unsaved(&mut e));
+
+    let dir = std::env::temp_dir().join(format!("logica-unsaved-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("saved.lacap");
+    run(&mut e, &Actor::User, "file.save", json!({ "capture": c, "path": path }));
+    assert!(!unsaved(&mut e), "saving clears it");
+    // undo and redo change the capture again
+    run(&mut e, &Actor::User, "channel.colour", json!({ "capture": c, "channel": 0, "colour": "#26ad34" }));
+    run(&mut e, &Actor::User, "file.save", json!({ "capture": c }));
+    assert!(!unsaved(&mut e), "a plain save goes to the file saved as before");
+    let entries = run(&mut e, &Actor::User, "history.list", json!({}))["entries"].clone();
+    let colour =
+        entries.as_array().unwrap().iter().find(|h| h["done"]["command"] == "channel.colour").unwrap()["id"]
+            .clone();
+    run(&mut e, &Actor::User, "history.undo", json!({ "entry": colour }));
+    assert!(unsaved(&mut e));
+    run(&mut e, &Actor::User, "history.redo", json!({ "entry": colour }));
+    assert!(unsaved(&mut e));
+
+    // a capture from a device exists nowhere else
+    let dev = "synthetic/nec";
+    run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
+    run(
+        &mut e,
+        &agent(),
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [0], "sampleRateHz": 1e6, "samples": 1000, "mode": "stream" } }),
+    );
+    let o = run(&mut e, &agent(), "capture.start", json!({ "device": dev }));
+    assert_eq!(o["capture"]["unsaved"], true);
+    drop(e);
+    std::fs::remove_file(&path).unwrap();
+    std::fs::remove_dir(&dir).unwrap();
 }

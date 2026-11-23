@@ -43,6 +43,7 @@ import { centreOn, zoomAt } from '../viewmath';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
+import { Boundary } from '../Boundary';
 
 const AGENT_SETUP = 'claude mcp add logica -- logica mcp';
 
@@ -147,10 +148,14 @@ export function Workbench() {
     [active, views, setView],
   );
 
+  // a file being opened is not opened again by a second click or drop
+  const opening = useRef(new Set<string>());
   const openFiles = useCallback(
     async (files: string[]) => {
       for (const path of files) {
-        const r = await run('file.open', { path });
+        if (opening.current.has(path)) continue;
+        opening.current.add(path);
+        const r = await run('file.open', { path }).finally(() => opening.current.delete(path));
         if (r) {
           bridge().opened(path);
           void client.run('view.set', { capture: r.capture.id, activate: true }).catch(() => {});
@@ -162,19 +167,37 @@ export function Workbench() {
 
   const openDialog = useCallback(async () => openFiles(await bridge().chooseFiles()), [openFiles]);
 
-  const save = useCallback(
-    async (as: boolean) => {
-      if (!active) return;
-      const isLacap = active.path?.toLowerCase().endsWith('.lacap');
+  /** Saves a capture; true when it was saved. */
+  const saveCapture = useCallback(
+    async (c: CaptureInfo, as: boolean): Promise<boolean> => {
+      const isLacap = c.path?.toLowerCase().endsWith('.lacap');
       let path: string | null | undefined;
       if (as || !isLacap) {
-        path = await bridge().chooseSave(`${active.title.replace(/\.[^.]+$/, '')}.lacap`);
-        if (!path) return;
+        path = await bridge().chooseSave(`${c.title.replace(/\.[^.]+$/, '')}.lacap`);
+        if (!path) return false;
       }
-      const r = await run('file.save', { capture: active.id, ...(path ? { path } : {}) });
+      const r = await run('file.save', { capture: c.id, ...(path ? { path } : {}) });
       if (r) notify('success', `Saved to ${r.path}.`);
+      return !!r;
     },
-    [active, run, notify],
+    [run, notify],
+  );
+
+  const save = useCallback(
+    async (as: boolean) => {
+      if (active) await saveCapture(active, as);
+    },
+    [active, saveCapture],
+  );
+
+  // closing cannot be undone (the capture lives in the engine): ask first when work would be lost
+  const [closing, setClosing] = useState<CaptureInfo | null>(null);
+  const closeCapture = useCallback(
+    (c: CaptureInfo) => {
+      if (c.unsaved) setClosing(c);
+      else void run('capture.close', { capture: c.id });
+    },
+    [run],
   );
 
   const demo = useCallback(async () => {
@@ -199,7 +222,7 @@ export function Workbench() {
       'file.open': () => void openDialog(),
       'file.save': () => void save(false),
       'file.saveAs': () => void save(true),
-      'capture.close': () => active && void run('capture.close', { capture: active.id }),
+      'capture.close': () => active && closeCapture(active),
       'history.undo': () => void run('history.undo', {}),
       'history.redo': () => void run('history.redo', {}),
       palette: () => setPalette(true),
@@ -221,7 +244,7 @@ export function Workbench() {
       demo: () => void demo(),
       settings: () => bridge().openSettings(),
     }),
-    [openDialog, save, active, run, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo, narrow, drawer, openInspector],
+    [openDialog, save, active, run, closeCapture, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo, narrow, drawer, openInspector],
   );
 
   useEffect(() => bridge().onMenu((id) => actions[id]?.()), [actions]);
@@ -333,8 +356,12 @@ export function Workbench() {
 
   if (!session) {
     return (
-      <main className="boot" aria-busy="true">
-        <p>{store.failure ? `The window could not reach the engine: ${store.failure}` : 'Starting the engine…'}</p>
+      <main className="boot" aria-busy={store.engine.state === 'failed' ? undefined : true}>
+        {store.engine.state === 'failed' ? (
+          <EngineFailed reason={store.engine.reason} />
+        ) : (
+          <p>{store.failure ? `The window could not reach the engine: ${store.failure}` : 'Starting the engine…'}</p>
+        )}
       </main>
     );
   }
@@ -355,9 +382,15 @@ export function Workbench() {
                     onClick={() => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {})}
                   >
                     {c.title}
+                    {c.unsaved && (
+                      <span className="tabs__unsaved" title="Unsaved changes">
+                        <span aria-hidden="true">●</span>
+                        <span className="lg-visually-hidden">, unsaved changes</span>
+                      </span>
+                    )}
                     {c.state === 'capturing' && <Badge tone="accent">capturing</Badge>}
                   </button>
-                  <IconButton label={`Close ${c.title}`} icon={<X />} onClick={() => void run('capture.close', { capture: c.id })} />
+                  <IconButton label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
                 </li>
               ))}
             </ul>
@@ -368,6 +401,7 @@ export function Workbench() {
           </button>
           <AgentIndicator />
         </div>
+        <EngineBanner onReopen={(files) => void openFiles(files)} />
         {active && view && (
           <div className="toolbar" role="toolbar" aria-label="Capture">
             <IconButton label="Sidebar" shortcut={[mod(), 'B']} pressed={showSidebar} icon={<PanelLeft />} onClick={actions['view.sidebar']} />
@@ -397,19 +431,24 @@ export function Workbench() {
               <aside className="sidebar" aria-label="Channels">
                 <div className="sidebar__content" style={{ width: sidebarW }}>
                   <h2 className="section-title pad-x">Channels</h2>
-                  <ChannelList capture={active} />
+                  <Boundary name="channel list">
+                    <ChannelList capture={active} />
+                  </Boundary>
                 </div>
                 <Splitter orientation="vertical" label="Sidebar width" value={sidebarW} min={180} max={420} onChange={setSidebarW} />
               </aside>
             )}
             <main className="center">
               <section className="wave-area" aria-label="Waveform">
-                <Waveform capture={active} view={view} onView={(v) => setView(active.id, v)} expert={expert} />
+                <Boundary name="waveform">
+                  <Waveform capture={active} view={view} onView={(v) => setView(active.id, v)} expert={expert} />
+                </Boundary>
               </section>
               {showBottom && (
                 <>
                   <Splitter orientation="horizontal" label="Bottom panel height" value={bottomH} min={120} max={600} onChange={setBottomH} invert />
                   <section className="bottom" style={{ height: bottomH }} aria-label="Bottom panel">
+                    <Boundary name="bottom panel">
                     <TabsRoot value={bottomTab} onValueChange={setBottomTab} className="tabs-fill">
                       <TabsList label="Bottom panel">
                         <TabsTrigger value="decoded">Decoded</TabsTrigger>
@@ -426,6 +465,7 @@ export function Workbench() {
                         <ActivityFeed />
                       </TabsContent>
                     </TabsRoot>
+                    </Boundary>
                   </section>
                 </>
               )}
@@ -450,6 +490,7 @@ export function Workbench() {
                       <IconButton label="Close the inspector" shortcut={['Esc']} icon={<X />} onClick={() => setDrawer(false)} />
                     </div>
                   )}
+                  <Boundary name="inspector">
                   <TabsRoot value={inspector} onValueChange={setInspector} className="tabs-fill">
                     <TabsList label="Inspector">
                       <TabsTrigger value="analysis">Analysis</TabsTrigger>
@@ -470,6 +511,7 @@ export function Workbench() {
                       <DevicePanel />
                     </TabsContent>
                   </TabsRoot>
+                  </Boundary>
                 </div>
               </aside>
             )}
@@ -481,12 +523,108 @@ export function Workbench() {
       )}
 
       <CommandPalette open={palette} onOpenChange={setPalette} items={items} />
+      <Dialog
+        open={closing !== null}
+        onOpenChange={(o) => !o && setClosing(null)}
+        title={closing ? `Close ${closing.title}?` : ''}
+        description="Its unsaved changes are lost: recordings, decoders, markers and names since the last save. Closing cannot be undone."
+        footer={
+          <>
+            <Button onClick={() => setClosing(null)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                const c = closing;
+                if (c && (await saveCapture(c, false))) {
+                  setClosing(null);
+                  void run('capture.close', { capture: c.id });
+                }
+              }}
+            >
+              Save first
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                const c = closing;
+                setClosing(null);
+                if (c) void run('capture.close', { capture: c.id });
+              }}
+            >
+              Close without saving
+            </Button>
+          </>
+        }
+      />
       <ShortcutsDialog open={help === 'keys'} onClose={() => setHelp(null)} />
       <AgentDialog open={help === 'agent'} onClose={() => setHelp(null)} />
       <RunCommandDialog command={runCommand} onClose={() => setRunCommand(null)} />
       <Notices />
     </div>
   );
+}
+
+function EngineFailed({ reason }: { reason: string | undefined }) {
+  return (
+    <div className="stack-sm" role="alert">
+      <p>
+        <strong>The engine is not running.</strong> {reason}
+      </p>
+      <p className="muted">The details are in the log file (Help, Open the log folder).</p>
+      <div className="row">
+        <Button variant="primary" onClick={() => bridge().restartEngine()}>
+          Start the engine again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** What happened to the engine, and what can be done: shown under the tabs. */
+function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
+  const { engine, lost, dismissLost } = useStore();
+  if (engine.state === 'restarting') {
+    return (
+      <div className="banner" data-tone="warning" role="alert">
+        <span>{engine.reason ?? 'The engine stopped and is being restarted.'}</span>
+      </div>
+    );
+  }
+  if (engine.state === 'failed') {
+    return (
+      <div className="banner" data-tone="danger" role="alert">
+        <span>{engine.reason}</span>
+        <Button size="sm" variant="primary" onClick={() => bridge().restartEngine()}>
+          Start the engine again
+        </Button>
+      </div>
+    );
+  }
+  if (engine.state === 'running' && lost) {
+    return (
+      <div className="banner" data-tone="warning" role="alert">
+        <span>
+          The engine was restarted, so the open captures were closed.
+          {lost.unsaved.length > 0 && ` Unsaved work in ${lost.unsaved.join(', ')} was lost.`}
+        </span>
+        {lost.files.length > 0 && (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              onReopen(lost.files.map((f) => f.path));
+              dismissLost();
+            }}
+          >
+            Open {lost.files.length === 1 ? lost.files[0]!.title : `the ${lost.files.length} files`} again
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={dismissLost}>
+          Dismiss
+        </Button>
+      </div>
+    );
+  }
+  return null;
 }
 
 function AgentIndicator() {
@@ -505,7 +643,7 @@ function AgentIndicator() {
 }
 
 function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState }) {
-  const { session, mcp } = useStore();
+  const { session, mcp, busy } = useStore();
   const rate = capture.sampleRateHz;
   const running = session?.running.length ?? 0;
   const device = session?.devices.find((d) => d.connected);
@@ -520,6 +658,12 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
       {view.cursorA !== null && view.cursorB !== null && <span className="lg-num">Δt {time((view.cursorB - view.cursorA) / rate)}</span>}
       {loss && <span className="status__warn">{loss.message}</span>}
       <span className="status__grow" />
+      {busy && (
+        <span className="status__busy" role="status">
+          <span className="status__spinner" aria-hidden="true" />
+          {busy}
+        </span>
+      )}
       <span>{mcp.port ? `MCP on 127.0.0.1:${mcp.port}` : mcp.error ? 'MCP not started' : 'MCP off'}</span>
     </footer>
   );

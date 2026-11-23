@@ -91,10 +91,15 @@ pub struct LogicaEngine {
 
 #[napi]
 impl LogicaEngine {
-    /// `workDir`: where working captures go (the data folder, doc 03).
+    /// `workDir`: where working captures go (the data folder, doc 03); `cacheMb`: the chunk cache
+    /// (doc 04; the settings' memory for capture data), the engine's default when absent.
     #[napi(constructor)]
-    pub fn new(work_dir: String) -> Self {
-        let engine = Engine::new(EngineConfig { data_dir: Some(work_dir.into()), ..EngineConfig::default() });
+    pub fn new(work_dir: String, cache_mb: Option<u32>) -> Self {
+        let mut cfg = EngineConfig { data_dir: Some(work_dir.into()), ..EngineConfig::default() };
+        if let Some(mb) = cache_mb.filter(|mb| *mb >= 16) {
+            cfg.cache_budget = usize::try_from(mb).unwrap_or(usize::MAX).saturating_mul(1 << 20);
+        }
+        let engine = Engine::new(cfg);
         // outputs need the person's confirmation in the window; until that exists (M3) they are refused
         let shared = Shared::new(engine, false);
         let events = Arc::new(Mutex::new(shared.events()));

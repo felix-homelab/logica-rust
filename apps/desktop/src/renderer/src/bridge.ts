@@ -10,6 +10,12 @@ export interface Settings {
   recent: string[];
 }
 
+export interface EngineState {
+  state: 'starting' | 'running' | 'restarting' | 'failed';
+  reason?: string;
+  restarts?: number;
+}
+
 export interface McpStatus {
   port: number | null;
   error: string | null;
@@ -33,7 +39,11 @@ export interface LogicaBridge {
   onOpenFiles(l: (files: string[]) => void): () => void;
   onMenu(l: (id: string) => void): () => void;
   onStartedByAgent(l: () => void): () => void;
-  onEnv(l: (e: { packaged: boolean }) => void): () => void;
+  onEnv(l: (e: { packaged: boolean; logFile: string | null }) => void): () => void;
+  onEngine(l: (s: EngineState) => void): () => void;
+  restartEngine(): void;
+  log(level: 'info' | 'warn' | 'error', message: string): void;
+  provideUnsaved(f: () => string[]): void;
   onUpdate(l: (u: { version: string }) => void): () => void;
   platform: string;
 }

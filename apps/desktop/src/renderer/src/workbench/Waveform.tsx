@@ -5,9 +5,12 @@
 import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Output } from '@logica/api';
-import { client } from '../bridge';
+import { CommandError } from '@logica/api';
+import { Button } from '@logica/ui';
+import { bridge, client } from '../bridge';
 import { at, tick, tickStep, time } from '../format';
-import { useStore, type CaptureInfo } from '../store';
+import { useEventCount, type CaptureInfo } from '../store';
+import { waveformNeeds } from '../relevance';
 import { clampRange, pan, sampleToX, snap, xToSample, zoomAt, type Range } from '../viewmath';
 
 export interface ViewState extends Range {
@@ -85,7 +88,9 @@ export function Waveform({
   onView: (v: ViewState) => void;
   expert: boolean;
 }) {
-  const { revision } = useStore();
+  const changes = useEventCount((e) => waveformNeeds(e, capture.id));
+  const [failed, setFailed] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(800);
@@ -142,12 +147,20 @@ export function Waveform({
       client
         .run('waveform.get', { capture: capture.id, from: view.from, to: view.to, buckets: Math.min(8192, Math.max(1, plotW)) })
         .then((w) => {
-          if (n === seq.current) setData(w);
+          if (n !== seq.current) return;
+          setData(w);
+          setFailed(null);
         })
-        .catch(() => {});
+        .catch((e: unknown) => {
+          if (n !== seq.current) return;
+          // say so rather than keep showing data that may be out of date
+          const message = e instanceof CommandError ? e.message : String(e);
+          setFailed(message);
+          bridge().log('warn', `waveform.get failed: ${message}`);
+        });
     }, 16);
     return () => window.clearTimeout(t);
-  }, [capture.id, view.from, view.to, plotW, revision]);
+  }, [capture.id, view.from, view.to, plotW, changes, retry]);
 
   const draw = useCallback(() => {
     const c = canvas.current;
@@ -437,6 +450,14 @@ export function Waveform({
         onPointerUp={onPointerUp}
         onKeyDown={onKeyDown}
       />
+      {failed && (
+        <div className="wave__failed" role="alert">
+          <span>The waveform could not be drawn: {failed}</span>
+          <Button size="sm" onClick={() => setRetry((r) => r + 1)}>
+            Try again
+          </Button>
+        </div>
+      )}
       <p id="wave-description" className="lg-visually-hidden" aria-live="polite">
         {description}
       </p>

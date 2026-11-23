@@ -536,6 +536,10 @@
             "null"
           ]
         },
+        "unsaved": {
+          "description": "Closing it loses something: a capture from a device that was never saved, or decoders,\nmarkers, names or groups changed since the file was opened or saved.",
+          "type": "boolean"
+        },
         "view": {
           "$ref": "#/$defs/View"
         }
@@ -553,7 +557,8 @@
         "decoders",
         "markers",
         "view",
-        "savedDecoders"
+        "savedDecoders",
+        "unsaved"
       ],
       "type": "object"
     },

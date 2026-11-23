@@ -838,6 +838,11 @@ source: Source
 state: CaptureState
 title: string
 trigger?: (number | null)
+/**
+ * Closing it loses something: a capture from a device that was never saved, or decoders,
+ * markers, names or groups changed since the file was opened or saved.
+ */
+unsaved: boolean
 view: View
 }
 export interface ChannelEntry {

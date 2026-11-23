@@ -69,6 +69,8 @@ pub struct Capture {
     /// Bus groups: name to physical channels.
     pub groups: BTreeMap<String, Vec<u32>>,
     pub hidden: BTreeSet<u32>,
+    /// Changes not in any file yet: a capture from a device, or edits since the last open or save.
+    pub unsaved: bool,
 }
 
 impl Capture {
@@ -132,6 +134,9 @@ pub struct CaptureSummary {
     pub view: View,
     /// Decoder settings found in the file: for comparison, never used by detection.
     pub saved_decoders: Vec<SavedDecoder>,
+    /// Closing it loses something: a capture from a device that was never saved, or decoders,
+    /// markers, names or groups changed since the file was opened or saved.
+    pub unsaved: bool,
 }
 
 impl CaptureSummary {
@@ -165,6 +170,7 @@ impl CaptureSummary {
             markers: c.markers.values().cloned().collect(),
             view: c.view.clone(),
             saved_decoders: c.meta.saved_decoders.clone(),
+            unsaved: c.unsaved,
         }
     }
 }

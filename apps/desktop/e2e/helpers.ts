@@ -14,9 +14,18 @@ export interface Running {
   dataDir: string;
 }
 
+export interface StartOptions {
+  env?: Record<string, string>;
+  /** Reuse a data folder (settings, window size, lock file) instead of a fresh one. */
+  dataDir?: string;
+  /** Keep the window size the app chooses (restored from the last run). */
+  keepSize?: boolean;
+}
+
 /** The built app with its own, fresh data folder; `files` are opened as from a double-click. */
-export async function start(files: string[] = [], env: Record<string, string> = {}): Promise<Running> {
-  const dataDir = mkdtempSync(join(tmpdir(), 'logica-e2e-'));
+export async function start(files: string[] = [], options: StartOptions = {}): Promise<Running> {
+  const env = options.env ?? {};
+  const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'logica-e2e-'));
   const extra = process.platform === 'linux' && process.env.LOGICA_SMOKE_NO_SANDBOX === '1' ? ['--no-sandbox'] : [];
   const app = await electron.launch({
     args: [resolve(__dirname, '..'), ...extra, ...files],
@@ -25,7 +34,18 @@ export async function start(files: string[] = [], env: Record<string, string> = 
   const page = await app.firstWindow();
   // the same layout on every machine, whatever its screen (CI runners have small ones); the
   // narrow-window test makes its own size
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1440, 900));
+  if (!options.keepSize) await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1440, 900));
+  // the native "unsaved changes" prompt cannot be clicked in a test: record it and answer
+  // "close without saving" (or what a test sets in __promptAnswer)
+  await app.evaluate(({ dialog }) => {
+    const g = globalThis as unknown as { __prompts: unknown[]; __promptAnswer: number };
+    g.__prompts = [];
+    g.__promptAnswer = 0;
+    dialog.showMessageBoxSync = ((...args: unknown[]) => {
+      g.__prompts.push(args[args.length - 1]);
+      return g.__promptAnswer;
+    }) as typeof dialog.showMessageBoxSync;
+  });
   await page.waitForSelector('.app, .boot');
   return { app, page, dataDir };
 }
