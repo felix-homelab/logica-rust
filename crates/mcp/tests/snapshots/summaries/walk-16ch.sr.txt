@@ -1,0 +1,38 @@
+open_file: Opened c1 "walk-16ch.sr": 64 samples at 1 kHz (64 ms), channels CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11, CH12, CH13, CH14, CH15.
+
+summarize:
+No protocol was recognised.
+  not explained: CH0 (channel 0 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH1 (channel 1 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH2 (channel 2 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH3 (channel 3 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH4 (channel 4 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH5 (channel 5 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH6 (channel 6 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH7 (channel 7 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH8 (channel 8 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH9 (channel 9 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH10 (channel 10 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH11 (channel 11 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH12 (channel 12 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH13 (channel 13 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH14 (channel 14 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH15 (channel 15 is not busy at the same moments as any other channel, so it is on its own)
+Channels:
+- CH0: 7 edges, rests low, narrowest pulse 1 ms
+- CH1: 8 edges, rests low, narrowest pulse 1 ms
+- CH2: 8 edges, rests low, narrowest pulse 1 ms
+- CH3: 8 edges, rests low, narrowest pulse 1 ms
+- CH4: 8 edges, rests low, narrowest pulse 1 ms
+- CH5: 8 edges, rests low, narrowest pulse 1 ms
+- CH6: 8 edges, rests low, narrowest pulse 1 ms
+- CH7: 8 edges, rests low, narrowest pulse 1 ms
+- CH8: 8 edges, rests low, narrowest pulse 1 ms
+- CH9: 8 edges, rests low, narrowest pulse 1 ms
+- CH10: 8 edges, rests low, narrowest pulse 1 ms
+- CH11: 8 edges, rests low, narrowest pulse 1 ms
+- CH12: 8 edges, rests low, narrowest pulse 1 ms
+- CH13: 8 edges, rests low, narrowest pulse 1 ms
+- CH14: 8 edges, rests low, narrowest pulse 1 ms
+- CH15: 7 edges, rests low, narrowest pulse 1 ms
+Analysed 0 s (sample 0) to 64 ms (sample 64).

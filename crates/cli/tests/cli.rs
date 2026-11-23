@@ -158,6 +158,52 @@ fn logica_mcp_speaks_mcp_on_stdio_and_nothing_else() {
     assert!(!s.0.join("logica.lock").exists());
 }
 
+/// The M1 exit criterion (doc 11), as an agent drives it through `logica mcp` on stdio: open
+/// mystery_C.demo, get a summary naming I2C on CH4/CH5 at 400 kHz, read `CALIBRATED 2026`, show
+/// the person a marker, and undo a decoder change.
+#[test]
+fn the_m1_exit_scenario_through_logica_mcp() {
+    use serde_json::json;
+    let s = Scratch::new("mcp-exit");
+    let mut m = Mcp::start(&s.0.display().to_string(), "claude-code");
+    let opened = m.tool("open_file", json!({ "path": fixture("captures/mystery_C.demo") }));
+    assert!(opened.starts_with("Opened c1 \"mystery_C.demo\""), "{opened}");
+
+    let summary = m.tool("summarize", json!({ "capture": "c1" }));
+    assert!(summary.starts_with("I2C: scl on CH5, sda on CH4;"), "{summary}");
+    assert!(summary.contains("400 kHz"), "{summary}");
+
+    let added = m.tool(
+        "decoder",
+        json!({ "action": "add", "capture": "c1", "protocol": "i2c", "roles": { "scl": 5, "sda": 4 } }),
+    );
+    let decoder = added.split_whitespace().nth(2).unwrap().to_string();
+    assert!(added.starts_with(&format!("Added decoder {decoder} I2C")), "{added}");
+    let read = m.tool(
+        "get_decoded",
+        json!({ "capture": "c1", "decoder": decoder, "packets": true, "text": "CALIBRATED" }),
+    );
+    assert!(read.contains("Read from 0x57: CALIBRATED 2026"), "{read}");
+
+    let marked = m.tool(
+        "show_user",
+        json!({ "capture": "c1", "at": 6_600_000, "label": "calibration date", "moveView": true }),
+    );
+    assert!(marked.starts_with("The person now sees marker"), "{marked}");
+
+    m.tool("decoder", json!({ "action": "update", "capture": "c1", "decoder": decoder, "name": "EEPROM" }));
+    let undone = m.tool("run_command", json!({ "command": "history.undo", "input": {} }));
+    assert!(undone.starts_with("history.undo done."), "{undone}");
+    let session = m.tool("session", json!({}));
+    assert!(
+        session.contains(&format!("decoder {decoder} I2C")) && !session.contains("EEPROM ("),
+        "{session}"
+    );
+    assert!(session.contains("\"calibration date\"") && session.contains("(undone)"), "{session}");
+    assert!(session.contains("agent:claude-code"), "{session}");
+    assert_eq!(m.finish().0, Some(EXIT_OK));
+}
+
 #[test]
 fn a_second_logica_mcp_relays_to_the_first_engine() {
     let s = Scratch::new("mcp-two");

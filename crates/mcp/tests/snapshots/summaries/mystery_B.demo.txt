@@ -1,0 +1,12 @@
+open_file: Opened c1 "mystery_B.demo": 40,000,008 samples at 40 MHz (1 s), channels CH7.
+
+summarize:
+UART: data on CH7; baud 19200, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity even, stopBits 1; confidence 99 %.
+  for: Channel 7 rests high and has no clock, like a UART line.
+  for: 98 % of the pulses are whole multiples of 52.08 µs, so one bit lasts 52.08 µs: 19,200 baud, which is the standard rate 19,200.
+  for: Back-to-back bytes start 11 bit times apart (start bit, data, a parity or second stop bit, stop bit).
+  for: Decoding as 8E1 gives 34 bytes with no errors.
+  also possible: onewire (51 %)
+Channels:
+- CH7: 142 edges, rests high, narrowest pulse 52.08 µs
+Analysed 0 s (sample 0) to 1 s (sample 40,000,008).

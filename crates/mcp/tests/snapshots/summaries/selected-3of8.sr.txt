@@ -1,0 +1,12 @@
+open_file: Opened c1 "selected-3of8.sr": 16 samples at 1 kHz (16 ms), channels CH0 (A), CH2 (B), CH5 (C).
+
+summarize:
+No protocol was recognised.
+  not explained: CH0 (A) (channel 0 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH2 (B) (channel 2 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH5 (C) (channel 5 is not busy at the same moments as any other channel, so it is on its own)
+Channels:
+- CH0 (A): 3 edges, rests low, narrowest pulse 1 ms
+- CH2 (B): 4 edges, rests low, narrowest pulse 1 ms
+- CH5 (C): 4 edges, rests low, narrowest pulse 1 ms
+Analysed 0 s (sample 0) to 16 ms (sample 16).

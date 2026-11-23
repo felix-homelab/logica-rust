@@ -1,0 +1,31 @@
+open_file: Opened c1 "walk-24ch.sr": 48 samples at 2.5 MHz (19.2 µs), channels CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11, CH12, CH13, CH14, CH15, CH16, CH17, CH18, CH19, CH20, CH21, CH22, CH23.
+
+summarize:
+No protocol was recognised.
+  not explained: CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11, CH12, CH13, CH14, CH15, CH16, CH17, CH18, CH19, CH20, CH21, CH22, CH23 (channels 0 and 1 are busy at the same moments; channels 0 and 2 are busy at the same moments; channels 0 and 3 are busy at the same moments)
+Channels:
+- CH0: 3 edges, rests low, narrowest pulse 400 ns
+- CH1: 4 edges, rests low, narrowest pulse 400 ns
+- CH2: 4 edges, rests low, narrowest pulse 400 ns
+- CH3: 4 edges, rests low, narrowest pulse 400 ns
+- CH4: 4 edges, rests low, narrowest pulse 400 ns
+- CH5: 4 edges, rests low, narrowest pulse 400 ns
+- CH6: 4 edges, rests low, narrowest pulse 400 ns
+- CH7: 4 edges, rests low, narrowest pulse 400 ns
+- CH8: 4 edges, rests low, narrowest pulse 400 ns
+- CH9: 4 edges, rests low, narrowest pulse 400 ns
+- CH10: 4 edges, rests low, narrowest pulse 400 ns
+- CH11: 4 edges, rests low, narrowest pulse 400 ns
+- CH12: 4 edges, rests low, narrowest pulse 400 ns
+- CH13: 4 edges, rests low, narrowest pulse 400 ns
+- CH14: 4 edges, rests low, narrowest pulse 400 ns
+- CH15: 4 edges, rests low, narrowest pulse 400 ns
+- CH16: 4 edges, rests low, narrowest pulse 400 ns
+- CH17: 4 edges, rests low, narrowest pulse 400 ns
+- CH18: 4 edges, rests low, narrowest pulse 400 ns
+- CH19: 4 edges, rests low, narrowest pulse 400 ns
+- CH20: 4 edges, rests low, narrowest pulse 400 ns
+- CH21: 4 edges, rests low, narrowest pulse 400 ns
+- CH22: 4 edges, rests low, narrowest pulse 400 ns
+- CH23: 3 edges, rests low, narrowest pulse 400 ns
+Analysed 0 s (sample 0) to 19.2 µs (sample 48).

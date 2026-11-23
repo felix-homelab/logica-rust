@@ -1,0 +1,28 @@
+open_file: Opened c1 "mystery_D.demo": 50,000,008 samples at 50 MHz (1 s), channels CH0, CH2, CH3, CH4, CH5, CH6.
+
+summarize:
+PWM: signal on CH0; activeLevel high; confidence 100 %.
+  for: Channel 0 repeats every 1 ms (1 kHz) and is high for 300 µs each time: 30.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  for: No other channel is busy with it, so it is not a bus clock.
+SPI: clk on CH5, cs on CH3, miso on CH2, mosi on CH6; bitOrder msb, csPolarity low, mode 3, wordSize 8; confidence 100 %.
+  for: Channel 5 has bursts of evenly spaced pulses (16, 56 per frame) at 1 MHz, so it is the clock.
+  for: Channel 3 goes low before every clock burst and stays low until it ends, so it is chip select (active low).
+  for: The clock rests high (CPOL 1) and 100 % of data changes follow a falling edge, so data is read on the rising edge: mode 3.
+  for: 100 % of frames have a multiple of 8 clock pulses.
+  warning: Mode 0 reads on the same edge as mode 3, so it gives the same bytes. Only the clock rest level tells them apart.
+  also possible: uart (78 %), pwm (60 %), i2c (42 %), jtag (28 %)
+UART: data on CH4; baud 115200, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.
+  for: Channel 4 rests high and has no clock, like a UART line.
+  for: 100 % of the pulses are whole multiples of 8.681 µs, so one bit lasts 8.681 µs: 115,200 baud, which is the standard rate 115,200.
+  for: Back-to-back bytes start 10 bit times apart (start bit, data, stop bit).
+  for: Decoding as 8N1 gives 25 bytes with no errors.
+  also possible: can (30 %)
+Channels:
+- CH0: 2,000 edges, rests high, clock-like at 1 kHz, narrowest pulse 300 µs
+- CH2: 14 edges, rests high, narrowest pulse 1 µs
+- CH3: 8 edges, rests high, narrowest pulse 20 µs
+- CH4: 152 edges, rests high, narrowest pulse 8.681 µs
+- CH5: 208 edges, rests high, clock-like at 1 MHz, narrowest pulse 500 ns
+- CH6: 22 edges, rests high, narrowest pulse 1 µs
+Analysed 0 s (sample 0) to 1 s (sample 50,000,008).

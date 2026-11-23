@@ -243,14 +243,19 @@ pub fn tick_label(t: f64, step: f64) -> String {
     format!("{} {name}", format::fixed(t / unit, usize::try_from(num::to_u64(decimals)).unwrap_or(0)))
 }
 
+/// Whether a channel name says nothing beyond its number ("", "CH4", "channel 4", "4").
+pub fn is_default_name(name: &str, index: u32) -> bool {
+    let n = name.trim();
+    n.is_empty()
+        || n.eq_ignore_ascii_case(&format!("CH{index}"))
+        || n.eq_ignore_ascii_case(&format!("channel {index}"))
+        || n == index.to_string()
+}
+
 /// A channel's label: its number, and its name when that says more ("CH4 SDA").
 fn channel_label(ch: &logica_core::capture::ChannelInfo) -> String {
     let plain = format!("CH{}", ch.index);
-    if ch.name.is_empty() || ch.name == plain || ch.name == format!("channel {}", ch.index) {
-        plain
-    } else {
-        format!("{plain} {}", ch.name)
-    }
+    if is_default_name(&ch.name, ch.index) { plain } else { format!("{plain} {}", ch.name) }
 }
 
 /// A rendered picture and what its rows show, top to bottom.
@@ -426,6 +431,16 @@ mod tests {
         assert_eq!(raw.len(), 2 * (1 + 9));
         assert_eq!(&raw[10 + 1 + 3..10 + 1 + 6], &MARKER);
         assert_eq!(&raw[1..4], &BG);
+    }
+
+    #[test]
+    fn default_channel_names_say_nothing_more() {
+        for n in ["", "CH4", "ch4", "channel 4", "Channel 4", "4", " 4 "] {
+            assert!(is_default_name(n, 4), "{n:?}");
+        }
+        for n in ["SDA", "CH5", "40", "channel 4b"] {
+            assert!(!is_default_name(n, 4), "{n:?}");
+        }
     }
 
     #[test]

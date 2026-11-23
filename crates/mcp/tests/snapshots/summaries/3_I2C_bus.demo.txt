@@ -1,0 +1,14 @@
+open_file: Opened c1 "3_I2C_bus.demo": 10,000,008 samples at 10 MHz (1 s), channels CH1 (SCL), CH2 (SDA).
+
+summarize:
+I2C: scl on CH1 (SCL), sda on CH2 (SDA); addressFormat 7bit; confidence 100 %.
+  for: Both lines rest high, as I2C lines with pull-up resistors do.
+  for: Channel 1 has evenly spaced pulses, 100 % of transfers in groups of 9, so it is the I2C clock (SCL).
+  for: Channel 2 changes only while channel 1 is low, apart from 6 start and 4 stop marks, so it is the data line (SDA).
+  for: The clock runs at 100 kHz: I2C standard mode (100 kHz).
+  warning: Address 0x27 got no acknowledge: no device answered there.
+  also possible: pwm (60 %), spi (45 %), uart (39 %), swd (38 %)
+Channels:
+- CH1 (SCL): 642 edges, rests high, clock-like at 100 kHz, narrowest pulse 5 µs
+- CH2 (SDA): 162 edges, rests high, narrowest pulse 7.5 µs
+Analysed 0 s (sample 0) to 1 s (sample 10,000,008).

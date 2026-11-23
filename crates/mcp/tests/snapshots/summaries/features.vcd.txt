@@ -1,0 +1,18 @@
+open_file: Opened c1 "features.vcd": 6 samples at 50 MHz (120 ns), channels CH0 (clk), CH1 (clk_copy), CH2 (top.en), CH3 (nibble[0]), CH4 (nibble[1]), CH5 (nibble[2]), CH6 (nibble[3]), CH7 (top.sub.en).
+
+summarize:
+No protocol was recognised.
+  not explained: CH0 (clk) (channel 0 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH1 (clk_copy) (channel 1 is not busy at the same moments as any other channel, so it is on its own)
+  not explained: CH2 (top.en), CH3 (nibble[0]), CH5 (nibble[2]), CH6 (nibble[3]), CH7 (top.sub.en) (channels 2 and 3 are busy at the same moments; channels 2 and 5 are busy at the same moments; channels 2 and 6 are busy at the same moments)
+  not explained: CH4 (nibble[1]) (channel 4 is not busy at the same moments as any other channel, so it is on its own)
+Channels:
+- CH0 (clk): 5 edges, rests low, narrowest pulse 20 ns
+- CH1 (clk_copy): 5 edges, rests low, narrowest pulse 20 ns
+- CH2 (top.en): 2 edges, rests low, narrowest pulse 20 ns
+- CH3 (nibble[0]): 2 edges, rests low, narrowest pulse 40 ns
+- CH4 (nibble[1]): 3 edges, rests high, narrowest pulse 30 ns
+- CH5 (nibble[2]): 1 edge, rests low
+- CH6 (nibble[3]): 2 edges, rests low, narrowest pulse 20 ns
+- CH7 (top.sub.en): 2 edges, rests high, narrowest pulse 20 ns
+Analysed 0 s (sample 0) to 120 ns (sample 6).

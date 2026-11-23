@@ -20,6 +20,9 @@ What is done, what is next, and decisions made on the way. Newest first.
 - `render`: a PNG of a range (the person's view by default) with channels from the LOD, decoder
   rows and markers, and a list naming the rows; own 5×7 font and PNG writer (zlib and CRC from
   the crates already used for `.lacap`). Checked by eye on `mystery_C.demo` and the synthetic mix.
+- Golden summaries of every committed fixture (`crates/mcp/tests/snapshots/summaries`, reviewed),
+  the exit scenario as a test through `logica mcp` on stdio, and `docs/manual-tests.md` for a
+  real Claude Code session.
 - Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
   `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
   files go to a temporary folder that is removed afterwards. No new dependencies (own argument
@@ -59,9 +62,7 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- Golden
-  summaries and the manual Claude Code checklist; the Electron skeleton (spike S7) and the exit
-  scenario.
+- Spike S7: the Electron skeleton with the engine as a Node-API module.
 
 ## M0 Foundations (November 2026)
 

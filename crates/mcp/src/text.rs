@@ -7,6 +7,7 @@ use std::fmt::Write as _;
 
 use serde_json::Value;
 
+use logica_engine::render::is_default_name;
 use logica_protocols::format;
 
 /// Longest text a tool returns (about 2,000 tokens); the structured content and paging carry more.
@@ -50,7 +51,7 @@ impl Captures {
     pub fn channel(&self, capture: &str, ch: u64) -> String {
         let plain = format!("CH{ch}");
         match self.0.get(capture).and_then(|c| c.1.get(&ch)) {
-            Some(n) if !n.is_empty() && *n != plain && *n != format!("channel {ch}") => {
+            Some(n) if !u32::try_from(ch).is_ok_and(|i| is_default_name(n, i)) => {
                 format!("{plain} ({n})")
             }
             _ => plain,
@@ -98,7 +99,7 @@ pub fn capture_line(c: &Value) -> String {
         .map(|ch| {
             let i = ch["index"].as_u64().unwrap_or(0);
             let n = s(&ch["name"]);
-            if n.is_empty() || n == format!("CH{i}") || n == format!("channel {i}") {
+            if u32::try_from(i).is_ok_and(|i| is_default_name(n, i)) {
                 format!("CH{i}")
             } else {
                 format!("CH{i} ({n})")
@@ -114,6 +115,18 @@ pub fn capture_line(c: &Value) -> String {
         format::time(c["seconds"].as_f64().unwrap_or(0.0)),
         channels.join(", ")
     )
+}
+
+/// A setting value as a person writes it: 115200, not 115200.0; text without quotes.
+fn setting(v: &Value) -> String {
+    match v {
+        Value::String(x) => x.clone(),
+        Value::Number(n) => match n.as_f64() {
+            Some(f) if f.fract() == 0.0 && f.abs() < 1e15 => format::int(f).replace(',', ""),
+            _ => n.to_string(),
+        },
+        other => other.to_string(),
+    }
 }
 
 fn problems_text(counts: &Value) -> String {
@@ -278,7 +291,7 @@ pub fn summary(caps: &Captures, capture: &str, out: &Value) -> String {
             found += 1;
             let settings: Vec<String> = d["settings"]
                 .as_object()
-                .map(|m| m.iter().map(|(k, v)| format!("{k} {}", v.to_string().trim_matches('"'))).collect())
+                .map(|m| m.iter().map(|(k, v)| format!("{k} {}", setting(v))).collect())
                 .unwrap_or_default();
             let _ = writeln!(
                 t,
@@ -296,16 +309,17 @@ pub fn summary(caps: &Captures, capture: &str, out: &Value) -> String {
                 let _ = writeln!(t, "  warning: {}", s(w));
             }
         }
-        let alts: Vec<String> = arr(&bus["alternatives"])
-            .iter()
-            .map(|a| {
-                format!(
-                    "{} ({})",
-                    s(&a["protocolId"]),
-                    format::pct(a["confidence"].as_f64().unwrap_or(0.0), 0)
-                )
-            })
-            .collect();
+        // each protocol once, with its best confidence, most likely first
+        let mut best: Vec<(&str, f64)> = Vec::new();
+        for a in arr(&bus["alternatives"]) {
+            let (id, conf) = (s(&a["protocolId"]), a["confidence"].as_f64().unwrap_or(0.0));
+            match best.iter_mut().find(|(p, _)| *p == id) {
+                Some(b) => b.1 = b.1.max(conf),
+                None => best.push((id, conf)),
+            }
+        }
+        best.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(b.0)));
+        let alts: Vec<String> = best.iter().map(|(id, c)| format!("{id} ({})", format::pct(*c, 0))).collect();
         if !alts.is_empty() {
             let _ = writeln!(t, "  also possible: {}", alts.join(", "));
         }

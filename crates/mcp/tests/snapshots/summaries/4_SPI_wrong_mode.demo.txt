@@ -1,0 +1,16 @@
+open_file: Opened c1 "4_SPI_wrong_mode.demo": 50,000,008 samples at 50 MHz (1 s), channels CH3 (CLK), CH4 (MISO), CH5 (CS#), CH6 (MOSI).
+
+summarize:
+SPI: clk on CH3 (CLK), cs on CH5 (CS#), miso on CH4 (MISO), mosi on CH6 (MOSI); bitOrder msb, csPolarity low, mode 1, wordSize 8; confidence 100 %.
+  for: Channel 3 has bursts of evenly spaced pulses (32, 8, 16, 160 per frame) at 1 MHz, so it is the clock.
+  for: Channel 5 goes low before every clock burst and stays low until it ends, so it is chip select (active low).
+  for: The clock rests low (CPOL 0) and 100 % of data changes follow a rising edge, so data is read on the falling edge: mode 1.
+  for: 100 % of frames have a multiple of 8 clock pulses.
+  warning: Mode 2 reads on the same edge as mode 1, so it gives the same bytes. Only the clock rest level tells them apart.
+  also possible: uart (95 %), pwm (60 %), ws2812 (56 %), jtag (21 %)
+Channels:
+- CH3 (CLK): 432 edges, rests low, clock-like at 1 MHz, narrowest pulse 500 ns
+- CH4 (MISO): 82 edges, rests low, narrowest pulse 999.6 ns
+- CH5 (CS#): 8 edges, rests high, narrowest pulse 12 µs
+- CH6 (MOSI): 14 edges, rests low, narrowest pulse 1 µs
+Analysed 0 s (sample 0) to 1 s (sample 50,000,008).

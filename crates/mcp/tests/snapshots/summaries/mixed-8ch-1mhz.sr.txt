@@ -1,0 +1,29 @@
+open_file: Opened c1 "mixed-8ch-1mhz.sr": 30,000 samples at 1 MHz (30 ms), channels CH0 (TX), CH1 (PWM), CH2 (HIGH), CH3, CH4, CH5, CH6, CH7.
+
+summarize:
+UART: data on CH0 (TX); baud 115200, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.
+  for: Channel 0 rests high and has no clock, like a UART line.
+  for: 100 % of the pulses are whole multiples of 8.679 µs, so one bit lasts 8.679 µs: 115,217 baud, which is the standard rate 115,200.
+  for: Back-to-back bytes start 10 bit times apart (start bit, data, stop bit).
+  for: Decoding as 8N1 gives 16 bytes with no errors.
+  warning: 8.7 samples per bit. That works, but 10 or more is safer for UART.
+PWM: signal on CH1 (PWM); activeLevel high; confidence 100 %.
+  for: Channel 1 repeats every 1 ms (1 kHz) and is high for 250 µs each time: 25.0 % duty.
+  for: 100 % of periods are the same length, and it never pauses.
+  for: No other channel is busy with it, so it is not a bus clock.
+  not explained: CH2 (HIGH) (channel 2 never changes level)
+  not explained: CH3 (channel 3 never changes level)
+  not explained: CH4 (channel 4 never changes level)
+  not explained: CH5 (channel 5 never changes level)
+  not explained: CH6 (channel 6 never changes level)
+  not explained: CH7 (channel 7 never changes level)
+Channels:
+- CH0 (TX): 100 edges, rests high, narrowest pulse 8.689 µs
+- CH1 (PWM): 60 edges, rests low, clock-like at 1 kHz, narrowest pulse 250 µs
+- CH2 (HIGH): 0 edges, rests high
+- CH3: 0 edges, rests low
+- CH4: 0 edges, rests low
+- CH5: 0 edges, rests low
+- CH6: 0 edges, rests low
+- CH7: 0 edges, rests low
+Analysed 0 s (sample 0) to 30 ms (sample 30,000).

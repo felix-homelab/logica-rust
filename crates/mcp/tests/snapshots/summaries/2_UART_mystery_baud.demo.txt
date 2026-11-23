@@ -1,0 +1,12 @@
+open_file: Opened c1 "2_UART_mystery_baud.demo": 40,000,008 samples at 40 MHz (1 s), channels CH0 (RX).
+
+summarize:
+UART: data on CH0 (RX); baud 57600, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.
+  for: Channel 0 rests high and has no clock, like a UART line.
+  for: 100 % of the pulses are whole multiples of 17.36 µs, so one bit lasts 17.36 µs: 57,600 baud, which is the standard rate 57,600.
+  for: Back-to-back bytes start 10 bit times apart (start bit, data, stop bit).
+  for: Decoding as 8N1 gives 32 bytes with no errors.
+  also possible: can (30 %)
+Channels:
+- CH0 (RX): 214 edges, rests high, narrowest pulse 17.36 µs
+Analysed 0 s (sample 0) to 1 s (sample 40,000,008).
