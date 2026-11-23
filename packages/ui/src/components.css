@@ -450,6 +450,9 @@ body {
 .lg-dialog {
   top: 20%;
   width: min(480px, calc(100vw - 32px));
+  /* a long form scrolls inside instead of running off the bottom of the window */
+  max-height: calc(80vh - 16px);
+  overflow-y: auto;
   transform: translateX(-50%);
   padding: var(--space-4);
 }

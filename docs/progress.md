@@ -56,8 +56,27 @@ What is done, what is next, and decisions made on the way. Newest first.
   long commands, no duplicate opens, the window's size and place remembered, and the memory
   setting passed to the engine (it was ignored).
 
+### Decoder groups and data as text (after the reliability review)
+
+- A decoder's channels are grouped together under its name, in the waveform and in the channel
+  list; channels no decoder uses come last. A channel belongs to the first decoder that uses it; a
+  second decoder on the same wires joins that group.
+- Each decoder's frames are drawn under the channel its data is on (SPI: MOSI and MISO; UART: RX
+  and TX), no longer all on one row; frames on other channels (an I2C start on SCL) go under the
+  first data channel. The engine reports these channels (`lanes` in the decoder summary) and keeps
+  zoomed-out stretches apart per channel.
+- Below each row of frames, a text row writes the data in the format chosen per decoder: ASCII
+  (the default), hex, decimal or binary (`dataFormat` in the decoder's configuration; set with
+  `decoder.add` or `decoder.update`, so it is undoable, saved in `.lacap` and open to agents).
+  One value under each frame when there is room, else the packet's values as one string. Changing
+  only the format or the name does not decode again. Files saved before open as ASCII.
+- The channel list's groups have a settings button that opens the decoder's settings in a dialog
+  (the same form as the Decoders panel).
+
 ### Not done or not verified
 
+- The `.demo` files' own decoder presets (such as "display as decimal") are not applied when a
+  file opens; they are listed by the CLI only.
 - Not built yet: live view while capturing (captures appear when finished; comes with streaming
   devices in M3), channel reordering by drag and the bus grouping editor, per-channel thresholds,
   the trigger editor and output confirmations (M3, with real devices), compare (M5), the
