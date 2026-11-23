@@ -56,7 +56,7 @@ If a feature does not serve one of these four, it waits.
 - MCP server (stdio relay and Streamable HTTP) with a curated set of tools, resources and prompts,
   sharing a live session with the app window.
 - Unsigned installers for Windows (x64), macOS (arm64, x64; untested by the owner) and Linux (x64:
-  AppImage and .deb), with auto-update on Windows and Linux.
+  AppImage, and a .deb once a package maintainer is chosen), with auto-update on Windows and Linux.
 - Explanations everywhere: evidence for every detection, "why" for every problem, protocol
   knowledge, byte analyser.
 

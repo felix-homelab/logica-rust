@@ -162,7 +162,7 @@ user-data folder) and computed the same way by the CLI.
 | Engine | Rust (stable), one Cargo workspace | Predictable memory and no garbage-collection pauses during live capture; SIMD and threads for ingest; a single small binary for the CLI and headless MCP (ADR 0002) |
 | Window | Electron, React, TypeScript (strict) | Mature, accessible UI with predictable Chromium rendering everywhere; Playwright can test it (ADR 0002) |
 | Engine in the app | Node-API module in a `utilityProcess` | ABI-stable native module; the window keeps its `MessagePort` |
-| Build | Cargo for the engine; electron-vite for the app; electron-builder for installers (NSIS, AppImage, .deb, dmg) | Standard tools; electron-builder builds all targets and works with electron-updater |
+| Build | Cargo for the engine; electron-vite for the app; electron-builder for installers (NSIS, AppImage, dmg; the .deb waits for a package maintainer, see progress) | Standard tools; electron-builder builds all targets and works with electron-updater |
 | Updates | electron-updater from GitHub Releases | Works for unsigned Windows and Linux builds; macOS updates need signing |
 | UI primitives | Radix UI (menus, dialogs, popovers, tabs, tooltips), Lucide icons | Accessible keyboard behaviour without imposing a look (doc 08) |
 | Rendering | Canvas 2D with LOD; WebGL2 if the budgets are missed | Simple; the Chromium version is ours, so behaviour is predictable |

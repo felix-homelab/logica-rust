@@ -84,7 +84,8 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run build
-      - run: npm run package:dir -w apps/desktop
+      # the real installers (NSIS, AppImage), so packaging problems show before a release
+      - run: npm run package -w apps/desktop -- --publish never
       - name: Smoke test (Linux, virtual display)
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run smoke -w apps/desktop

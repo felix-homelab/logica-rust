@@ -14,6 +14,16 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
-    build: { rollupOptions: { input: resolve(__dirname, 'src/renderer/index.html') } },
+    build: {
+      rollupOptions: {
+        input: resolve(__dirname, 'src/renderer/index.html'),
+        // Radix and Lucide mark their modules "use client" for React server components, which
+        // this app does not use; the directive means nothing here
+        onwarn(warning, warn) {
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+          warn(warning);
+        },
+      },
+    },
   },
 });

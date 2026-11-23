@@ -34,6 +34,11 @@ What is done, what is next, and decisions made on the way. Newest first.
 - Capture tabs are a navigation list rather than ARIA tabs, because they hold close buttons (axe).
 - Canvas 2D meets the pan and zoom budget at 16 channels, so no WebGL ADR.
 - The component gallery is reachable only in unpackaged builds.
+- No .deb for now (owner's decision): Debian packages need a public maintainer name and email.
+  Linux gets the AppImage, which also updates itself. The .deb returns before M3, because it
+  installs the udev rules for USB analysers (doc 05).
+- CI builds the real installers (NSIS, AppImage) on every pull request, not only the unpacked app,
+  so a packaging failure shows up before a release.
 
 ### Not done or not verified
 

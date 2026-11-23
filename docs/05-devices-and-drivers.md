@@ -84,7 +84,7 @@ library that DLA_Logic already installed; we do not redistribute WCH's DLL.
 The device panel shows, per operating system, what to do when a device is not found:
 
 - Windows: WinUSB / Zadig steps with screenshots, and how to undo them.
-- Linux: the udev rules file (installed by the .deb; for the AppImage, a button that shows the
+- Linux: the udev rules file (installed by the .deb, which returns before M3; for the AppImage, a button that shows the
   install command) and the command to reload rules.
 - macOS: usually nothing; untested by the owner.
 - WSL: recommend the Windows build; otherwise `usbipd list`, `usbipd bind`, `usbipd attach --wsl`.
