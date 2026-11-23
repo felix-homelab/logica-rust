@@ -2,6 +2,7 @@
 // (#gallery, development builds only).
 import { useEffect, useState } from 'react';
 import { TooltipProvider } from '@logica/ui';
+import { Boundary } from './Boundary';
 import { Gallery } from './Gallery';
 import { Settings } from './Settings';
 import { StoreProvider } from './store';
@@ -20,7 +21,9 @@ export function App() {
   const gallery = route === 'gallery' && (import.meta.env.DEV || !packaged);
   return (
     <StoreProvider>
-      <TooltipProvider delayDuration={400}>{gallery ? <Gallery /> : route === 'settings' ? <Settings /> : <Workbench />}</TooltipProvider>
+      <TooltipProvider delayDuration={400}>
+        <Boundary name="window">{gallery ? <Gallery /> : route === 'settings' ? <Settings /> : <Workbench />}</Boundary>
+      </TooltipProvider>
     </StoreProvider>
   );
 }

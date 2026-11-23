@@ -63,3 +63,29 @@ test('numbers read as the engine writes them', () => {
   assert.equal(tickStep(1, 8), 0.2);
   assert.equal(tickStep(0.0004, 8), 0.00005);
 });
+
+import { activityNeeds, sessionNeeds, tableNeeds, waveformNeeds } from '../src/renderer/src/relevance.ts';
+
+test("the person's own panning refreshes nothing but their view", () => {
+  const pan = { event: 'view.changed', capture: 'c1', actor: 'user' };
+  assert.equal(sessionNeeds(pan), false);
+  assert.equal(waveformNeeds(pan, 'c1'), false);
+  assert.equal(tableNeeds(pan, 'c1', 'd1'), false);
+  assert.equal(activityNeeds(pan), false);
+  // an agent moving the view is news
+  assert.equal(sessionNeeds({ ...pan, actor: 'agent:claude-code' }), true);
+});
+
+test('each part reads again only for its own capture and decoder', () => {
+  const dec = { event: 'decoder.updated', capture: 'c1', decoder: 'd1' };
+  assert.equal(waveformNeeds(dec, 'c1'), true);
+  assert.equal(waveformNeeds(dec, 'c2'), false);
+  assert.equal(tableNeeds(dec, 'c1', 'd1'), true);
+  assert.equal(tableNeeds(dec, 'c1', 'd2'), false);
+  assert.equal(tableNeeds(dec, 'c1', null), true);
+  assert.equal(waveformNeeds({ event: 'capture.done', capture: 'c1' }, 'c1'), true);
+  assert.equal(activityNeeds({ event: 'command.executed' }), true);
+  assert.equal(activityNeeds(dec), false);
+  assert.equal(sessionNeeds({ event: 'state.changed' }), true);
+  assert.equal(sessionNeeds({ event: 'capture.progress', capture: 'c1' }), false);
+});

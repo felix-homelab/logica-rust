@@ -18,10 +18,21 @@ const pending = new Map<number, Pending>();
 const queued: { id: number; command: string; input: unknown }[] = [];
 const listeners = new Set<(event: unknown) => void>();
 
+/** Answers every waiting call with `message`: the engine they went to is gone. */
+function abandon(message: string): void {
+  for (const [, waiting] of pending) waiting.reject({ code: 'failed', message });
+  pending.clear();
+}
+
 ipcRenderer.on('logica:engine-port', (e, info: { launchedAt: number }) => {
   launchedAt = info.launchedAt;
   const p = e.ports[0];
   if (!p) return;
+  // a new port means a new engine: what was sent to the old one gets no answer
+  if (port) {
+    abandon('The engine restarted while this ran; nothing of it was kept. Try again.');
+    port.close();
+  }
   port = p;
   p.onmessage = (m: MessageEvent) => {
     const data = m.data as { id?: number; response?: string; event?: unknown };
@@ -40,12 +51,33 @@ ipcRenderer.on('logica:engine-port', (e, info: { launchedAt: number }) => {
   for (const msg of queued.splice(0)) p.postMessage(msg);
 });
 
+// the engine stopped: calls waiting on it end now, with the reason, instead of never
+ipcRenderer.on('logica:engine', (_e, s: { state: string; reason?: string }) => {
+  if (s.state === 'restarting' || s.state === 'failed') {
+    abandon(s.reason ?? 'The engine stopped.');
+    port?.close();
+    port = undefined;
+  }
+});
+
+// main asks before closing the window: which captures have unsaved changes?
+let unsavedProvider: (() => string[]) | undefined;
+ipcRenderer.on('logica:before-close', () => {
+  let titles: string[] = [];
+  try {
+    titles = unsavedProvider?.() ?? [];
+  } catch {
+    titles = [];
+  }
+  ipcRenderer.send('logica:unsaved', titles);
+});
+
 // Main may send before the page has subscribed: keep the latest value of each channel (and every
 // file to open) and hand them to subscribers when they arrive.
 const latest = new Map<string, unknown>();
 const fileQueue: string[][] = [];
 const subscribers = new Map<string, Set<(v: unknown) => void>>();
-for (const channel of ['logica:update', 'logica:env', 'logica:settings', 'logica:mcp', 'logica:open-files', 'logica:menu', 'logica:started-by-agent']) {
+for (const channel of ['logica:engine', 'logica:update', 'logica:env', 'logica:settings', 'logica:mcp', 'logica:open-files', 'logica:menu', 'logica:started-by-agent']) {
   ipcRenderer.on(channel, (_e, value: unknown) => {
     const subs = subscribers.get(channel);
     if (channel === 'logica:open-files' && !subs?.size) {
@@ -107,7 +139,16 @@ contextBridge.exposeInMainWorld('logica', {
   onOpenFiles: (l: (files: string[]) => void) => on('logica:open-files', l),
   onMenu: (l: (id: string) => void) => on('logica:menu', l),
   onStartedByAgent: (l: () => void) => on('logica:started-by-agent', l),
-  onEnv: (l: (e: { packaged: boolean }) => void) => on('logica:env', l),
+  onEnv: (l: (e: { packaged: boolean; logFile: string | null }) => void) => on('logica:env', l),
+  /** The engine's state: starting, running, restarting (with the reason) or failed. */
+  onEngine: (l: (s: { state: string; reason?: string; restarts?: number }) => void) => on('logica:engine', l),
+  restartEngine: (): void => ipcRenderer.send('logica:engine-restart'),
+  /** Writes to the app's log file (logs/logica.log). */
+  log: (level: 'info' | 'warn' | 'error', message: string): void => ipcRenderer.send('logica:log', level, message),
+  /** Tells main which captures have unsaved changes when it asks before closing. */
+  provideUnsaved: (f: () => string[]): void => {
+    unsavedProvider = f;
+  },
   onUpdate: (l: (u: { version: string }) => void) => on('logica:update', l),
   platform: process.platform,
 });

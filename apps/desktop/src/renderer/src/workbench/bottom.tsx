@@ -6,15 +6,16 @@ import { Badge, Button, EmptyState, Switch, TextField, VirtualList } from '@logi
 import { Undo2, Redo2 } from 'lucide-react';
 import { client } from '../bridge';
 import { at, hz, int, time } from '../format';
-import { isAgent, useStore, who, type CaptureInfo } from '../store';
+import { activityNeeds, tableNeeds } from '../relevance';
+import { isAgent, useEventCount, useStore, who, type CaptureInfo } from '../store';
 import type { ViewState } from './Waveform';
 
 type Page = Output<'decoder.frames'>;
 const PAGE = 200;
 
 export function DecodedTable({ capture, onJump }: { capture: CaptureInfo; onJump: (from: number, to: number) => void }) {
-  const { revision } = useStore();
   const [decoder, setDecoder] = useState(capture.decoders[0]?.id ?? '');
+  const changes = useEventCount((e) => tableNeeds(e, capture.id, decoder || null));
   const [text, setText] = useState('');
   const [problems, setProblems] = useState(false);
   const [total, setTotal] = useState(0);
@@ -49,7 +50,7 @@ export function DecodedTable({ capture, onJump }: { capture: CaptureInfo; onJump
     setPages(new Map());
     load(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capture.id, decoder, text, problems, revision]);
+  }, [capture.id, decoder, text, problems, changes]);
   if (capture.decoders.length === 0) {
     return <EmptyState title="Nothing decoded yet">Add a decoder from the analysis to see packets here.</EmptyState>;
   }
@@ -181,11 +182,12 @@ export function Measurements({ capture, view }: { capture: CaptureInfo; view: Vi
 type Entry = Output<'history.list'>['entries'][number];
 
 export function ActivityFeed() {
-  const { session, run, revision } = useStore();
+  const { session, run } = useStore();
+  const changes = useEventCount(activityNeeds, 150);
   const [entries, setEntries] = useState<Entry[]>([]);
   useEffect(() => {
     void run('history.list', { limit: 300 }).then((h) => h && setEntries(h.entries));
-  }, [run, revision]);
+  }, [run, changes]);
   if (!session) return null;
   return (
     <div className="activity">

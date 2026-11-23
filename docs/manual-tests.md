@@ -61,5 +61,8 @@ palette, undo and axe (`npm run test:e2e`). These need a person:
    agent", the marker appears live, and the activity feed lists Claude's actions with undo.
 8. **Stop agent actions.** With an agent connected, switch "Stop agent actions" on and ask the
    agent to capture from the synthetic device: it is refused with the reason.
-9. **Updates.** With a newer release published, the packaged app (Windows, Linux AppImage)
+9. **Something goes wrong.** End the engine process with the task manager: the window says the
+   engine was restarted and offers to open the files again; Help > Open the log folder shows
+   `logica.log` with the reason. Close a tab or quit with unsaved changes: Logica asks first.
+10. **Updates.** With a newer release published, the packaged app (Windows, Linux AppImage)
    downloads it and says it installs on quit; with Settings > Updates off it does not look.

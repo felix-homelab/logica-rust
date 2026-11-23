@@ -40,6 +40,22 @@ What is done, what is next, and decisions made on the way. Newest first.
 - CI builds the real installers (NSIS, AppImage) on every pull request, not only the unpacked app,
   so a packaging failure shows up before a release.
 
+### Reliability review (after the M2 merge)
+
+- The engine process is supervised: it says when it is ready or why it cannot start; a crash
+  restarts it (growing delay, at most three times a minute), calls waiting on it are answered
+  with the reason, and the window offers to open the files again. A start failure is shown with
+  its reason and a button, not retried in a loop.
+- Unsaved work is protected: the engine knows which captures have unsaved changes
+  (`unsaved` in the capture summary); a tab shows it, closing such a tab or quitting asks first.
+  Save after "save as" now writes to that file (it refused before).
+- Each part of the window reads again only on the events that concern it, so the person's own
+  panning no longer resets the decoded table or reloads the activity feed.
+- Error boundaries per region, a log file (`logs/logica.log` in the data folder, rotated; Help,
+  Open the log folder) for the main process, the engine process and the window, a busy status for
+  long commands, no duplicate opens, the window's size and place remembered, and the memory
+  setting passed to the engine (it was ignored).
+
 ### Not done or not verified
 
 - Not built yet: live view while capturing (captures appear when finished; comes with streaming
