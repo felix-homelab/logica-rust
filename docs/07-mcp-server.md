@@ -23,8 +23,10 @@ MCP is the only protocol outside the app (ADR 0006).
 - The lock file is `logica.lock` in the data folder (Electron's user-data folder, `Logica`; the
   CLI computes the same path, and `LOGICA_DATA_DIR` overrides it): JSON with the process id, port,
   token, API version and whether a windowless engine wrote it. A lock nobody answers for is stale
-  and replaced. Until the app exists (M2), the first `logica mcp` becomes the windowless engine and
-  later ones relay to it; that engine ends with the agent that started it.
+  and replaced. The app writes it while MCP is on (settings) and records where it is installed in
+  `app.json`, so `logica mcp` can start it (minimised, "started by an agent") when no engine runs.
+  Without a known app, a display, or with `--headless`, the first `logica mcp` becomes a windowless
+  engine and later ones relay to it; that engine ends with the agent that started it.
 
 Protocol versions: the server speaks MCP 2026-07-28, where requests are stateless and carry their
 client information, and the earlier session-based versions that current clients use (through the

@@ -1,0 +1,34 @@
+name: Release
+
+# Unsigned installers for Windows, Linux and macOS (doc 11 M2), published to the GitHub Release of
+# a version tag such as v0.2.0. The app updates itself from these releases on Windows and Linux.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  installers:
+    name: Installers (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # unsigned for now: no code-signing identity is looked for
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - name: Build and publish the installers
+        run: npm exec -w apps/desktop -- electron-builder --publish always

@@ -123,3 +123,13 @@ test('the component gallery passes axe in both themes', async () => {
   });
   await app.close();
 });
+
+test('app:// serves the window and nothing outside its folder', async () => {
+  const { app, page } = await start();
+  expect(page.url()).toMatch(/^app:\/\/logica\/index\.html/);
+  const status = (path: string) => page.evaluate(async (p) => fetch(p).then((r) => r.status, (e: unknown) => String(e)), path);
+  expect(await status('app://logica/index.html')).toBe(200);
+  expect(await status('app://logica/%2e%2e/main/index.js')).toBe(404);
+  expect(await status('app://logica/%2e%2e%2f%2e%2e%2fpackage.json')).toBe(404);
+  await app.close();
+});

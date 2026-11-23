@@ -64,7 +64,7 @@ jobs:
       - run: npm test
 
   desktop:
-    name: Packaged app starts and reaches the engine (${{ matrix.os }})
+    name: Desktop app - packaged smoke test and end-to-end tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -91,3 +91,16 @@ jobs:
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         run: npm run smoke -w apps/desktop
+      - name: Electron for the end-to-end tests
+        run: npm run electron -w apps/desktop
+      - name: End-to-end tests (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e -w apps/desktop
+      - name: End-to-end tests (Windows)
+        if: runner.os == 'Windows'
+        run: npm run test:e2e -w apps/desktop
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-traces-${{ matrix.os }}
+          path: apps/desktop/test-results/

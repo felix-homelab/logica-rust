@@ -11,6 +11,27 @@ extraResources:
   - from: native
     to: native
     filter: ["*.node"]
+# the engine's command-line tool ships with the app (logica mcp, logica open, inspect, convert)
+  - from: bin
+    to: bin
+# updates come from GitHub Releases (Windows, and the Linux AppImage)
+publish:
+  provider: github
+  owner: felix-homelab
+  repo: logica-rust
+fileAssociations:
+  - ext: lacap
+    name: Logica capture
+    role: Editor
+  - ext: demo
+    name: FNIRSI capture
+    role: Viewer
+  - ext: sr
+    name: sigrok session
+    role: Viewer
+  - ext: vcd
+    name: Value change dump
+    role: Viewer
 linux:
   # not "logica": that name belongs to the command-line tool on the PATH
   executableName: logica-app

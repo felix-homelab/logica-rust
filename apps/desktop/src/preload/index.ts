@@ -45,7 +45,7 @@ ipcRenderer.on('logica:engine-port', (e, info: { launchedAt: number }) => {
 const latest = new Map<string, unknown>();
 const fileQueue: string[][] = [];
 const subscribers = new Map<string, Set<(v: unknown) => void>>();
-for (const channel of ['logica:env', 'logica:settings', 'logica:mcp', 'logica:open-files', 'logica:menu', 'logica:started-by-agent']) {
+for (const channel of ['logica:update', 'logica:env', 'logica:settings', 'logica:mcp', 'logica:open-files', 'logica:menu', 'logica:started-by-agent']) {
   ipcRenderer.on(channel, (_e, value: unknown) => {
     const subs = subscribers.get(channel);
     if (channel === 'logica:open-files' && !subs?.size) {
@@ -108,5 +108,6 @@ contextBridge.exposeInMainWorld('logica', {
   onMenu: (l: (id: string) => void) => on('logica:menu', l),
   onStartedByAgent: (l: () => void) => on('logica:started-by-agent', l),
   onEnv: (l: (e: { packaged: boolean }) => void) => on('logica:env', l),
+  onUpdate: (l: (u: { version: string }) => void) => on('logica:update', l),
   platform: process.platform,
 });

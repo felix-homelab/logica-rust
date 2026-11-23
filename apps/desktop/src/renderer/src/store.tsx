@@ -125,11 +125,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     const offMcp = bridge().onMcp(setMcp);
     const offAgent = bridge().onStartedByAgent(() => setStartedByAgent(true));
+    const offUpdate = bridge().onUpdate((u) => notify('success', `Logica ${u.version} is ready; it is installed when you quit.`));
     return () => {
       offEvents();
       offSettings();
       offMcp();
       offAgent();
+      offUpdate();
     };
   }, [refresh, refreshSoon, notify]);
 

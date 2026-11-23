@@ -19,3 +19,7 @@ fixtures/captures/local/
 .vscode/
 *.Zone.Identifier
 *:Zone.Identifier
+
+# built by apps/desktop/scripts/build-engine.mjs
+apps/desktop/bin/
+apps/desktop/native/

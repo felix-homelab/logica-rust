@@ -34,6 +34,7 @@ export interface LogicaBridge {
   onMenu(l: (id: string) => void): () => void;
   onStartedByAgent(l: () => void): () => void;
   onEnv(l: (e: { packaged: boolean }) => void): () => void;
+  onUpdate(l: (u: { version: string }) => void): () => void;
   platform: string;
 }
 

@@ -1,8 +1,9 @@
 // The main process (doc 03): windows, menus, native dialogs, file associations, the lock file and
 // settings; nothing else. Command traffic goes from the window to the engine over a MessagePort
 // and never passes through here.
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, normalize, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   app,
   BrowserWindow,
@@ -11,11 +12,14 @@ import {
   Menu,
   MessageChannelMain,
   nativeTheme,
+  net,
+  protocol,
   shell,
   utilityProcess,
   type MenuItemConstructorOptions,
   type UtilityProcess,
 } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import * as settingsFile from './settings';
 import type { Settings } from './settings';
 
@@ -27,6 +31,22 @@ const startedByAgent = process.argv.includes('--started-by-agent');
 // the data folder (doc 03); tests and manual runs point it elsewhere
 if (process.env.LOGICA_DATA_DIR) {
   app.setPath('userData', process.env.LOGICA_DATA_DIR);
+}
+
+// the window loads only the app's own files, through app:// (doc 03 security baseline)
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+
+/** Serves app://logica/<path> from the renderer folder, and nothing outside it. */
+function serveApp(): void {
+  const root = normalize(join(__dirname, '../renderer'));
+  protocol.handle('app', (req) => {
+    const path = decodeURIComponent(new URL(req.url).pathname);
+    const file = normalize(join(root, path === '/' ? 'index.html' : path));
+    if ((file !== root && !file.startsWith(root + sep)) || !existsSync(file)) {
+      return new Response('Not found', { status: 404 });
+    }
+    return net.fetch(pathToFileURL(file).toString());
+  });
 }
 
 // one app per desktop: a second start hands its files to the first (ADR 0007, doc 09)
@@ -140,7 +160,7 @@ function load(win: BrowserWindow, hash = ''): void {
   if (!app.isPackaged && url) {
     void win.loadURL(`${url}${hash ? `#${hash}` : ''}`);
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : {});
+    void win.loadURL(`app://logica/index.html${hash ? `#${hash}` : ''}`);
   }
 }
 
@@ -358,11 +378,23 @@ app.on('will-quit', () => {
   engine?.kill();
 });
 
+/** Updates from GitHub Releases (doc 11 M2): Windows, and Linux as an AppImage (the only Linux
+ * format that can replace itself). Never in development, smoke runs, or when switched off. */
+function checkUpdates(): void {
+  const supported = process.platform === 'win32' || (process.platform === 'linux' && !!process.env.APPIMAGE);
+  if (!app.isPackaged || smoke || !settings.updates || !supported) return;
+  autoUpdater.on('update-downloaded', (info) => broadcast('logica:update', { version: info.version }));
+  autoUpdater.on('error', (e) => console.error(`logica: the update check failed: ${e.message}`));
+  void autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+}
+
 void app.whenReady().then(() => {
+  serveApp();
   settings = settingsFile.load(settingsPath());
   applyTheme();
   recordInstall();
   buildMenu();
   startEngine();
   createMain();
+  checkUpdates();
 });

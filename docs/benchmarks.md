@@ -3,6 +3,29 @@
 Measured numbers, newest first. The real budgets (doc 08) are checked on the owner's reference
 machine at every milestone exit; numbers from other machines are indications only.
 
+## M2: the window (November 2026)
+
+Doc 08's budgets, measured in the real app by `apps/desktop/e2e/perf.spec.ts`
+(`LOGICA_PERF=1 LOGICA_PERF_CAPTURE=<file> npm run test:e2e -w apps/desktop -- perf`) through the
+same MessagePort path the window uses, and the packaged app's cold start by
+`npm run smoke -w apps/desktop`. Machine: the development laptop above (Intel Core i7-1370P,
+WSL2 with WSLg), not the owner's reference machine, so these are indications; the milestone exit
+needs the reference machine.
+
+| Budget (doc 08) | Measured | Budget |
+|---|---|---|
+| App start to start screen, packaged, warm (median of 3, from starting the executable) | 215 ms | 1.5 s |
+| Import and index `mystery_D.demo` (50 M samples, 6 channels), first view | 50 ms (open 48 ms) | 2 s |
+| Open a 1e9-sample, 16-channel `.lacap` (13 M edges, 120 MB; `make_capture` example), first view | 237 ms (open 1 ms) | 2 s |
+| Pan and zoom, 16 channels of that capture, 4 s of scripted wheel input | 60 fps, p95 16.8 ms, no frame over 33 ms | 60 fps, none over 33 ms |
+| Change a decoder setting until the visible window can be redrawn (I2C, median of 5) | 6 ms (max 8 ms) | 100 ms |
+| Renderer main-thread tasks over 50 ms during the above | none | none |
+
+The large capture: `cargo run --release -p logica-drivers --example make_capture -- big16.lacap`
+(1e9 samples by default; square waves of a different period per channel and a dense burst).
+CI runs the same app (packaged smoke test, end-to-end tests) on Linux and Windows but measures
+budgets only here, as doc 10 allows; regressions show as the smoke test's cold start limit there.
+
 ## M0: the Rust engine (November 2026)
 
 `cargo bench` (crates/drivers/benches/baseline.rs, release build, best of 5; the large capture one
