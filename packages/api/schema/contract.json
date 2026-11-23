@@ -823,6 +823,31 @@
       ],
       "type": "object"
     },
+    "DataFormat": {
+      "description": "How a decoder's data values are written out for people (the waveform's text row, doc 08).",
+      "oneOf": [
+        {
+          "const": "ascii",
+          "description": "Characters: \"Hello\\r\\n\"; bytes that are not printable as \"·\".",
+          "type": "string"
+        },
+        {
+          "const": "hex",
+          "description": "\"48 65 6C\"",
+          "type": "string"
+        },
+        {
+          "const": "decimal",
+          "description": "\"72 101 108\"",
+          "type": "string"
+        },
+        {
+          "const": "binary",
+          "description": "\"01001000 01100101\"",
+          "type": "string"
+        }
+      ]
+    },
     "DecodedQuery": {
       "additionalProperties": false,
       "properties": {
@@ -889,6 +914,17 @@
         "capture": {
           "type": "string"
         },
+        "dataFormat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How its data is written in the waveform's text row (default ASCII)."
+        },
         "id": {
           "description": "The decoder id to use (redo and undo use the id it had); a new one when absent.",
           "type": [
@@ -936,6 +972,11 @@
     "DecoderConfig": {
       "description": "A decoder's configuration: what `decoder.add` takes and an undo restores.",
       "properties": {
+        "dataFormat": {
+          "$ref": "#/$defs/DataFormat",
+          "default": "ascii",
+          "description": "How its data is written in the waveform's text row (ASCII unless chosen)."
+        },
         "name": {
           "type": "string"
         },
@@ -1126,6 +1167,15 @@
     },
     "DecoderSummary": {
       "properties": {
+        "channels": {
+          "description": "Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO): the order they are\nshown in, grouped under the decoder.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
         "config": {
           "$ref": "#/$defs/DecoderConfig"
         },
@@ -1136,6 +1186,15 @@
         },
         "id": {
           "type": "string"
+        },
+        "lanes": {
+          "description": "Channels its data appears under (SPI: MOSI and MISO; UART: RX and TX), in order.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
         },
         "notes": {
           "items": {
@@ -1198,6 +1257,8 @@
       "required": [
         "id",
         "config",
+        "lanes",
+        "channels",
         "frames",
         "packets",
         "problemCounts",
@@ -1210,6 +1271,17 @@
       "properties": {
         "capture": {
           "type": "string"
+        },
+        "dataFormat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How its data is written in the waveform's text row; changing only this does not decode\nagain."
         },
         "decoder": {
           "type": "string"
@@ -3990,10 +4062,10 @@
           "type": "string"
         },
         "spans": {
-          "description": "Otherwise stretches of frames closer than a bucket, as (start, end, any problem).",
+          "description": "Otherwise stretches of frames closer than a bucket, per channel drawn under, as\n(start, end, any problem, lane).",
           "items": {
-            "maxItems": 3,
-            "minItems": 3,
+            "maxItems": 4,
+            "minItems": 4,
             "prefixItems": [
               {
                 "format": "uint64",
@@ -4007,6 +4079,11 @@
               },
               {
                 "type": "boolean"
+              },
+              {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
               }
             ],
             "type": "array"
@@ -4037,8 +4114,14 @@
           "type": "string"
         },
         "lane": {
-          "description": "Physical channel it belongs under.",
+          "description": "Physical channel it is drawn under: one of the decoder's data channels (`lanes` in the\nsession); frames on another channel (an I2C start on SCL) go under the first of them.",
           "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "packet": {
+          "description": "Packet it belongs to: neighbours in one packet join into a string in the text row.",
+          "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
@@ -4049,6 +4132,13 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "text": {
+          "description": "For data frames: the value in the decoder's data format (\"A\", \"65\", \"01000001\").",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -4057,7 +4147,8 @@
         "label",
         "kind",
         "lane",
-        "problem"
+        "problem",
+        "packet"
       ],
       "type": "object"
     },
@@ -4485,7 +4576,7 @@
         "$ref": "#/$defs/DecoderUpdateOut"
       },
       "safety": "read",
-      "summary": "Change a decoder's roles or settings; returns how its problem counts changed.",
+      "summary": "Change a decoder's roles, settings, name or data format (how its data is written in the waveform); returns how its problem counts changed.",
       "undo": {
         "kind": "inverse"
       }

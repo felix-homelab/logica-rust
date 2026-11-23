@@ -148,7 +148,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   },
   {
     "name": "decoder.update",
-    "summary": "Change a decoder's roles or settings; returns how its problem counts changed.",
+    "summary": "Change a decoder's roles, settings, name or data format (how its data is written in the waveform); returns how its problem counts changed.",
     "safety": "read",
     "lease": false,
     "longRunning": false,

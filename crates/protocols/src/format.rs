@@ -157,6 +157,41 @@ pub fn as_text(bytes: &[u8]) -> String {
     bytes.iter().map(|&b| char_of(b)).collect()
 }
 
+/// One decoded value as `format` writes it: "A", "41", "65", "01000001". Hex and binary are padded
+/// to whole bytes. A value wider than a byte has no character, so ASCII writes it in hex; negative
+/// and fractional values (audio samples, measurements) are written as decimals in every format.
+pub fn value_as(value: f64, format: crate::types::DataFormat) -> String {
+    use crate::types::DataFormat;
+    if !value.is_finite() {
+        return "–".into();
+    }
+    if value.fract() != 0.0 {
+        return sig(value, 6);
+    }
+    if value < 0.0 || value >= 18_446_744_073_709_551_616.0 {
+        return format!("{value:.0}");
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = value as u64;
+    let bytes = ((64 - n.leading_zeros() as usize).div_ceil(8)).max(1);
+    match format {
+        DataFormat::Ascii if let Ok(b) = u8::try_from(n) => char_of(b),
+        DataFormat::Ascii | DataFormat::Hex => format!("{n:0w$X}", w = bytes * 2),
+        DataFormat::Decimal => n.to_string(),
+        DataFormat::Binary => format!("{n:0w$b}", w = bytes * 8),
+    }
+}
+
+/// Values joined into one string: ASCII runs together ("OK\r\n"), the others with spaces.
+pub fn values_as(values: impl IntoIterator<Item = f64>, format: crate::types::DataFormat) -> String {
+    let parts = values.into_iter().map(|v| value_as(v, format));
+    if format == crate::types::DataFormat::Ascii {
+        parts.collect()
+    } else {
+        parts.collect::<Vec<_>>().join(" ")
+    }
+}
+
 /// "s" for plural counts.
 pub fn s(n: u64) -> &'static str {
     if n == 1 { "" } else { "s" }
@@ -204,5 +239,40 @@ mod tests {
         assert_eq!(fixed(9.96, 1), "10.0");
         assert_eq!(fixed(-1.25, 1), "-1.3");
         assert_eq!(fixed(1.0 / 3.0, 3), "0.333");
+    }
+
+    #[test]
+    fn values_in_each_data_format() {
+        use crate::types::DataFormat::{Ascii, Binary, Decimal, Hex};
+        for (v, ascii, hex, dec, bin) in [
+            (65.0, "A", "41", "65", "01000001"),
+            (0.0, "·", "00", "0", "00000000"),
+            (10.0, "\\n", "0A", "10", "00001010"),
+            (255.0, "·", "FF", "255", "11111111"),
+            // wider than a byte: padded to whole bytes; ASCII has no character for it
+            (f64::from(0x1ff), "01FF", "01FF", "511", "0000000111111111"),
+            (f64::from(0x12_3456), "123456", "123456", "1193046", "000100100011010001010110"),
+            // negative and fractional values stay decimals
+            (-1234.0, "-1234", "-1234", "-1234", "-1234"),
+            (0.125, "0.125", "0.125", "0.125", "0.125"),
+        ] {
+            assert_eq!(value_as(v, Ascii), ascii, "{v} ascii");
+            assert_eq!(value_as(v, Hex), hex, "{v} hex");
+            assert_eq!(value_as(v, Decimal), dec, "{v} decimal");
+            assert_eq!(value_as(v, Binary), bin, "{v} binary");
+        }
+        assert_eq!(value_as(f64::NAN, Hex), "–");
+        assert_eq!(value_as(f64::INFINITY, Ascii), "–");
+        assert_eq!(value_as(u64::MAX as f64, Decimal), "18446744073709551616");
+    }
+
+    #[test]
+    fn values_join_into_a_string() {
+        use crate::types::DataFormat::{Ascii, Binary, Hex};
+        let ok = [79.0, 75.0, 13.0, 10.0];
+        assert_eq!(values_as(ok, Ascii), "OK\\r\\n");
+        assert_eq!(values_as(ok, Hex), "4F 4B 0D 0A");
+        assert_eq!(values_as([1.0, 2.0], Binary), "00000001 00000010");
+        assert_eq!(values_as([], Hex), "");
     }
 }

@@ -1,5 +1,7 @@
 // The waveform (doc 08): LOD rendering from waveform.get, zoom and pan, cursors that snap to edges,
-// a range selection, markers (agents' with a badge) and decoder rows below their lanes. The canvas
+// a range selection, markers (agents' with a badge), and each decoder's channels grouped under its
+// name with its rows below the channel its data is on: the frames, then the data as text in the
+// decoder's format (lanes.ts). The canvas
 // draws at once from the data it has, mapped to the current view, and asks the engine for the
 // new range in the background, so panning never waits on it.
 import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react';
@@ -11,6 +13,7 @@ import { bridge, client } from '../bridge';
 import { at, tick, tickStep, time } from '../format';
 import { useEventCount, type CaptureInfo } from '../store';
 import { waveformNeeds } from '../relevance';
+import { joinRun, layoutRows, runs, type Row } from '../lanes';
 import { clampRange, pan, sampleToX, snap, xToSample, zoomAt, type Range } from '../viewmath';
 
 export interface ViewState extends Range {
@@ -23,19 +26,20 @@ type Wave = Output<'waveform.get'>;
 
 const AXIS = 22;
 const MARKERS = 16;
-const LANE = 34;
-const DECODER = 22;
 const LABEL_W = 88;
+const TRACE_COLOURS = ['--channel-1', '--channel-2', '--channel-3', '--channel-4'];
 
-interface Row {
-  kind: 'channel' | 'decoder';
-  key: string;
-  label: string;
-  y: number;
-  h: number;
-  channel?: number;
-  decoder?: string;
-  colour: string;
+/** The longest start of `text` that fits `room` pixels, with "…" when cut; "" when nothing fits. */
+function fit(g: CanvasRenderingContext2D, text: string, room: number): string {
+  if (g.measureText(text).width <= room) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (g.measureText(`${text.slice(0, mid)}…`).width <= room) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo === 0 ? '' : `${text.slice(0, lo)}…`;
 }
 
 /** Reads the token colours once per theme. */
@@ -56,6 +60,7 @@ function palette(): Record<string, string> {
     c3: v('--channel-3'),
     c4: v('--channel-4'),
     font: v('--font-ui'),
+    mono: v('--font-mono'),
   };
 }
 
@@ -102,33 +107,7 @@ export function Waveform({
   const rate = capture.sampleRateHz;
   const plotW = Math.max(1, width - LABEL_W);
 
-  // lanes: each channel, then the decoders whose last lane it is (doc 08: rows below each lane)
-  const rows = useMemo<Row[]>(() => {
-    const visible = capture.channels.filter((c) => !c.hidden);
-    const lastLane = new Map<string, number>();
-    for (const d of capture.decoders) {
-      const lanes = Object.values(d.config.roles).filter((x): x is number => typeof x === 'number');
-      const inView = lanes.filter((l) => visible.some((v) => v.index === l));
-      lastLane.set(d.id, inView.length ? Math.max(...inView) : -1);
-    }
-    const out: Row[] = [];
-    let y = AXIS + MARKERS;
-    const palette4 = ['--channel-1', '--channel-2', '--channel-3', '--channel-4'];
-    visible.forEach((c, i) => {
-      const name = c.name && c.name !== `CH${c.index}` && c.name !== `channel ${c.index}` ? `CH${c.index} ${c.name}` : `CH${c.index}`;
-      out.push({ kind: 'channel', key: `c${c.index}`, label: name, y, h: LANE, channel: c.index, colour: c.colour ?? palette4[i % 4]! });
-      y += LANE;
-      for (const d of capture.decoders.filter((d) => lastLane.get(d.id) === c.index)) {
-        out.push({ kind: 'decoder', key: `d${d.id}`, label: d.config.name, y, h: DECODER, decoder: d.id, colour: '' });
-        y += DECODER;
-      }
-    });
-    for (const d of capture.decoders.filter((d) => lastLane.get(d.id) === -1)) {
-      out.push({ kind: 'decoder', key: `d${d.id}`, label: d.config.name, y, h: DECODER, decoder: d.id, colour: '' });
-      y += DECODER;
-    }
-    return out;
-  }, [capture.channels, capture.decoders]);
+  const rows = useMemo<Row[]>(() => layoutRows(capture.channels, capture.decoders, AXIS + MARKERS), [capture.channels, capture.decoders]);
   const height = (rows.at(-1)?.y ?? AXIS + MARKERS) + (rows.at(-1)?.h ?? 0) + 8;
 
   useEffect(() => {
@@ -175,6 +154,7 @@ export function Waveform({
     if (!colours.current.bg) colours.current = palette();
     const k = colours.current;
     const col = (v: string) => (v.startsWith('--') ? (k[`c${v.slice(-1)}`] ?? '#3ddc84') : v);
+    const traceColour = (r: Row) => col(r.colour ?? TRACE_COLOURS[(r.colourIndex ?? 0) % 4]!);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = k.bg!;
     g.fillRect(0, 0, width, height);
@@ -221,20 +201,25 @@ export function Waveform({
       g.fillText(label, mx + 4, AXIS + MARKERS / 2);
     }
 
-    // traces and decoder rows
+    // traces, groups and decoder rows
     const traces = new Map((data?.traces ?? []).map((t) => [t.channel, t]));
     const decs = new Map((data?.decoders ?? []).map((d) => [d.id, d]));
+    const onLane = (r: Row, lane: number) => r.lane === null || r.lane === undefined || r.lane === lane;
     for (const r of rows) {
-      g.fillStyle = k.axis!;
-      g.fillText(r.label.slice(0, 13), 6, r.y + r.h / 2);
+      if (r.kind === 'group') {
+        // a hairline above each group
+        g.fillStyle = k.grid!;
+        g.fillRect(0, r.y, width, 1);
+        continue;
+      }
       if (r.kind === 'channel' && r.channel !== undefined) {
         const t = traces.get(r.channel);
         if (!t || !data) continue;
         const hi = r.y + 7;
         const lo = r.y + r.h - 7;
         const yl = (high: boolean) => (high ? hi : lo);
-        g.strokeStyle = col(r.colour);
-        g.fillStyle = col(r.colour);
+        g.strokeStyle = traceColour(r);
+        g.fillStyle = traceColour(r);
         g.lineWidth = 1.5;
         g.beginPath();
         if (t.edges) {
@@ -273,12 +258,15 @@ export function Waveform({
             }
           }
         }
-      } else if (r.decoder) {
-        const d = decs.get(r.decoder);
-        if (!d) continue;
-        const y0 = r.y + 3;
-        const h = r.h - 6;
+        continue;
+      }
+      const d = r.decoder ? decs.get(r.decoder) : undefined;
+      if (!d) continue;
+      const y0 = r.y + 3;
+      const h = r.h - 6;
+      if (r.kind === 'data') {
         for (const f of d.frames ?? []) {
+          if (!onLane(r, f.lane)) continue;
           const x0 = Math.max(LABEL_W, x(f.start));
           const x1 = Math.max(x0 + 1, Math.min(width, x(f.end)));
           if (x1 < LABEL_W || x0 > width) continue;
@@ -297,12 +285,54 @@ export function Waveform({
             g.fillText(f.label, x0 + (x1 - x0 - w) / 2, y0 + h / 2);
           }
         }
-        for (const [s, e, problem] of d.spans ?? []) {
+        for (const [s, e, problem, lane] of d.spans ?? []) {
+          if (!onLane(r, lane)) continue;
           const x0 = Math.max(LABEL_W, x(s));
           const x1 = Math.max(x0 + 1, x(e));
           g.fillStyle = problem ? k.problem! : '#2c5c9e';
           g.fillRect(x0, y0, x1 - x0, h);
         }
+      } else if (r.kind === 'text') {
+        // each value under its frame when there is room, else the packet's values as one string
+        g.font = `11px ${k.mono}`;
+        // the font is monospaced: one measurement per draw instead of one per value
+        const cw = g.measureText('0').width;
+        const all = runs((d.frames ?? []).filter((f) => onLane(r, f.lane)));
+        all.forEach((run, i) => {
+          const rx0 = x(run[0]!.start);
+          const rx1 = x(run.at(-1)!.end);
+          // a string may run on into the free space up to the next packet on this channel
+          const next = all[i + 1];
+          const room = Math.min(width, next && next[0]!.lane === run[0]!.lane ? x(next[0]!.start) : width);
+          if (rx1 < LABEL_W || rx0 > width) return;
+          g.globalAlpha = 0.22;
+          g.fillStyle = '#2c5c9e';
+          g.fillRect(Math.max(LABEL_W, rx0), y0, Math.max(1, Math.min(width, rx1) - Math.max(LABEL_W, rx0)), h);
+          g.globalAlpha = 1;
+          g.fillStyle = k.cursor!;
+          const each = run.every((f) => f.text!.length * cw + 4 <= x(f.end) - x(f.start));
+          if (each) {
+            for (const f of run) {
+              const fx0 = x(f.start);
+              const w = f.text!.length * cw;
+              g.fillText(f.text!, fx0 + (x(f.end) - fx0 - w) / 2, y0 + h / 2);
+            }
+          } else {
+            // from where the run is visible, so a long packet still reads at the left edge
+            const left = Math.max(LABEL_W, rx0) + 3;
+            const shown = fit(g, joinRun(run.map((f) => f.text!), r.format ?? 'ascii'), room - left - 6);
+            if (shown) g.fillText(shown, left, y0 + h / 2);
+          }
+        });
+        for (const [s, e, , lane] of d.spans ?? []) {
+          if (!onLane(r, lane)) continue;
+          const x0 = Math.max(LABEL_W, x(s));
+          g.globalAlpha = 0.22;
+          g.fillStyle = '#2c5c9e';
+          g.fillRect(x0, y0, Math.max(1, x(e) - x0), h);
+          g.globalAlpha = 1;
+        }
+        g.font = `11px ${k.font}`;
       }
     }
 
@@ -327,10 +357,23 @@ export function Waveform({
     // the label column covers what was drawn under it
     g.fillStyle = k.bg!;
     g.fillRect(0, AXIS, LABEL_W - 4, height);
+    const extent = new Map<number, [number, number]>();
     for (const r of rows) {
-      g.fillStyle = r.kind === 'channel' ? col(r.colour) : k.axis!;
-      g.fillText(r.label.slice(0, 13), 6, r.y + r.h / 2);
+      if (r.group >= 0) extent.set(r.group, [extent.get(r.group)?.[0] ?? r.y, r.y + r.h]);
+      if (r.kind === 'group') {
+        // the group's name has the whole row: nothing is drawn beside it
+        g.font = `600 11px ${k.font}`;
+        g.fillStyle = k.cursor!;
+        g.fillText(fit(g, r.label, width - 12), 8, r.y + r.h / 2 + 1);
+        g.font = `11px ${k.font}`;
+        continue;
+      }
+      g.fillStyle = r.kind === 'channel' ? traceColour(r) : k.axis!;
+      g.fillText(fit(g, r.label, LABEL_W - 14), r.kind === 'channel' ? 8 : 14, r.y + r.h / 2);
     }
+    // a bracket down the side of each group
+    g.fillStyle = k.axis!;
+    for (const [top, bottom] of extent.values()) g.fillRect(2, top + 4, 2, bottom - top - 6);
   }, [width, height, view, rows, data, capture.markers, plotW, rate]);
 
   useEffect(() => {
@@ -351,7 +394,7 @@ export function Waveform({
   useEffect(() => {
     const t = window.setTimeout(() => {
       const names = rows.filter((r) => r.kind === 'channel').map((r) => r.label);
-      const decoders = capture.decoders.map((d) => `${d.config.name} (${d.frames} frames)`);
+      const decoders = capture.decoders.map((d) => `${d.config.name} (${d.frames} frames, data shown as ${d.config.dataFormat ?? 'ascii'})`);
       const marks = capture.markers.filter((m) => m.at >= view.from && m.at < view.to).length;
       setDescription(
         `${capture.title}: ${time(view.from / rate)} to ${time(view.to / rate)}. Channels ${names.join(', ') || 'none'}. ` +

@@ -2,10 +2,11 @@
 // change goes through a command (ADR 0001); the panels redraw from the session the store re-reads.
 import { useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
-import { Badge, Button, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
-import { Eye, EyeOff, Palette, Plus, Search as SearchIcon, Trash2, Usb, WandSparkles } from 'lucide-react';
+import { Badge, Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
+import { Eye, EyeOff, Palette, Plus, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
 import { at, hz, int } from '../format';
 import { isAgent, useStore, who, type CaptureInfo } from '../store';
+import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
 import type { ViewState } from './Waveform';
 
 type Analysis = Output<'analysis.detect'>;
@@ -13,77 +14,137 @@ type Protocols = Output<'protocol.list'>['protocols'];
 
 const COLOURS = ['#e54242', '#ff7f00', '#007fff', '#26ad34', '#c08cff', '#f5b041', '#4cc3c3', '#e6e8ec'];
 
+type ChannelInfo = CaptureInfo['channels'][number];
+
+/** The channels, grouped under the decoders that use them (as in the waveform); the rest after. */
 export function ChannelList({ capture }: { capture: CaptureInfo }) {
   const { run } = useStore();
   const [editing, setEditing] = useState<number | null>(null);
   const [name, setName] = useState('');
-  const groups = useMemo(() => {
+  const buses = useMemo(() => {
     const m = new Map<string, number[]>();
     for (const c of capture.channels) if (c.group) m.set(c.group, [...(m.get(c.group) ?? []), c.index]);
     return [...m.entries()];
   }, [capture.channels]);
+  const grouping = useMemo(() => groupChannels(capture.channels, capture.decoders), [capture.channels, capture.decoders]);
+  // the decoder whose settings are open, read fresh from the session so changes show at once
+  const [settingsOf, setSettingsOf] = useState<string | null>(null);
+  const open = capture.decoders.find((d) => d.id === settingsOf);
+  const protocols = useProtocols();
+  const position = useMemo(() => new Map(capture.channels.map((c, i) => [c.index, i])), [capture.channels]);
   const rename = (channel: number) => {
     if (name.trim()) void run('channel.rename', { capture: capture.id, channel, name: name.trim() });
     setEditing(null);
   };
+  const row = (c: ChannelInfo, role: string | null) => (
+    <li key={c.index} className="channels__row" data-hidden={c.hidden || undefined}>
+      <span className="channels__swatch" style={{ background: c.colour ?? COLOURS[(position.get(c.index) ?? 0) % 4] }} aria-hidden="true" />
+      {editing === c.index ? (
+        <input
+          className="lg-input channels__edit"
+          aria-label={`New name for CH${c.index}`}
+          value={name}
+          autoFocus
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => rename(c.index)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') rename(c.index);
+            if (e.key === 'Escape') setEditing(null);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="channels__name"
+          title="Double-click or F2 to rename"
+          onDoubleClick={() => {
+            setEditing(c.index);
+            setName(c.name);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'F2') {
+              setEditing(c.index);
+              setName(c.name);
+            }
+          }}
+        >
+          <span className="channels__index lg-num">CH{c.index}</span> {c.name !== `CH${c.index}` ? c.name : ''}
+          {/* the role, unless the channel's name already says it ("CS#" for CS) */}
+          {role && !c.name.toUpperCase().includes(role) && (
+            <>
+              {' '}
+              <span className="channels__role">{role}</span>
+            </>
+          )}
+        </button>
+      )}
+      <Menu label={`Colour of CH${c.index}`} trigger={<IconButton label={`Colour of CH${c.index}`} icon={<Palette />} />}>
+        {COLOURS.map((col) => (
+          <MenuItem key={col} icon={<span className="channels__swatch" style={{ background: col }} />} onSelect={() => void run('channel.colour', { capture: capture.id, channel: c.index, colour: col })}>
+            {col}
+          </MenuItem>
+        ))}
+      </Menu>
+      <IconButton
+        label={c.hidden ? `Show CH${c.index}` : `Hide CH${c.index}`}
+        pressed={c.hidden}
+        icon={c.hidden ? <EyeOff /> : <Eye />}
+        onClick={() => void run('channel.hide', { capture: capture.id, channel: c.index, hidden: !c.hidden })}
+      />
+    </li>
+  );
+  const { groups, other } = grouping;
   return (
     <div className="channels">
-      <ul className="channels__list" aria-label="Channels">
-        {capture.channels.map((c, i) => (
-          <li key={c.index} className="channels__row" data-hidden={c.hidden || undefined}>
-            <span className="channels__swatch" style={{ background: c.colour ?? COLOURS[i % 4] }} aria-hidden="true" />
-            {editing === c.index ? (
-              <input
-                className="lg-input channels__edit"
-                aria-label={`New name for CH${c.index}`}
-                value={name}
-                autoFocus
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => rename(c.index)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') rename(c.index);
-                  if (e.key === 'Escape') setEditing(null);
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="channels__name"
-                title="Double-click or F2 to rename"
-                onDoubleClick={() => {
-                  setEditing(c.index);
-                  setName(c.name);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'F2') {
-                    setEditing(c.index);
-                    setName(c.name);
-                  }
-                }}
-              >
-                <span className="channels__index lg-num">CH{c.index}</span> {c.name !== `CH${c.index}` ? c.name : ''}
-              </button>
-            )}
-            <Menu label={`Colour of CH${c.index}`} trigger={<IconButton label={`Colour of CH${c.index}`} icon={<Palette />} />}>
-              {COLOURS.map((col) => (
-                <MenuItem key={col} icon={<span className="channels__swatch" style={{ background: col }} />} onSelect={() => void run('channel.colour', { capture: capture.id, channel: c.index, colour: col })}>
-                  {col}
-                </MenuItem>
-              ))}
-            </Menu>
-            <IconButton
-              label={c.hidden ? `Show CH${c.index}` : `Hide CH${c.index}`}
-              pressed={c.hidden}
-              icon={c.hidden ? <EyeOff /> : <Eye />}
-              onClick={() => void run('channel.hide', { capture: capture.id, channel: c.index, hidden: !c.hidden })}
-            />
-          </li>
-        ))}
-      </ul>
-      {groups.length > 0 && (
+      {groups.length === 0 ? (
+        <ul className="channels__list" aria-label="Channels">
+          {capture.channels.map((c) => row(c, null))}
+        </ul>
+      ) : (
+        <>
+          {groups.map((g) => {
+            const title = [g.decoder, ...g.extra].map((d) => d.config.name).join(' + ');
+            return (
+              <section key={g.decoder.id} className="channels__group" aria-label={`Channels of ${title}`}>
+                <div className="channels__group-head">
+                  <h3 className="channels__group-title">{title}</h3>
+                  {[g.decoder, ...g.extra].map((d) => (
+                    <IconButton key={d.id} label={`Settings of ${d.config.name}`} icon={<SlidersHorizontal />} onClick={() => setSettingsOf(d.id)} />
+                  ))}
+                </div>
+                <ul className="channels__list">{g.channels.map((c) => row(c, roleOf(g.decoder, c.index)))}</ul>
+              </section>
+            );
+          })}
+          {other.length > 0 && (
+            <section className="channels__group" aria-label="Other channels">
+              <h3 className="channels__group-title">Other channels</h3>
+              <ul className="channels__list">{other.map((c) => row(c, null))}</ul>
+            </section>
+          )}
+        </>
+      )}
+      <Dialog
+        open={open !== undefined}
+        onOpenChange={(o) => !o && setSettingsOf(null)}
+        title={open ? `${open.config.name} settings` : ''}
+        description="A change decodes the capture again at once; each one can be undone."
+        footer={
+          <Button variant="primary" onClick={() => setSettingsOf(null)}>
+            Done
+          </Button>
+        }
+      >
+        {open && (
+          <div className="stack-sm">
+            <DecoderSettings capture={capture} decoder={open} protocol={protocols.find((p) => p.id === open.config.protocol)} />
+          </div>
+        )}
+      </Dialog>
+      {buses.length > 0 && (
         <div className="channels__groups">
           <h3 className="section-title">Buses</h3>
-          {groups.map(([g, list]) => (
+          {buses.map(([g, list]) => (
             <p key={g} className="muted">
               {g}: {list.map((x) => `CH${x}`).join(', ')}
             </p>
@@ -266,49 +327,80 @@ function SettingField({
   );
 }
 
-export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
-  const { run, notify } = useStore();
+/** The protocols the engine knows (for their settings and roles). */
+function useProtocols(): Protocols {
+  const { run } = useStore();
   const [protocols, setProtocols] = useState<Protocols>([]);
-  const [adding, setAdding] = useState('');
-  const [roles, setRoles] = useState<Record<string, number | null>>({});
   useEffect(() => {
     void run('protocol.list', {}).then((p) => p && setProtocols(p.protocols));
   }, [run]);
-  const byId = useMemo(() => new Map(protocols.map((p) => [p.id, p])), [protocols]);
-  const chosen = byId.get(adding);
-  const update = async (decoder: string, settings: Record<string, string | number | boolean>) => {
-    const r = await run('decoder.update', { capture: capture.id, decoder, settings });
+  return protocols;
+}
+
+type DecoderInfo = CaptureInfo['decoders'][number];
+
+/** A decoder's state and settings: in the Decoders panel and in the channel list's dialog. */
+function DecoderSettings({ capture, decoder: d, protocol: p }: { capture: CaptureInfo; decoder: DecoderInfo; protocol: Protocols[number] | undefined }) {
+  const { run, notify } = useStore();
+  const update = async (settings: Record<string, string | number | boolean>) => {
+    const r = await run('decoder.update', { capture: capture.id, decoder: d.id, settings });
     if (!r) return;
     const changes = r.problemChanges.map((c) => `${c.code}: ${c.before} → ${c.after}`);
     notify('neutral', changes.length ? `Problems changed: ${changes.join(', ')}.` : 'Decoded again; the problem counts did not change.');
   };
+  const problems = Object.values(d.problemCounts).reduce((a, b) => a + (b ?? 0), 0);
+  return (
+    <>
+      <p className="muted">
+        {rolesText(d.config.roles)} · {int(d.packets)} packets · {int(d.frames)} frames ·{' '}
+        {problems ? <Badge tone="danger">{int(problems)} problems</Badge> : <Badge tone="success">no problems</Badge>}
+      </p>
+      {d.notes.map((n) => (
+        <p key={n} className="muted">
+          {n}
+        </p>
+      ))}
+      <label className="lg-field">
+        <span className="lg-field__label">Show data as</span>
+        <select
+          className="lg-input"
+          value={d.config.dataFormat ?? 'ascii'}
+          onChange={(e) => void run('decoder.update', { capture: capture.id, decoder: d.id, dataFormat: e.target.value as DataFormat })}
+        >
+          {(Object.keys(FORMAT_LABEL) as DataFormat[]).map((f) => (
+            <option key={f} value={f}>
+              {FORMAT_LABEL[f]}
+            </option>
+          ))}
+        </select>
+        <span className="lg-field__hint">The row under the decoder&apos;s bytes in the waveform.</span>
+      </label>
+      {p?.settings.map((s) => (
+        <SettingField key={s.key} spec={s} value={d.config.settings[s.key]} onChange={(v) => void update({ [s.key]: v })} />
+      ))}
+    </>
+  );
+}
+
+export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
+  const { run } = useStore();
+  const protocols = useProtocols();
+  const [adding, setAdding] = useState('');
+  const [roles, setRoles] = useState<Record<string, number | null>>({});
+  const byId = useMemo(() => new Map(protocols.map((p) => [p.id, p])), [protocols]);
+  const chosen = byId.get(adding);
   return (
     <div className="pad stack">
       {capture.decoders.length === 0 && <EmptyState title="No decoders yet">Add one from the analysis, or choose a protocol below.</EmptyState>}
-      {capture.decoders.map((d) => {
-        const p = byId.get(d.config.protocol);
-        const problems = Object.values(d.problemCounts).reduce((a, b) => a + (b ?? 0), 0);
-        return (
-          <section key={d.id} className="card stack-sm" aria-label={`Decoder ${d.config.name}`}>
-            <div className="row between">
-              <strong>{d.config.name}</strong>
-              <IconButton label={`Remove ${d.config.name}`} icon={<Trash2 />} onClick={() => void run('decoder.remove', { capture: capture.id, decoder: d.id })} />
-            </div>
-            <p className="muted">
-              {rolesText(d.config.roles)} · {int(d.packets)} packets · {int(d.frames)} frames ·{' '}
-              {problems ? <Badge tone="danger">{int(problems)} problems</Badge> : <Badge tone="success">no problems</Badge>}
-            </p>
-            {d.notes.map((n) => (
-              <p key={n} className="muted">
-                {n}
-              </p>
-            ))}
-            {p?.settings.map((s) => (
-              <SettingField key={s.key} spec={s} value={d.config.settings[s.key]} onChange={(v) => void update(d.id, { [s.key]: v })} />
-            ))}
-          </section>
-        );
-      })}
+      {capture.decoders.map((d) => (
+        <section key={d.id} className="card stack-sm" aria-label={`Decoder ${d.config.name}`}>
+          <div className="row between">
+            <strong>{d.config.name}</strong>
+            <IconButton label={`Remove ${d.config.name}`} icon={<Trash2 />} onClick={() => void run('decoder.remove', { capture: capture.id, decoder: d.id })} />
+          </div>
+          <DecoderSettings capture={capture} decoder={d} protocol={byId.get(d.config.protocol)} />
+        </section>
+      ))}
       <section className="card stack-sm" aria-label="Add a decoder">
         <h3 className="section-title">Add a decoder</h3>
         <label className="lg-field">

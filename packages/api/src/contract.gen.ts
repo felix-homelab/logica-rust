@@ -2,6 +2,10 @@
 // Command API version 1.0.
 
 /**
+ * How a decoder's data values are written out for people (the waveform's text row, doc 08).
+ */
+export type DataFormat = ("ascii" | "hex" | "decimal" | "binary")
+/**
  * A setting's value: a number, a choice (text) or a switch.
  */
 export type SettingValue = (boolean | number | string)
@@ -283,6 +287,10 @@ name: string
 export interface DecoderAddIn {
 capture: string
 /**
+ * How its data is written in the waveform's text row (default ASCII).
+ */
+dataFormat?: (DataFormat | null)
+/**
  * The decoder id to use (redo and undo use the id it had); a new one when absent.
  */
 id?: (string | null)
@@ -341,6 +349,11 @@ decoder: string
 }
 export interface DecoderUpdateIn {
 capture: string
+/**
+ * How its data is written in the waveform's text row; changing only this does not decode
+ * again.
+ */
+dataFormat?: (DataFormat | null)
 decoder: string
 name?: (string | null)
 /**
@@ -853,9 +866,18 @@ index: number
 name: string
 }
 export interface DecoderSummary {
+/**
+ * Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO): the order they are
+ * shown in, grouped under the decoder.
+ */
+channels: number[]
 config: DecoderConfig
 frames: number
 id: string
+/**
+ * Channels its data appears under (SPI: MOSI and MISO; UART: RX and TX), in order.
+ */
+lanes: number[]
 notes: string[]
 packets: number
 problemCounts: {
@@ -873,6 +895,10 @@ timing?: number
  * A decoder's configuration: what `decoder.add` takes and an undo restores.
  */
 export interface DecoderConfig {
+/**
+ * How a decoder's data values are written out for people (the waveform's text row, doc 08).
+ */
+dataFormat?: ("ascii" | "hex" | "decimal" | "binary")
 name: string
 protocol: string
 roles: {
@@ -1368,20 +1394,30 @@ frames?: (WaveFrame[] | null)
 id: string
 name: string
 /**
- * Otherwise stretches of frames closer than a bucket, as (start, end, any problem).
+ * Otherwise stretches of frames closer than a bucket, per channel drawn under, as
+ * (start, end, any problem, lane).
  */
-spans?: ([number, number, boolean][] | null)
+spans?: ([number, number, boolean, number][] | null)
 }
 export interface WaveFrame {
 end: number
 kind: FrameKind
 label: string
 /**
- * Physical channel it belongs under.
+ * Physical channel it is drawn under: one of the decoder's data channels (`lanes` in the
+ * session); frames on another channel (an I2C start on SCL) go under the first of them.
  */
 lane: number
+/**
+ * Packet it belongs to: neighbours in one packet join into a string in the text row.
+ */
+packet: number
 problem: boolean
 start: number
+/**
+ * For data frames: the value in the decoder's data format ("A", "65", "01000001").
+ */
+text?: (string | null)
 }
 export interface WaveTrace {
 channel: number

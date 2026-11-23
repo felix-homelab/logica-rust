@@ -109,6 +109,31 @@
     "description": "action \"add\" decodes a protocol on channels (roles such as {\"scl\": 5, \"sda\": 4}) with settings; \"update\" changes roles or settings and says how the problem counts changed; \"remove\" deletes it. Every change can be undone.",
     "inputSchema": {
       "$defs": {
+        "DataFormat": {
+          "description": "How a decoder's data values are written out for people (the waveform's text row, doc 08).",
+          "oneOf": [
+            {
+              "const": "ascii",
+              "description": "Characters: \"Hello\\r\\n\"; bytes that are not printable as \"·\".",
+              "type": "string"
+            },
+            {
+              "const": "hex",
+              "description": "\"48 65 6C\"",
+              "type": "string"
+            },
+            {
+              "const": "decimal",
+              "description": "\"72 101 108\"",
+              "type": "string"
+            },
+            {
+              "const": "binary",
+              "description": "\"01001000 01100101\"",
+              "type": "string"
+            }
+          ]
+        },
         "SettingValue": {
           "anyOf": [
             {
@@ -136,6 +161,17 @@
         },
         "capture": {
           "type": "string"
+        },
+        "dataFormat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How its data is written in the waveform's text row (default ASCII). For add, update."
         },
         "decoder": {
           "description": "For update, remove.",
