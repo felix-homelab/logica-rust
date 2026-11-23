@@ -34,6 +34,11 @@ from the window (ADR 0001). The engine is Rust; the window is Electron with Reac
 | **Renderer** (one per window; captures are tabs) | React UI, waveform drawing | Sandboxed, context isolation, no Node. Reaches the engine only through the command API from the preload |
 | **`logica`** (standalone Rust binary) | `logica mcp`: a stdio-to-HTTP MCP relay to the app, or a headless engine. `logica open`: hands a file to the app. Other subcommands: the engine in-process | Agents over stdio, CI, file conversion; needs no Node |
 
+The engine process loads the engine as a Node-API module (`crates/node`). Commands run on
+libuv's worker threads and resolve a Promise; events reach the host by long poll
+(`nextEvents`), so the engine's threads never call into JavaScript. Every command from the window
+carries the actor `user`.
+
 The window and the engine process talk over a `MessagePort` created by main (`MessageChannelMain`),
 so command traffic does not pass through the main process. Large drawing data (LOD buckets,
 visible transitions) travels as transferable `ArrayBuffer`s, not copied.
@@ -145,6 +150,8 @@ user-data folder) and computed the same way by the CLI.
 - The preload exposes one object: the typed command API client, an event subscription, and the
   few window services (native dialogs, the path of a dropped file, the platform). No
   `ipcRenderer`, no file system, no shell.
+- The skeleton (spike S7) loads its packaged files with `loadFile` and a strict CSP; the custom
+  `app://` protocol below replaces that in M2.
 - Strict Content Security Policy; the renderer loads only packaged files through a custom `app://`
   protocol, never remote content. Navigation and `window.open` are blocked.
 - Paths the person picks in native dialogs are passed to the engine as command inputs; the engine

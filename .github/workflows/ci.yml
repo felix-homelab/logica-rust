@@ -52,6 +52,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # the desktop app's build compiles the engine's Node-API module
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -59,3 +62,32 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - run: npm test
+
+  desktop:
+    name: Packaged app starts and reaches the engine (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # shared runners are slower than the machines the 1.5 s budget is for (doc 11, spike S7)
+      LOGICA_COLD_START_LIMIT_MS: 3000
+      # the runners' Chromium sandbox helper is not set up; the window's own sandbox stays on
+      LOGICA_SMOKE_NO_SANDBOX: 1
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package:dir -w apps/desktop
+      - name: Smoke test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run smoke -w apps/desktop
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: npm run smoke -w apps/desktop

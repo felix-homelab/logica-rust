@@ -1,0 +1,25 @@
+[package]
+name = "logica-node"
+description = "The Node-API module that loads Logica's engine into the Electron engine process (doc 03)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+logica-engine.workspace = true
+logica-mcp.workspace = true
+napi = { version = "3", default-features = false, features = ["napi8"] }
+napi-derive = "3"
+serde_json = "1"
+tokio = { version = "1", features = ["sync"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[lints]
+workspace = true

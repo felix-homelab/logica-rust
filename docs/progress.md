@@ -2,7 +2,7 @@
 
 What is done, what is next, and decisions made on the way. Newest first.
 
-## M1 Engine, CLI and MCP (in progress, November 2026)
+## M1 Engine, CLI and MCP (November 2026)
 
 ### Done
 
@@ -23,6 +23,11 @@ What is done, what is next, and decisions made on the way. Newest first.
 - Golden summaries of every committed fixture (`crates/mcp/tests/snapshots/summaries`, reviewed),
   the exit scenario as a test through `logica mcp` on stdio, and `docs/manual-tests.md` for a
   real Claude Code session.
+- Spike S7: `apps/desktop`, the Electron skeleton. The engine runs as a Node-API module
+  (`crates/node`, built with `napi`) in a `utilityProcess`; the sandboxed window reaches it over a
+  `MessagePort` through the preload's typed bridge. The packaged Linux app starts with Chromium's
+  sandbox on and reaches the engine in a median of 157 ms on the development machine (WSL2,
+  warm caches; budget 1.5 s); a CI job packages and smoke-tests it on Linux and Windows.
 - Crate `cli`, the `logica` binary: `inspect` (summary, `--json`, `--index` for `.lacap`) and
   `convert` (any format it reads to `.lacap`), the engine in-process as the `cli` actor. Working
   files go to a temporary folder that is removed afterwards. No new dependencies (own argument
@@ -50,6 +55,15 @@ What is done, what is next, and decisions made on the way. Newest first.
   SDK's helper for them is private. New direct dependencies, all already in the tree through
   `rmcp`: `hyper`, `hyper-util`, `http`, `http-body-util`, `bytes`, `tokio-util` (MIT) and
   `getrandom` (MIT/Apache-2.0, for the token).
+- S7: Electron is pinned (45.4.1; electron-builder needs an exact version) and downloaded by its
+  own `install-electron` step, which `npm start` runs; npm 11 no longer runs it on install. Events
+  reach the engine host by long poll rather than a thread-safe callback. The cold start is
+  measured from outside the app: the main process's own clock starts after Chromium's start-up.
+  The Linux executable is `logica-app`, so `logica` stays the command-line tool. New dependencies:
+  `napi`, `napi-derive`, `napi-build` (MIT; the Node-API binding) in Rust; `electron`,
+  `electron-vite`, `electron-builder`, `vite`, `react`, `react-dom` and their type packages (MIT)
+  in npm, as doc 03 lists. Build-time only and not shipped: `lightningcss` (MPL-2.0) and
+  `caniuse-lite` (CC-BY-4.0), through Vite.
 - Known limit until M2: a windowless engine ends with the agent that started it; the others then
   get "cannot be reached" and must restart `logica mcp`.
 - History texts use "an" where a name is spoken with a vowel ("an I2C decoder").
@@ -62,7 +76,9 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- Spike S7: the Electron skeleton with the engine as a Node-API module.
+- M2: the desktop app and viewer UI (doc 11), starting with the app serving MCP and writing the
+  lock file, and `logica mcp` starting the app. Not verified yet: the Windows build and smoke test
+  (first run in CI), and Claude Code against `logica mcp` (`docs/manual-tests.md`).
 
 ## M0 Foundations (November 2026)
 

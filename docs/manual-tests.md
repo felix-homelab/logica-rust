@@ -40,6 +40,6 @@ Use a fresh data folder for a clean run: `LOGICA_DATA_DIR=/tmp/logica-manual cla
 
 ## The window (spike S7, M1)
 
-1. `npm run build` then `npm start -w apps/desktop` (needs a display). A window opens and reports
-   the engine as connected with its command API version and the cold start time.
+1. `npm start` (needs a display). A window opens and reports the engine as connected with its
+   command API version, the number of devices (12 synthetic ones) and the cold start time.
 2. Close the window: the app quits and no `logica` engine process remains.
