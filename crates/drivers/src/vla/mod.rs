@@ -137,8 +137,17 @@ impl VirtualDriver for VlaDriver {
     fn hotplug(&self) -> bool {
         true
     }
+    /// Greets every address at once, so a look takes as long as the slowest address (at most the
+    /// connect timeout), not the sum: the window looks every few seconds while devices show.
     fn enumerate(&self) -> Vec<DeviceInfo> {
-        self.addresses.iter().filter_map(|a| greet(a).ok().map(|(_, h)| info(a, &h))).collect()
+        std::thread::scope(|s| {
+            let asked: Vec<_> = self
+                .addresses
+                .iter()
+                .map(|a| s.spawn(move || greet(a).ok().map(|(_, h)| info(a, &h))))
+                .collect();
+            asked.into_iter().filter_map(|h| h.join().ok().flatten()).collect()
+        })
     }
     fn open(&self, id: &str) -> Result<Box<dyn Device>, DeviceError> {
         let address = id.strip_prefix("vla/").unwrap_or(id);

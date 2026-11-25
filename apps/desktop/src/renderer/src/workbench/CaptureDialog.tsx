@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Dialog, TextField } from '@logica/ui';
 import { Activity, RefreshCw } from 'lucide-react';
 import { hz, int } from '../format';
-import { isAgent, useStore, who } from '../store';
+import { isAgent, useDeviceWatch, useStore, who } from '../store';
 import { channelLabel, commonRates, configFor, defaultChoice, problems, samplesFor, type Caps, type Choice, type Length } from '../captureplan';
 
 type Device = NonNullable<ReturnType<typeof useStore>['session']>['devices'][number];
@@ -38,6 +38,8 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [sharedRate, setSharedRate] = useState<number | null>(remembered.sharedRate);
   const [looking, setLooking] = useState(false);
   const [starting, setStarting] = useState(false);
+  // devices that appear or go while choosing show up here
+  useDeviceWatch(open && step === 'devices');
 
   const look = useCallback(async () => {
     setLooking(true);

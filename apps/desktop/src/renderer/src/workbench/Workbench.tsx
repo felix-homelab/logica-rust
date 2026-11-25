@@ -36,8 +36,8 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { bridge, client, mod } from '../bridge';
-import { at, hz, int, time } from '../format';
-import { isAgent, useActive, useStore, who, type CaptureInfo } from '../store';
+import { at, elapsed, hz, int, time } from '../format';
+import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { centreOn, zoomAt } from '../viewmath';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
@@ -658,7 +658,7 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
     <footer className="status" aria-label="Status">
       <span>
         {capture.state === 'capturing'
-          ? `Capturing: ${time(capture.seconds)} so far`
+          ? `Capturing: ${elapsed(capture.seconds)} so far`
           : running
             ? `Capturing (${running})`
             : device
@@ -684,12 +684,10 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
 }
 
 function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () => void; onCapture: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
-  const { settings, session, run, refresh } = useStore();
+  const { settings, session } = useStore();
   const recent = settings?.recent ?? [];
-  // a virtual analyser may have started since the engine first listed devices
-  useEffect(() => {
-    void run('device.list', {}).then(() => refresh());
-  }, [run, refresh]);
+  // devices come and go (an analyser started, a device plugged in): look again while this shows
+  useDeviceWatch(true);
   const devices = session?.devices ?? [];
   return (
     <main className="start">

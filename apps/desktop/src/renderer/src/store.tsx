@@ -283,6 +283,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 }
 
 /** "agent:claude-code" → "claude-code"; the person → "you". */
+/** How often the window looks for devices while devices are on screen. */
+export const DEVICE_WATCH_MS = 2000;
+
+/**
+ * While `on`, looks for devices every two seconds (a virtual analyser or a plugged-in device can
+ * appear or go at any time; the engine only looks when asked) and reads the session again when what
+ * was found changed. Quiet: no busy label, and a failure is left to the next look.
+ */
+export function useDeviceWatch(on: boolean): void {
+  const { refresh } = useStore();
+  useEffect(() => {
+    if (!on) return;
+    let last = '';
+    let alive = true;
+    const look = () =>
+      client
+        .run('device.list', {})
+        .then((r) => {
+          const now = JSON.stringify(r.devices.map((d) => [d.info.id, d.connected, d.capturing, d.holder]));
+          if (alive && now !== last) {
+            last = now;
+            refresh();
+          }
+        })
+        .catch(() => {});
+    void look();
+    const t = window.setInterval(() => void look(), DEVICE_WATCH_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
+  }, [on, refresh]);
+}
+
 export function who(actor: string): string {
   if (actor === 'user') return 'you';
   if (actor === 'cli') return 'the command line';

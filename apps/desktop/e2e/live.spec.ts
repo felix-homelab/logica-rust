@@ -2,6 +2,7 @@
 // port): the capture appears as a tab at once, the view follows the newest data, a decoder added
 // while capturing keeps decoding, and stopping ends it with what arrived.
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createServer } from 'node:net';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { repo, start } from './helpers';
@@ -26,6 +27,19 @@ function analyser(extra: string[] = []): Promise<{ at: string; proc: ChildProces
     });
     proc.stderr?.on('data', (b: Buffer) => (out += String(b)));
     proc.on('exit', (code) => reject(new Error(`logica-vla ended (${code}): ${out}`)));
+  });
+}
+
+/** A loopback port free at the moment. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const address = srv.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      srv.close(() => resolve(port));
+    });
   });
 }
 
@@ -145,4 +159,21 @@ test('several analysers capture together, each into its own tab, with settings c
     one.proc.kill();
     two.proc.kill();
   }
+});
+
+test('the start screen shows an analyser that starts or stops while it is open', async () => {
+  test.setTimeout(300_000);
+  const at = `127.0.0.1:${await freePort()}`;
+  const { app, page } = await start([], { env: { LOGICA_VLA: at } });
+  await expect(page.getByText(/No analyser found/)).toBeVisible();
+  const vla = await analyser(['--listen', at]);
+  try {
+    // nobody pressed anything: the window looks again by itself
+    await expect(page.getByText('Virtual analyser: Bench')).toBeVisible({ timeout: 15_000 });
+  } finally {
+    vla.proc.kill();
+  }
+  await expect(page.getByText('Virtual analyser: Bench')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText(/No analyser found/)).toBeVisible();
+  await app.close();
 });

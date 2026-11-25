@@ -5,7 +5,7 @@ import type { Input, Output } from '@logica/api';
 import { Badge, Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
 import { Activity, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
 import { at, hz, int } from '../format';
-import { isAgent, useStore, who, type CaptureInfo } from '../store';
+import { isAgent, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
 import type { ViewState } from './Waveform';
 
@@ -609,9 +609,7 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
     setLooking(false);
     refresh();
   }, [run, refresh]);
-  useEffect(() => {
-    void look();
-  }, [look]);
+  useDeviceWatch(true);
   if (!session) return null;
   return (
     <div className="pad stack">

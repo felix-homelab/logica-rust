@@ -166,6 +166,34 @@ fn nothing_is_listed_where_nothing_answers() {
 }
 
 #[test]
+fn several_analysers_are_listed_in_order_and_slow_addresses_are_asked_at_once() {
+    let mut second = fast(4);
+    second.name = "Second".into();
+    let (a, b) = (start(fast(3)), start(second));
+    // two programs that accept but never greet: each costs the greeting timeout (2 s)
+    let silent: Vec<(TcpListener, String)> = (0..2)
+        .map(|_| {
+            let l = TcpListener::bind("127.0.0.1:0").unwrap();
+            let at = l.local_addr().unwrap().to_string();
+            (l, at)
+        })
+        .collect();
+    let driver = VlaDriver::new(vec![a.clone(), silent[0].1.clone(), b.clone(), silent[1].1.clone()]);
+    let t = Instant::now();
+    let list = driver.enumerate();
+    let took = t.elapsed();
+    let models: Vec<&str> = list.iter().map(|d| d.model.as_str()).collect();
+    assert_eq!(models, ["Virtual analyser: Bench", "Virtual analyser: Second"]);
+    assert_eq!(list[1].id, format!("vla/{b}"));
+    assert!(took < Duration::from_millis(3500), "asked one after the other: {took:?}");
+    // the names of the channels come with the capabilities
+    let dev = driver.open(&list[0].id).unwrap();
+    assert_eq!(dev.capabilities().channel_names[0], "TX");
+    assert_eq!(dev.capabilities().channel_names.len(), dev.capabilities().channels.len());
+    drop(silent);
+}
+
+#[test]
 fn a_program_that_is_not_an_analyser_is_named_as_such() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let at = listener.local_addr().unwrap().to_string();

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button } from '@logica/ui';
 import { Pause, Play, Square } from 'lucide-react';
-import { time } from '../format';
+import { elapsed } from '../format';
 import { useStore, type CaptureInfo } from '../store';
 import { LIVE_SECONDS, MIN_SPAN, following, liveView } from '../viewmath';
 import { Waveform, type ViewState } from './Waveform';
@@ -88,7 +88,7 @@ export function LiveWaveform({
         <Badge tone="danger">
           <span className="live__dot" aria-hidden="true" /> Live
         </Badge>
-        <span className="lg-num">{time(known / rate)} captured</span>
+        <span className="lg-num live__time">{elapsed(known / rate)} captured</span>
         <span className="muted">{span === null ? 'You are looking back; new data keeps arriving.' : 'Following the newest data.'}</span>
         <span className="live__grow" />
         {span === null ? (

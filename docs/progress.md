@@ -105,6 +105,9 @@ What is done, what is next, and decisions made on the way. Newest first.
   The device panel shows status, connect, take over and stop; its own capture form went. The `vla`
   driver looks at 127.0.0.1:7171 to 7174 by default, and `logica-vla --name` names an analyser, so
   several can run side by side.
+- Devices on screen (start screen, device panel, "Capture live") are looked for every two seconds,
+  so an analyser that starts or stops shows by itself; the `vla` driver greets its addresses at
+  once. The time captured (live bar, status bar) keeps two fixed decimals.
 - The synthetic device is no longer offered in the app (no "Try a demo capture"; the start screen
   lists virtual analysers or says how to start one). The engine registers it only when
   `EngineConfig::synthetic` is set, which tests, the scale test and the benchmarks do.

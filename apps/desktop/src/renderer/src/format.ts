@@ -21,6 +21,22 @@ export function time(t: number): string {
   return `${sig(t * 1e9, 4)} ns`;
 }
 
+/**
+ * A running time that grows, with a fixed number of decimals so it does not jump while it counts:
+ * "0.00 s", "12.30 s", "1 min 05.25 s", "2 h 03 min 05.25 s". Hundredths are cut, not rounded, so it
+ * never shows a time not yet reached.
+ */
+export function elapsed(t: number): string {
+  if (!Number.isFinite(t) || t < 0) return '–';
+  const cs = Math.floor(t * 100 + 1e-6);
+  const s = ((cs % 6000) / 100).toFixed(2);
+  const m = Math.floor(cs / 6000) % 60;
+  const h = Math.floor(cs / 360000);
+  if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min ${s.padStart(5, '0')} s`;
+  if (m > 0) return `${m} min ${s.padStart(5, '0')} s`;
+  return `${s} s`;
+}
+
 /** "115.2 kHz", "1 MHz", "50 Hz". */
 export function hz(f: number): string {
   if (!Number.isFinite(f)) return '–';

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN, atEnd, following, liveView } from '../src/renderer/src/viewmath.ts';
-import { time, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
+import { time, elapsed, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
 
 test('ranges stay inside the capture and never get too small', () => {
   assert.deepEqual(clampRange({ from: -50, to: 50 }, 1000), { from: 0, to: 100 });
@@ -120,4 +120,19 @@ test('a live view follows the newest data until the person scrolls away', () => 
   // not following: moving around stays put; coming back to the end follows again
   assert.deepEqual(liveView({ from: 0, to: 100 }, { from: 10, to: 110 }, 5000, null), { span: null, range: { from: 10, to: 110 } });
   assert.deepEqual(liveView({ from: 0, to: 100 }, { from: 4900, to: 5000 }, 5000, null), { span: 100, range: { from: 4900, to: 5000 } });
+});
+
+test('a running time keeps two decimals, so it does not jump while it counts', () => {
+  assert.equal(elapsed(0), '0.00 s');
+  assert.equal(elapsed(12.3), '12.30 s');
+  assert.equal(elapsed(12.349), '12.34 s', 'cut, not rounded');
+  assert.equal(elapsed(59.999), '59.99 s', 'never shows a minute before it is reached');
+  assert.equal(elapsed(60), '1 min 00.00 s');
+  assert.equal(elapsed(65.25), '1 min 05.25 s');
+  assert.equal(elapsed(7385.25), '2 h 03 min 05.25 s');
+  assert.equal(elapsed(-1), '–');
+  assert.equal(elapsed(Number.NaN), '–');
+  // the same width from 10 s to 59.99 s
+  const widths = new Set([10, 10.1, 11.11, 25.5, 59.99].map((t) => elapsed(t).length));
+  assert.equal(widths.size, 1);
 });
