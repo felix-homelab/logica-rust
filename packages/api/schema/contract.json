@@ -1475,7 +1475,7 @@
           "type": "integer"
         },
         "driver": {
-          "description": "Driver id: \"synthetic\", \"fnirsi-dla\", \"fx2lafw\".",
+          "description": "Driver id: \"vla\", \"fnirsi-dla\", \"fx2lafw\" (\"synthetic\" in tests).",
           "type": "string"
         },
         "firmware": {
@@ -1485,7 +1485,7 @@
           ]
         },
         "id": {
-          "description": "Stable id, such as \"synthetic/mix\" or a USB serial.",
+          "description": "Stable id, such as \"vla/127.0.0.1:7171\" or a USB serial.",
           "type": "string"
         },
         "model": {
@@ -1524,7 +1524,7 @@
       "additionalProperties": false,
       "properties": {
         "device": {
-          "description": "A device id from device.list, such as \"synthetic/mix\".",
+          "description": "A device id from device.list, such as \"vla/127.0.0.1:7171\".",
           "type": "string"
         }
       },

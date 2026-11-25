@@ -242,7 +242,7 @@ wait?: (boolean | null)
 }
 export interface DeviceRef {
 /**
- * A device id from device.list, such as "synthetic/mix".
+ * A device id from device.list, such as "vla/127.0.0.1:7171".
  */
 device: string
 }
@@ -1133,12 +1133,12 @@ maxRateHz: number
 export interface DeviceInfo {
 channels: number
 /**
- * Driver id: "synthetic", "fnirsi-dla", "fx2lafw".
+ * Driver id: "vla", "fnirsi-dla", "fx2lafw" ("synthetic" in tests).
  */
 driver: string
 firmware?: (string | null)
 /**
- * Stable id, such as "synthetic/mix" or a USB serial.
+ * Stable id, such as "vla/127.0.0.1:7171" or a USB serial.
  */
 id: string
 model: string

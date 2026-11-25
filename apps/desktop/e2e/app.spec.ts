@@ -23,11 +23,12 @@ async function theme(page: Page, t: 'light' | 'dark'): Promise<void> {
   await page.evaluate((x) => (document.documentElement.dataset.theme = x), t);
 }
 
-test('the start screen offers files, a demo and agents, and passes axe in both themes', async () => {
+test('the start screen offers files, devices and agents, and passes axe in both themes', async () => {
   const { app, page } = await start();
   await expect(page.getByRole('heading', { name: 'Start' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open file…' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Try a demo capture' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try a demo capture' })).toHaveCount(0);
   await theme(page, 'light');
   await axe(page, 'the start screen (light)');
   await theme(page, 'dark');

@@ -36,7 +36,7 @@ pub struct DeviceListOut {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeviceRef {
-    /// A device id from device.list, such as "synthetic/mix".
+    /// A device id from device.list, such as "vla/127.0.0.1:7171".
     pub device: String,
 }
 

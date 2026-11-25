@@ -291,8 +291,21 @@ fn inputs_are_checked_against_the_contract() {
 }
 
 #[test]
-fn leases_busy_errors_take_over_and_release() {
+fn the_synthetic_device_is_only_offered_when_asked_for() {
     let mut e = Engine::new(EngineConfig::default());
+    let list = run(&mut e, &Actor::User, "device.list", json!({}));
+    assert_eq!(list["devices"].as_array().map(Vec::len), Some(0), "{list}");
+    let (code, _) = fail(&mut e, &Actor::User, "device.connect", json!({ "device": "synthetic/mix" }));
+    assert_eq!(code, ErrorCode::NotFound);
+
+    let mut e = Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() });
+    let list = run(&mut e, &Actor::User, "device.list", json!({}));
+    assert!(list["devices"].as_array().unwrap().iter().any(|d| d["info"]["id"] == "synthetic/mix"), "{list}");
+}
+
+#[test]
+fn leases_busy_errors_take_over_and_release() {
+    let mut e = Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() });
     let dev = json!({ "device": "synthetic/mix" });
     run(&mut e, &agent(), "device.connect", dev.clone());
     let (code, msg) = fail(
@@ -328,7 +341,7 @@ fn leases_busy_errors_take_over_and_release() {
 
 #[test]
 fn a_synthetic_capture_appears_and_decodes() {
-    let mut e = Engine::new(EngineConfig::default());
+    let mut e = Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() });
     let rx = e.subscribe();
     let dev = "synthetic/mix";
     run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
@@ -692,7 +705,7 @@ fn waveform_gives_edges_zoomed_in_and_buckets_zoomed_out() {
 
 #[test]
 fn the_person_can_stop_and_resume_agent_actions() {
-    let mut e = Engine::new(EngineConfig::default());
+    let mut e = Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() });
     let dev = "synthetic/mix";
     run(&mut e, &agent(), "device.connect", json!({ "device": dev }));
     let (code, msg) = fail(&mut e, &agent(), "session.pauseAgents", json!({ "paused": true }));
@@ -733,7 +746,8 @@ fn a_working_folder_that_does_not_exist_yet_is_made() {
     let dir =
         std::env::temp_dir().join(format!("logica-engine-work-{}", std::process::id())).join("captures");
     assert!(!dir.exists());
-    let mut e = Engine::new(EngineConfig { data_dir: Some(dir.clone()), ..EngineConfig::default() });
+    let mut e =
+        Engine::new(EngineConfig { data_dir: Some(dir.clone()), synthetic: true, ..EngineConfig::default() });
     let c = open(&mut e, "1_UART_easy.demo");
     assert!(dir.join(format!("{c}.lacap")).is_file());
     let dev = "synthetic/nec";
@@ -764,7 +778,7 @@ fn a_working_folder_that_does_not_exist_yet_is_made() {
 
 #[test]
 fn captures_know_when_they_have_unsaved_changes() {
-    let mut e = Engine::new(EngineConfig::default());
+    let mut e = Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() });
     let c = open(&mut e, "1_UART_easy.demo");
     let unsaved = |e: &mut Engine| capture(&session(e), &c)["unsaved"].as_bool().unwrap();
     assert!(!unsaved(&mut e), "an opened file is on disk");

@@ -34,6 +34,9 @@ pub struct EngineConfig {
     /// Where to look for virtual analysers (`logica-vla`); none unless given, so tests do not
     /// depend on what runs on the machine. The app passes [`EngineConfig::vla_from_env`].
     pub vla_addresses: Vec<String>,
+    /// Offer the synthetic device (programs of known signals, in-process). Off in the app, where
+    /// the virtual analyser is the way to capture without hardware; tests turn it on.
+    pub synthetic: bool,
 }
 
 impl EngineConfig {
@@ -45,7 +48,12 @@ impl EngineConfig {
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        EngineConfig { data_dir: None, cache_budget: DEFAULT_CACHE_BUDGET, vla_addresses: Vec::new() }
+        EngineConfig {
+            data_dir: None,
+            cache_budget: DEFAULT_CACHE_BUDGET,
+            vla_addresses: Vec::new(),
+            synthetic: false,
+        }
     }
 }
 
@@ -165,8 +173,10 @@ pub(crate) fn err(code: ErrorCode, message: impl Into<String>) -> CommandError {
 
 impl Engine {
     pub fn new(cfg: EngineConfig) -> Self {
-        let mut drivers: Vec<Box<dyn VirtualDriver>> =
-            vec![Box::new(logica_drivers::synthetic::SyntheticDriver)];
+        let mut drivers: Vec<Box<dyn VirtualDriver>> = Vec::new();
+        if cfg.synthetic {
+            drivers.push(Box::new(logica_drivers::synthetic::SyntheticDriver));
+        }
         if !cfg.vla_addresses.is_empty() {
             drivers.push(Box::new(logica_drivers::vla::VlaDriver::new(cfg.vla_addresses.clone())));
         }

@@ -24,9 +24,9 @@
 | Node binding | Vitest | the Node-API module loads, runs commands, delivers events over a `MessagePort` |
 | MCP | `cargo test` with an MCP client | tool schemas (snapshot), golden summaries, HTTP security (token, `Origin`, 127.0.0.1), the stdio relay and headless mode, the end-to-end scenario (doc 07) |
 | UI units | Vitest | view arithmetic (zoom, pan, ticks), formatting, layout, palette filtering |
-| App | Playwright with its Electron support | the packaged app: open a recording, detect, decode, undo; capture from the synthetic device and from a replay transport; save and reopen; tabs; the output confirmation dialog; axe checks (including the component gallery in both themes); performance traces (doc 08) |
+| App | Playwright with its Electron support | the packaged app: open a recording, detect, decode, undo; capture live from the virtual analyser and from a replay transport; save and reopen; tabs; the output confirmation dialog; axe checks (including the component gallery in both themes); performance traces (doc 08) |
 | Electron security | Playwright | window options (context isolation, sandbox, no Node), nothing but the bridge exposed, CSP present, navigation and `window.open` blocked |
-| Packaging | CI on Windows, macOS, Linux | installers build; the packaged app starts, loads the engine module, lists the synthetic device, and quits cleanly |
+| Packaging | CI on Windows, macOS, Linux | installers build; the packaged app starts, loads the engine module, its window reaches the engine, and it quits cleanly |
 | Hardware in the loop | manual or a local CI runner | real devices against the known-signal rig |
 | Benchmarks | `cargo bench` | ingest throughput, LOD build, decode speed; results in `docs/benchmarks.md`. Own harness (`harness = false`, best of 5 with `std::time::Instant`), no benchmark crate |
 

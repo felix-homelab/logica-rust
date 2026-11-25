@@ -238,7 +238,7 @@
           "type": "string"
         },
         "device": {
-          "description": "A device id from device.list, such as \"synthetic/mix\".",
+          "description": "A device id from device.list, such as \"vla/127.0.0.1:7171\".",
           "type": "string"
         }
       },

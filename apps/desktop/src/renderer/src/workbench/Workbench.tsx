@@ -22,7 +22,6 @@ import {
   Activity,
   Bot,
   Command,
-  FlaskConical,
   FolderOpen,
   PanelBottom,
   PanelLeft,
@@ -208,15 +207,6 @@ export function Workbench() {
     [run],
   );
 
-  const demo = useCallback(async () => {
-    const device = 'synthetic/mix';
-    const dev = session?.devices.find((d) => d.info.id === device);
-    if (!dev?.connected && !(await run('device.connect', { device }))) return;
-    if (!(await run('device.configure', { device, config: { channels: [0, 1, 2, 6], sampleRateHz: 1e8, samples: 3_000_000, mode: 'stream' } }))) return;
-    const r = await run('capture.start', { device, title: 'Demo capture', wait: true });
-    if (r) void client.run('view.set', { capture: r.id, activate: true }).catch(() => {});
-  }, [run, session]);
-
   const zoom = useCallback(
     (factor: number | 'all') => {
       if (!active || !view) return;
@@ -249,10 +239,9 @@ export function Workbench() {
       gallery: () => {
         window.location.hash = 'gallery';
       },
-      demo: () => void demo(),
       settings: () => bridge().openSettings(),
     }),
-    [openDialog, save, active, run, closeCapture, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo, narrow, drawer, openInspector],
+    [openDialog, save, active, run, closeCapture, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, narrow, drawer, openInspector],
   );
 
   useEffect(() => bridge().onMenu((id) => actions[id]?.()), [actions]);
@@ -310,7 +299,6 @@ export function Workbench() {
     const k = mod();
     const app: PaletteItem[] = [
       { id: 'a-open', group: 'Actions', title: 'Open file…', shortcut: [k, 'O'], icon: <FolderOpen />, run: actions['file.open']! },
-      { id: 'a-demo', group: 'Actions', title: 'Try a demo capture', hint: 'synthetic device', icon: <FlaskConical />, run: actions.demo! },
       { id: 'a-save', group: 'Actions', title: 'Save', shortcut: [k, 'S'], icon: <Save />, disabled: !active, disabledReason: 'No capture is open', run: actions['file.save']! },
       { id: 'a-undo', group: 'Actions', title: 'Undo', shortcut: [k, 'Z'], icon: <Undo2 />, run: actions['history.undo']! },
       { id: 'a-redo', group: 'Actions', title: 'Redo', icon: <Redo2 />, run: actions['history.redo']! },
@@ -531,7 +519,7 @@ export function Workbench() {
           <StatusBar capture={active} view={view} />
         </>
       ) : (
-        <StartScreen onOpen={actions['file.open']!} onDemo={actions.demo!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
+        <StartScreen onOpen={actions['file.open']!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
       )}
 
       <CommandPalette open={palette} onOpenChange={setPalette} items={items} />
@@ -689,7 +677,7 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   );
 }
 
-function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => void; onDemo: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
+function StartScreen({ onOpen, onOpenRecent, onAgent }: { onOpen: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
   const { settings, session, run, refresh } = useStore();
   const recent = settings?.recent ?? [];
   // a virtual analyser may have started since the engine first listed devices
@@ -706,9 +694,6 @@ function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => 
         <div className="row">
           <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
             Open file…
-          </Button>
-          <Button icon={<FlaskConical />} onClick={onDemo}>
-            Try a demo capture
           </Button>
         </div>
         <div className="start__grid">
@@ -738,19 +723,10 @@ function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => 
                 </Button>
               </div>
             ))}
-            <ul className="plain">
-              {devices
-                .filter((d) => d.info.driver !== 'vla')
-                .slice(0, 6)
-                .map((d) => (
-                  <li key={d.info.id}>
-                    {d.info.model} <span className="muted">{d.connected ? '· connected' : ''}</span>
-                  </li>
-                ))}
-            </ul>
             <p className="muted">
-              Real analysers come with milestone M3; these synthetic devices produce known signals.
-              {live.length === 0 && ' To try live capture, start the virtual analyser (cargo run -p logica-vla).'}
+              {live.length === 0
+                ? 'No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser (cargo run -p logica-vla).'
+                : 'Real analysers come with milestone M3; the virtual analyser streams known signals.'}
             </p>
           </section>
           <section className="card">

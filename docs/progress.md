@@ -97,6 +97,10 @@ What is done, what is next, and decisions made on the way. Newest first.
   The waveform shows answers that were overtaken by newer requests instead of dropping them, and a
   following view draws the range its data is for, so it is never empty.
 
+- The synthetic device is no longer offered in the app (no "Try a demo capture"; the start screen
+  lists virtual analysers or says how to start one). The engine registers it only when
+  `EngineConfig::synthetic` is set, which tests, the scale test and the benchmarks do.
+
 ### Not done or not verified
 
 - Live capture: an agent's `view.set` on a capture that is running is not adopted by the window

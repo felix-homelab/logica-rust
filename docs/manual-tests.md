@@ -46,9 +46,9 @@ Use a fresh data folder for a clean run: `LOGICA_DATA_DIR=/tmp/logica-manual cla
    name and the rename as undone.
 6. **A picture.** Ask: "Show me the EEPROM read." Claude calls render and can describe the picture
    (rows from the top: time axis, the marker, CH4, CH5, the decoder).
-7. **A device.** Ask: "Capture 3 million samples at 100 MHz from the synthetic mix device on
-   channels 0, 1, 2 and 6 and summarize it." Claude connects, captures (progress may show) and
-   finds UART, I2C, SPI and PWM.
+7. **A device.** With `cargo run -p logica-vla` running, ask: "Capture one second from the
+   virtual analyser on channels 0 to 7 and summarize it." Claude connects, captures (progress may
+   show) and finds UART, I2C, SPI and PWM.
 8. **Errors read as instructions.** Ask Claude to open a file that does not exist; the tool error
    says the file could not be opened and why.
 9. **Two agents, one engine.** With the first session still open, start a second Claude Code (or
@@ -79,7 +79,7 @@ palette, undo and axe (`npm run test:e2e`). These need a person:
    `mystery_C.demo` and mark the EEPROM read: the app starts minimised with "started by an
    agent", the marker appears live, and the activity feed lists Claude's actions with undo.
 8. **Stop agent actions.** With an agent connected, switch "Stop agent actions" on and ask the
-   agent to capture from the synthetic device: it is refused with the reason.
+   agent to capture from the virtual analyser: it is refused with the reason.
 9. **Something goes wrong.** End the engine process with the task manager: the window says the
    engine was restarted and offers to open the files again; Help > Open the log folder shows
    `logica.log` with the reason. Close a tab or quit with unsaved changes: Logica asks first.

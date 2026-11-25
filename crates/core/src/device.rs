@@ -17,9 +17,9 @@ use crate::store::{CaptureStore, Level, Sample};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceInfo {
-    /// Stable id, such as "synthetic/mix" or a USB serial.
+    /// Stable id, such as "vla/127.0.0.1:7171" or a USB serial.
     pub id: String,
-    /// Driver id: "synthetic", "fnirsi-dla", "fx2lafw".
+    /// Driver id: "vla", "fnirsi-dla", "fx2lafw" ("synthetic" in tests).
     pub driver: String,
     pub model: String,
     pub serial: Option<String>,
