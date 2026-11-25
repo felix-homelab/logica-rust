@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
 import { Badge, Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
-import { Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
+import { Activity, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
 import { at, hz, int } from '../format';
 import { isAgent, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
@@ -598,9 +598,9 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
   );
 }
 
-export function DevicePanel() {
+/** The devices: what they are, who holds them, and whether they capture; "Capture live…" starts one. */
+export function DevicePanel({ onCapture }: { onCapture: () => void }) {
   const { session, run, refresh } = useStore();
-  const [config, setConfig] = useState<Record<string, { channels: number[]; rate: number; samples: number; seconds: number }>>({});
   const [looking, setLooking] = useState(false);
   // devices that come and go (a virtual analyser) are found when asked for
   const look = useCallback(async () => {
@@ -616,14 +616,16 @@ export function DevicePanel() {
   return (
     <div className="pad stack">
       <div className="row between">
+        <Button size="sm" variant="primary" icon={<Activity />} onClick={onCapture}>
+          Capture live…
+        </Button>
         <Button size="sm" variant="secondary" icon={<RefreshCw />} disabled={looking} onClick={() => void look()}>
           {looking ? 'Looking…' : 'Look for devices'}
         </Button>
       </div>
-      {!session.devices.some((d) => d.info.driver === 'vla') && (
+      {session.devices.length === 0 && (
         <p className="muted">
-          No virtual analyser found. To try live capture without hardware, run <code>cargo run -p logica-vla</code> in the
-          repository, then look again.
+          No devices found. To try live capture without hardware, run <code>cargo run -p logica-vla</code> in the repository, then look again.
         </p>
       )}
       <Switch
@@ -635,93 +637,45 @@ export function DevicePanel() {
       {session.devices.map((d) => {
         const id = d.info.id;
         const caps = d.capabilities;
-        // a streaming device captures for a time (a minute unless chosen); a buffer fills its samples
-        const streams = !caps.modes.includes('buffer');
-        const c = config[id] ?? {
-          channels: streams ? caps.channels : caps.channels.slice(0, 4),
-          rate: (streams ? caps.ratesHz[0] : caps.ratesHz.at(-1)) ?? 1e6,
-          samples: 1_000_000,
-          seconds: 60,
-        };
-        const set = (p: Partial<typeof c>) => setConfig({ ...config, [id]: { ...c, ...p } });
-        const samples = streams ? Math.max(1, Math.round(c.seconds * c.rate)) : c.samples;
         const holder = d.holder;
-        const running = session.running.some((r) => r.device === id);
         return (
           <section key={id} className="card stack-sm" aria-label={d.info.model}>
             <div className="row between">
               <strong>{d.info.model}</strong>
-              {holder ? <Badge tone={isAgent(holder) ? 'agent' : 'accent'}>lease: {who(holder)}</Badge> : <Badge>{d.connected ? 'connected' : 'not connected'}</Badge>}
+              {d.capturing ? (
+                <Badge tone="accent">capturing</Badge>
+              ) : holder ? (
+                <Badge tone={isAgent(holder) ? 'agent' : 'accent'}>lease: {who(holder)}</Badge>
+              ) : (
+                <Badge>{d.connected ? 'connected' : 'not connected'}</Badge>
+              )}
             </div>
             <p className="muted">
               {id} · {caps.channels.length} channels · up to {hz(Math.max(...caps.ratesHz))}
             </p>
-            {!d.connected ? (
-              <Button size="sm" icon={<Usb />} onClick={() => void run('device.connect', { device: id })}>
-                Connect
-              </Button>
-            ) : (
-              <>
-                {holder && holder !== 'user' && (
-                  <Button size="sm" variant="secondary" onClick={() => void run('lease.take', { device: id })}>
-                    Take over from {who(holder)}
-                  </Button>
-                )}
-                <fieldset className="channels-pick">
-                  <legend className="lg-field__label">Channels</legend>
-                  {caps.channels.map((ch) => (
-                    <label key={ch} className="check">
-                      <input
-                        type="checkbox"
-                        checked={c.channels.includes(ch)}
-                        onChange={(e) => set({ channels: e.target.checked ? [...c.channels, ch].sort((a, b) => a - b) : c.channels.filter((x) => x !== ch) })}
-                      />
-                      CH{ch}
-                    </label>
-                  ))}
-                </fieldset>
-                <label className="lg-field">
-                  <span className="lg-field__label">Sample rate</span>
-                  <select className="lg-input" value={c.rate} onChange={(e) => set({ rate: Number(e.target.value) })}>
-                    {caps.ratesHz.map((r) => (
-                      <option key={r} value={r}>
-                        {hz(r)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {streams ? (
-                  <TextField
-                    label="Length in seconds"
-                    hint={`${int(samples)} samples per channel; stop earlier at any time.`}
-                    type="number"
-                    value={String(c.seconds)}
-                    onChange={(e) => set({ seconds: Number(e.target.value) })}
-                  />
-                ) : (
-                  <TextField label="Samples per channel" type="number" value={String(c.samples)} onChange={(e) => set({ samples: Number(e.target.value) })} />
-                )}
-                <div className="row">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={running}
-                    onClick={async () => {
-                      const ok = await run('device.configure', { device: id, config: { channels: c.channels, sampleRateHz: c.rate, samples, mode: caps.modes[0] ?? 'buffer' } });
-                      if (ok) await run('capture.start', { device: id, wait: false });
-                    }}
-                  >
-                    Capture
-                  </Button>
-                  <Button size="sm" variant="secondary" disabled={!running} onClick={() => void run('capture.stop', { device: id })}>
-                    Stop
-                  </Button>
+            <div className="row">
+              {holder && holder !== 'user' && (
+                <Button size="sm" variant="secondary" onClick={() => void run('lease.take', { device: id })}>
+                  Take over from {who(holder)}
+                </Button>
+              )}
+              {d.capturing && (
+                <Button size="sm" variant="secondary" onClick={() => void run('capture.stop', { device: id })}>
+                  Stop capture
+                </Button>
+              )}
+              {!d.connected ? (
+                <Button size="sm" variant="ghost" icon={<Usb />} onClick={() => void run('device.connect', { device: id })}>
+                  Connect
+                </Button>
+              ) : (
+                !d.capturing && (
                   <Button size="sm" variant="ghost" onClick={() => void run('device.disconnect', { device: id })}>
                     Disconnect
                   </Button>
-                </div>
-              </>
-            )}
+                )
+              )}
+            </div>
           </section>
         );
       })}

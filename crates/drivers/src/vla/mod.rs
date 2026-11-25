@@ -3,7 +3,7 @@
 //! and live decoding can be built and tried without hardware. The engine connects out to it as a
 //! client; nothing connects into the engine (ADR 0006 is unaffected).
 //!
-//! Where to look: `LOGICA_VLA` (comma-separated `host:port`), else `127.0.0.1:7171`. The driver
+//! Where to look: `LOGICA_VLA` (comma-separated `host:port`), else `127.0.0.1:7171` to `7174`. The driver
 //! lists an analyser only while it answers, so starting or stopping the program shows in the
 //! next `device.list`.
 
@@ -22,8 +22,11 @@ use logica_core::{Level, Sample};
 
 use wire::{Hello, MAX_LINE, Message, PROTOCOL, Request, Start, VERSION};
 
-/// Where the analyser listens unless `LOGICA_VLA` says otherwise.
-pub const DEFAULT_ADDRESS: &str = "127.0.0.1:7171";
+/// Where analysers listen unless `LOGICA_VLA` says otherwise: the analyser's default port and the
+/// next three, so a few can run side by side (`logica-vla --listen 127.0.0.1:7172`). Nobody
+/// listening there is answered at once on the loopback interface.
+pub const DEFAULT_ADDRESSES: [&str; 4] =
+    ["127.0.0.1:7171", "127.0.0.1:7172", "127.0.0.1:7173", "127.0.0.1:7174"];
 /// The environment variable with the addresses to look at.
 pub const ENV: &str = "LOGICA_VLA";
 
@@ -46,7 +49,7 @@ impl VlaDriver {
     }
 }
 
-/// Addresses from `LOGICA_VLA` (comma-separated `host:port`), else [`DEFAULT_ADDRESS`].
+/// Addresses from `LOGICA_VLA` (comma-separated `host:port`), else [`DEFAULT_ADDRESSES`].
 pub fn addresses_from_env() -> Vec<String> {
     parse_addresses(&std::env::var(ENV).unwrap_or_default())
 }
@@ -54,7 +57,11 @@ pub fn addresses_from_env() -> Vec<String> {
 fn parse_addresses(list: &str) -> Vec<String> {
     let addresses: Vec<String> =
         list.split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect();
-    if addresses.is_empty() { vec![DEFAULT_ADDRESS.into()] } else { addresses }
+    if addresses.is_empty() {
+        DEFAULT_ADDRESSES.iter().map(|a| (*a).to_string()).collect()
+    } else {
+        addresses
+    }
 }
 
 fn resolve(address: &str) -> Result<SocketAddr, DeviceError> {
@@ -152,6 +159,7 @@ impl VlaDevice {
     pub fn new(address: String, hello: Hello) -> Self {
         let caps = Capabilities {
             channels: hello.channels.iter().map(|c| c.index).collect(),
+            channel_names: hello.channels.iter().map(|c| c.name.clone()).collect(),
             rates_hz: hello.sample_rates_hz.clone(),
             limits: Vec::new(),
             max_samples: None,
@@ -328,8 +336,9 @@ impl Device for VlaDevice {
 mod tests {
     #[test]
     fn addresses_come_from_a_list_or_the_default() {
-        assert_eq!(super::parse_addresses(""), ["127.0.0.1:7171"]);
-        assert_eq!(super::parse_addresses(" , "), ["127.0.0.1:7171"]);
+        assert_eq!(super::parse_addresses(""), super::DEFAULT_ADDRESSES);
+        assert_eq!(super::parse_addresses(" , "), super::DEFAULT_ADDRESSES);
+        assert_eq!(super::DEFAULT_ADDRESSES[0], "127.0.0.1:7171", "the analyser's own default comes first");
         assert_eq!(super::parse_addresses("a:1, b:2,"), ["a:1", "b:2"]);
     }
 }

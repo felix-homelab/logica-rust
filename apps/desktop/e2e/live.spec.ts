@@ -11,8 +11,8 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 /** Starts the virtual analyser on a free port (built by cargo if needed); resolves with its address. */
-function analyser(): Promise<{ at: string; proc: ChildProcess }> {
-  const proc = spawn('cargo', ['run', '-q', '-p', 'logica-vla', '--', '--listen', '127.0.0.1:0', '--seed', '5'], { cwd: repo });
+function analyser(extra: string[] = []): Promise<{ at: string; proc: ChildProcess }> {
+  const proc = spawn('cargo', ['run', '-q', '-p', 'logica-vla', '--', '--listen', '127.0.0.1:0', '--seed', '5', ...extra], { cwd: repo });
   return new Promise((resolve, reject) => {
     let out = '';
     const timer = setTimeout(() => reject(new Error(`logica-vla did not start within 3 minutes: ${out}`)), 180_000);
@@ -36,8 +36,14 @@ test('a live capture follows the newest data, decodes while it runs and stops', 
   const vla = await analyser();
   try {
     const { app, page } = await start([], { env: { LOGICA_VLA: vla.at } });
-    // the start screen finds the analyser and offers to capture from it
-    await page.getByRole('button', { name: 'Capture live' }).click();
+    // "Capture live…" finds the analyser, picks it (the only one) and starts with its first settings
+    await page.getByRole('button', { name: 'Capture live…', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Capture live' });
+    await expect(dialog.getByRole('checkbox', { name: /Virtual analyser: Bench/ })).toBeChecked();
+    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+    await expect(dialog.getByRole('checkbox', { name: 'CH0 TX' })).toBeChecked();
+    await dialog.getByRole('button', { name: 'Start capture' }).click();
+    await expect(dialog).toHaveCount(0);
     const bar = page.getByRole('group', { name: 'Live capture' });
     await expect(bar).toBeVisible();
     await expect(bar).toContainText('Following the newest data.');
@@ -77,5 +83,66 @@ test('a live capture follows the newest data, decodes while it runs and stops', 
     await app.close();
   } finally {
     vla.proc.kill();
+  }
+});
+
+test('several analysers capture together, each into its own tab, with settings checked first', async () => {
+  test.setTimeout(300_000);
+  const [one, two] = await Promise.all([analyser(), analyser(['--name', 'Second'])]);
+  try {
+    const { app, page } = await start([], { env: { LOGICA_VLA: `${one.at},${two.at}` } });
+    await page.getByRole('button', { name: 'Capture live…', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Capture live' });
+    const bench = dialog.getByRole('checkbox', { name: /Virtual analyser: Bench/ });
+    const second = dialog.getByRole('checkbox', { name: /Virtual analyser: Second/ });
+    // with two free devices, none is picked for the person
+    await expect(bench).not.toBeChecked();
+    await expect(dialog.getByRole('button', { name: 'Next: settings' })).toBeDisabled();
+    await bench.check();
+    await second.check();
+    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+
+    // one rate for both by default; each device has its channels and tab name
+    await expect(dialog.getByRole('radio', { name: 'The same for all devices' })).toBeChecked();
+    await expect(dialog.getByLabel('Rate for all')).toBeVisible();
+    const benchSettings = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Bench' });
+    const secondSettings = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Second' });
+    await expect(benchSettings.getByLabel('Tab name')).toHaveValue('Live: Bench');
+    await expect(secondSettings.getByLabel('Tab name')).toHaveValue('Live: Second');
+
+    // a problem is explained and holds the start back
+    await secondSettings.getByRole('button', { name: 'none' }).click();
+    await expect(secondSettings.getByRole('list', { name: /Problems/ })).toContainText('Choose at least one channel.');
+    const go = dialog.getByRole('button', { name: 'Start 2 captures' });
+    await expect(go).toBeDisabled();
+    await secondSettings.getByRole('checkbox', { name: 'CH0 TX' }).check();
+    await secondSettings.getByRole('checkbox', { name: 'CH9 NOISE' }).check();
+
+    // one rate per device, and until stopped
+    await dialog.getByRole('radio', { name: 'One per device' }).check();
+    await expect(benchSettings.getByLabel('Sample rate')).toBeVisible();
+    await dialog.getByRole('radio', { name: 'Until I stop it' }).check();
+    await expect(secondSettings).toContainText('2 of 10 channels');
+    const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    await shot(page, 'capture-dialog');
+
+    await go.click();
+    await expect(dialog).toHaveCount(0);
+    const tabs = page.locator('.tabs');
+    await expect(tabs.getByRole('button', { name: /^Live: Bench/ })).toBeVisible();
+    await expect(tabs.getByRole('button', { name: /^Live: Second/ })).toBeVisible();
+    await expect(tabs.getByText('capturing')).toHaveCount(2);
+
+    // both stop from the device panel; each keeps what arrived
+    await page.getByRole('tab', { name: 'Device', exact: true }).click();
+    for (const name of ['Virtual analyser: Bench', 'Virtual analyser: Second']) {
+      await page.getByRole('region', { name, exact: true }).getByRole('button', { name: 'Stop capture' }).click();
+    }
+    await expect(tabs.getByText('capturing')).toHaveCount(0);
+    await app.close();
+  } finally {
+    one.proc.kill();
+    two.proc.kill();
   }
 });

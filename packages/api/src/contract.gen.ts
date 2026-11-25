@@ -1095,6 +1095,11 @@ info: DeviceInfo
 }
 export interface Capabilities {
 /**
+ * The names the device gives its channels, in the order of `channels`; empty when it names
+ * none (then they are CH0, CH1, …).
+ */
+channelNames: string[]
+/**
  * Physical channel numbers.
  */
 channels: number[]

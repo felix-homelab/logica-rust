@@ -163,6 +163,13 @@
     },
     "Capabilities": {
       "properties": {
+        "channelNames": {
+          "description": "The names the device gives its channels, in the order of `channels`; empty when it names\nnone (then they are CH0, CH1, …).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "channels": {
           "description": "Physical channel numbers.",
           "items": {
@@ -234,6 +241,7 @@
       },
       "required": [
         "channels",
+        "channelNames",
         "ratesHz",
         "limits",
         "modes",

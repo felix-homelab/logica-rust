@@ -42,7 +42,8 @@ import { centreOn, zoomAt } from '../viewmath';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
-import { LiveWaveform, startLive } from './Live';
+import { LiveWaveform } from './Live';
+import { CaptureDialog } from './CaptureDialog';
 import { Boundary } from '../Boundary';
 
 const AGENT_SETUP = 'claude mcp add logica -- logica mcp';
@@ -71,6 +72,7 @@ export function Workbench() {
   const timers = useRef<Record<string, number>>({});
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState<'keys' | 'agent' | null>(null);
+  const [liveOpen, setLiveOpen] = useState(false);
   const [runCommand, setRunCommand] = useState<string | null>(null);
   const [inspector, setInspector] = useState('analysis');
   const [bottomTab, setBottomTab] = useState('decoded');
@@ -236,6 +238,7 @@ export function Workbench() {
       'zoom.all': () => zoom('all'),
       'help.keys': () => setHelp('keys'),
       'help.agent': () => setHelp('agent'),
+      'capture.live': () => setLiveOpen(true),
       gallery: () => {
         window.location.hash = 'gallery';
       },
@@ -299,6 +302,7 @@ export function Workbench() {
     const k = mod();
     const app: PaletteItem[] = [
       { id: 'a-open', group: 'Actions', title: 'Open file…', shortcut: [k, 'O'], icon: <FolderOpen />, run: actions['file.open']! },
+      { id: 'a-live', group: 'Actions', title: 'Capture live…', hint: 'from one or several devices', icon: <Activity />, run: actions['capture.live']! },
       { id: 'a-save', group: 'Actions', title: 'Save', shortcut: [k, 'S'], icon: <Save />, disabled: !active, disabledReason: 'No capture is open', run: actions['file.save']! },
       { id: 'a-undo', group: 'Actions', title: 'Undo', shortcut: [k, 'Z'], icon: <Undo2 />, run: actions['history.undo']! },
       { id: 'a-redo', group: 'Actions', title: 'Redo', icon: <Redo2 />, run: actions['history.redo']! },
@@ -391,6 +395,7 @@ export function Workbench() {
               ))}
             </ul>
             <IconButton label="Open a capture" shortcut={[mod(), 'O']} icon={<Plus />} onClick={actions['file.open']} />
+            <IconButton label="Capture live" icon={<Activity />} onClick={actions['capture.live']} />
           </nav>
           <button type="button" className="tabs__palette" onClick={() => setPalette(true)}>
             <Command aria-hidden="true" /> Search commands… <Kbd keys={[mod(), 'K']} />
@@ -508,7 +513,7 @@ export function Workbench() {
                       <SearchPanel key={active.id} capture={active} onJump={jump} expert={expert} />
                     </TabsContent>
                     <TabsContent value="device" className="fill">
-                      <DevicePanel />
+                      <DevicePanel onCapture={actions['capture.live']!} />
                     </TabsContent>
                   </TabsRoot>
                   </Boundary>
@@ -519,10 +524,11 @@ export function Workbench() {
           <StatusBar capture={active} view={view} />
         </>
       ) : (
-        <StartScreen onOpen={actions['file.open']!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
+        <StartScreen onOpen={actions['file.open']!} onCapture={actions['capture.live']!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
       )}
 
       <CommandPalette open={palette} onOpenChange={setPalette} items={items} />
+      <CaptureDialog open={liveOpen} onClose={() => setLiveOpen(false)} />
       <Dialog
         open={closing !== null}
         onOpenChange={(o) => !o && setClosing(null)}
@@ -677,7 +683,7 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   );
 }
 
-function StartScreen({ onOpen, onOpenRecent, onAgent }: { onOpen: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
+function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () => void; onCapture: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
   const { settings, session, run, refresh } = useStore();
   const recent = settings?.recent ?? [];
   // a virtual analyser may have started since the engine first listed devices
@@ -685,7 +691,6 @@ function StartScreen({ onOpen, onOpenRecent, onAgent }: { onOpen: () => void; on
     void run('device.list', {}).then(() => refresh());
   }, [run, refresh]);
   const devices = session?.devices ?? [];
-  const live = devices.filter((d) => d.info.driver === 'vla');
   return (
     <main className="start">
       <div className="start__inner">
@@ -694,6 +699,9 @@ function StartScreen({ onOpen, onOpenRecent, onAgent }: { onOpen: () => void; on
         <div className="row">
           <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
             Open file…
+          </Button>
+          <Button icon={<Activity />} onClick={onCapture}>
+            Capture live…
           </Button>
         </div>
         <div className="start__grid">
@@ -715,18 +723,19 @@ function StartScreen({ onOpen, onOpenRecent, onAgent }: { onOpen: () => void; on
           </section>
           <section className="card">
             <h2 className="section-title">Devices</h2>
-            {live.map((d) => (
-              <div key={d.info.id} className="row between">
-                <span>{d.info.model}</span>
-                <Button size="sm" variant="primary" icon={<Activity />} disabled={d.capturing} onClick={() => void startLive(run, d)}>
-                  Capture live
-                </Button>
-              </div>
-            ))}
+            {devices.length > 0 && (
+              <ul className="plain">
+                {devices.map((d) => (
+                  <li key={d.info.id}>
+                    {d.info.model} <span className="muted">{d.capturing ? '· capturing' : d.connected ? '· connected' : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="muted">
-              {live.length === 0
+              {devices.length === 0
                 ? 'No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser (cargo run -p logica-vla).'
-                : 'Real analysers come with milestone M3; the virtual analyser streams known signals.'}
+                : '"Capture live…" captures from one or several of them at once.'}
             </p>
           </section>
           <section className="card">

@@ -49,6 +49,9 @@ pub struct RateLimit {
 pub struct Capabilities {
     /// Physical channel numbers.
     pub channels: Vec<u32>,
+    /// The names the device gives its channels, in the order of `channels`; empty when it names
+    /// none (then they are CH0, CH1, …).
+    pub channel_names: Vec<String>,
     /// Rates offered.
     pub rates_hz: Vec<f64>,
     /// Rate limits by number of enabled channels, fewest channels first.
@@ -383,6 +386,7 @@ mod tests {
     fn caps() -> Capabilities {
         Capabilities {
             channels: (0..32).collect(),
+            channel_names: Vec::new(),
             rates_hz: vec![100e6, 250e6, 500e6, 1e9],
             limits: vec![
                 RateLimit { max_channels: 8, max_rate_hz: 1e9 },

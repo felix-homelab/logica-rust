@@ -15,18 +15,21 @@ Usage: logica-vla [options]
   --config <file>   Signals to generate, as JSON (see tools/virtual-analyser/examples).
                     Without it, one of each signal on ten channels.
   --listen <addr>   Address to listen on (default 127.0.0.1:7171, or the file's).
+  --name <text>     The analyser's name in Logica (default Bench, or the file's).
   --seed <n>        Same seed, same signals in every capture. Default: new ones each time.
   --speed <x>       1 is real time (default), 0 is as fast as Logica takes the data.
   --print-config    Print the built-in configuration as JSON and exit.
   --check           Check the configuration and exit.
   --help            This text.
 
-In Logica the analyser appears in the device panel as \"Virtual analyser: <name>\". If it listens
-elsewhere than 127.0.0.1:7171, start Logica with LOGICA_VLA=<host:port>.";
+In Logica the analyser appears under \"Capture live\" as \"Virtual analyser: <name>\". Logica
+looks at 127.0.0.1:7171 to 7174, so up to four can run side by side with --listen; anywhere
+else, start Logica with LOGICA_VLA=<host:port>[,<host:port>…].";
 
 struct Args {
     config: Option<String>,
     listen: Option<String>,
+    name: Option<String>,
     seed: Option<u64>,
     speed: Option<f64>,
     print: bool,
@@ -34,13 +37,15 @@ struct Args {
 }
 
 fn parse(mut it: impl Iterator<Item = String>) -> Result<Option<Args>, String> {
-    let mut a = Args { config: None, listen: None, seed: None, speed: None, print: false, check: false };
+    let mut a =
+        Args { config: None, listen: None, name: None, seed: None, speed: None, print: false, check: false };
     while let Some(arg) = it.next() {
         let mut value = |name: &str| it.next().ok_or_else(|| format!("{name} needs a value."));
         match arg.as_str() {
             "--help" | "-h" => return Ok(None),
             "--config" => a.config = Some(value("--config")?),
             "--listen" => a.listen = Some(value("--listen")?),
+            "--name" => a.name = Some(value("--name")?),
             "--seed" => {
                 let v = value("--seed")?;
                 a.seed = Some(v.parse().map_err(|_| format!("--seed takes a whole number, not \"{v}\"."))?);
@@ -69,6 +74,9 @@ fn load(a: &Args) -> Result<Config, String> {
     };
     if let Some(l) = &a.listen {
         c.listen.clone_from(l);
+    }
+    if let Some(n) = &a.name {
+        c.name.clone_from(n);
     }
     if a.seed.is_some() {
         c.seed = a.seed;
@@ -145,7 +153,7 @@ fn main() -> ExitCode {
     };
     let at = listener.local_addr().map(|a| a.to_string()).unwrap_or_else(|_| config.listen.clone());
     println!("Listening on {at}. In Logica, open the device panel; stop with Ctrl+C.");
-    if at != "127.0.0.1:7171" {
+    if !logica_drivers::vla::DEFAULT_ADDRESSES.contains(&at.as_str()) {
         println!("Start Logica with LOGICA_VLA={at} so it looks here.");
     }
     let log: Log = Arc::new(|m: &str| println!("{m}"));
@@ -178,6 +186,11 @@ mod tests {
         assert!(args(&["--fast"]).err().unwrap().contains("Unknown option \"--fast\""));
         let bad = args(&["--speed", "-2"]).unwrap().unwrap();
         assert!(load(&bad).unwrap_err().contains("speed must be 0"));
+        let named = args(&["--name", "Second bench"]).unwrap().unwrap();
+        assert_eq!(load(&named).unwrap().name, "Second bench");
+        let blank = args(&["--name", " "]).unwrap().unwrap();
+        assert!(load(&blank).unwrap_err().contains("Give the analyser a name."));
+        assert_eq!(args(&["--name"]).err().unwrap(), "--name needs a value.");
         let missing = args(&["--config", "/nonexistent/vla.json"]).unwrap().unwrap();
         assert!(load(&missing).unwrap_err().contains("could not be read"));
     }
@@ -191,6 +204,7 @@ mod tests {
             if path.extension().is_some_and(|e| e == "json") {
                 let a = Args {
                     config: Some(path.display().to_string()),
+                    name: None,
                     listen: None,
                     seed: None,
                     speed: None,

@@ -9,10 +9,12 @@ the pull request that touched the area.
 Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Listening on
 127.0.0.1:7171`), then `npm start`.
 
-1. **Found.** The start screen lists "Virtual analyser: Bench" with "Capture live". (Started the
-   other way round: open the device panel and press "Look for devices".)
-2. **Live.** "Capture live" opens a tab "Live: Bench" with a "capturing" badge; the bar above the
-   waveform counts the seconds; the waveform moves smoothly with the newest data on the right.
+1. **Found.** The start screen lists "Virtual analyser: Bench". (Started the other way round:
+   "Capture live…" looks again, or "Look again" in its dialog.)
+2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its ten
+   channels by name (CH0 TX, …), its lowest rate and 60 seconds. "Start capture" opens a tab
+   "Live: Bench" with a "capturing" badge; the bar above the waveform counts the seconds; the
+   waveform moves smoothly with the newest data on the right.
 3. **Decode while it runs.** Add a UART decoder on CH0 (Decoders tab). Messages such as "status
    OK\r\n" appear under CH0 and in the decoded table, which keeps growing.
 4. **Look back.** Drag the waveform to the right: the bar says you are looking back and the view
@@ -22,6 +24,13 @@ Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Lis
    and says it was stopped (its notes), and it can be saved.
 6. **Gone.** Stop `logica-vla` with Ctrl+C during a capture: the capture ends with a warning that
    the analyser closed the connection, keeping what arrived.
+
+7. **Several.** Start a second analyser with `cargo run -p logica-vla -- --listen 127.0.0.1:7172
+   --name Second`. "Capture live…" lists both, picks neither. Pick both: one rate for all is
+   offered from the rates they share; "One per device" gives each its own. Untick every channel of
+   one: the problem shows under it and "Start 2 captures" is disabled. With channels back,
+   "Until I stop it" and start: two tabs, both capturing; "Stop capture" in each (or the device
+   panel) ends them.
 
 ## Claude Code through `logica mcp` (M1)
 

@@ -393,6 +393,7 @@ function buildMenu(): void {
             ? settings.recent.map((f) => ({ label: f, click: () => openFiles([f]) }))
             : [{ label: 'No recent captures', enabled: false }],
         },
+        action('Capture live…', 'capture.live'),
         { type: 'separator' },
         action('Save', 'file.save', 'CmdOrCtrl+S'),
         action('Save as…', 'file.saveAs', 'CmdOrCtrl+Shift+S'),

@@ -82,7 +82,7 @@ What is done, what is next, and decisions made on the way. Newest first.
   noise) with random payloads and pauses; the same seed gives the same signals. It paces its data to
   real time (or any speed) and draws with Logica's own generators. Its wire protocol is Logica's
   own (`PROTOCOL.md`), implemented once in the driver crate and used by both ends.
-- Driver `vla`: finds analysers at `LOGICA_VLA` (else `127.0.0.1:7171`), streams their data in, and
+- Driver `vla`: finds analysers at `LOGICA_VLA` (else `127.0.0.1:7171` to `7174`), streams their data in, and
   honours stop. Drivers can be `hotplug`: `device.list` asks them again; `session.get` does not.
 - Engine: every device capture now goes through a bounded relay (doc 04 "Ingest"); the capture is
   in the session from its first block in the state `capturing`, grows as the engine polls (every
@@ -92,11 +92,19 @@ What is done, what is next, and decisions made on the way. Newest first.
   Saving waits for the end; closing a running capture stops it (an agent may not close the
   person's).
 - Window: the live view of doc 08 (follows the newest data, "Stay here", "Follow", "Stop capture"),
-  "Capture live" on the start screen, "Look for devices" and a length in seconds for streaming
-  devices in the device panel. The session is read at most four times a second during a capture.
+  "Capture live" on the start screen, "Look for devices" in the device panel. The session is read at most four times a second during a capture.
   The waveform shows answers that were overtaken by newer requests instead of dropping them, and a
   following view draws the range its data is for, so it is never empty.
 
+- "Capture live…" (start screen, next to the tabs, File menu, palette, device panel) opens one
+  dialog: pick one or several devices, then length (seconds or until stopped), rate (the same for
+  all or one per device; not per channel, since a device samples all its channels at one rate),
+  and per device channels (named by the device: `Capabilities.channelNames`), mode, threshold and
+  tab name. Problems are explained while choosing (`captureplan.ts`, tested against the engine's
+  check). Each device captures into its own tab; they are started together but share no clock.
+  The device panel shows status, connect, take over and stop; its own capture form went. The `vla`
+  driver looks at 127.0.0.1:7171 to 7174 by default, and `logica-vla --name` names an analyser, so
+  several can run side by side.
 - The synthetic device is no longer offered in the app (no "Try a demo capture"; the start screen
   lists virtual analysers or says how to start one). The engine registers it only when
   `EngineConfig::synthetic` is set, which tests, the scale test and the benchmarks do.

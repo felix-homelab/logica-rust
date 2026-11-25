@@ -119,16 +119,3 @@ export function LiveWaveform({
     </div>
   );
 }
-
-type Run = ReturnType<typeof useStore>['run'];
-type Device = NonNullable<ReturnType<typeof useStore>['session']>['devices'][number];
-
-/** Connects a streaming device and captures from all its channels at its lowest rate for a minute, live. */
-export async function startLive(run: Run, d: Device): Promise<void> {
-  const device = d.info.id;
-  if (!d.connected && !(await run('device.connect', { device }))) return;
-  const rate = d.capabilities.ratesHz[0] ?? 1e6;
-  const config = { channels: d.capabilities.channels, sampleRateHz: rate, samples: Math.round(rate * 60), mode: 'stream' as const };
-  if (!(await run('device.configure', { device, config }))) return;
-  await run('capture.start', { device, title: `Live: ${d.info.model.replace(/^Virtual analyser: /, '')}`, wait: false });
-}

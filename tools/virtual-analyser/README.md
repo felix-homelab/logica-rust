@@ -13,12 +13,13 @@ cargo run -p logica-vla                          # the built-in mix on ten chann
 cargo run -p logica-vla -- --config tools/virtual-analyser/examples/busy-sensors.json
 cargo run -p logica-vla -- --seed 42             # the same signals in every capture
 cargo run -p logica-vla -- --print-config        # the built-in configuration as a starting point
+cargo run -p logica-vla -- --listen 127.0.0.1:7172 --name Second   # a second one beside it
 ```
 
-It prints what it generates and listens on `127.0.0.1:7171`. In Logica, the start screen offers
-"Capture live" for it, and the device panel lists it ("Look for devices" if Logica was started
-first). If it listens elsewhere, start Logica (or `logica mcp`) with `LOGICA_VLA=host:port`;
-several analysers can be given separated by commas.
+It prints what it generates and listens on `127.0.0.1:7171`. In Logica, "Capture live…" lists it
+and captures from it, alone or together with others. Logica looks at `127.0.0.1:7171` to `7174`,
+so up to four can run side by side with `--listen`; if one listens elsewhere, start Logica (or
+`logica mcp`) with `LOGICA_VLA=host:port`, several separated by commas.
 
 ## Configure it
 
@@ -26,7 +27,7 @@ A JSON file; everything but `signals` has a default:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `name` | `Bench` | Shown as "Virtual analyser: Bench" |
+| `name` | `Bench` | Shown as "Virtual analyser: Bench" (also `--name`) |
 | `listen` | `127.0.0.1:7171` | Address to listen on |
 | `channelCount` | 8 | Channels 0 to n−1; those no signal uses stay low |
 | `sampleRatesHz` | 1, 4, 10, 25, 100 MS/s | Rates offered; a rate too slow for a signal is left out |
