@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CommandError, type CommandName, type Input, type Output } from '@logica/api';
 import { bridge, client, type EngineState, type McpStatus, type Settings } from './bridge';
-import { sessionNeeds, type EngineEvent } from './relevance';
+import { sessionLiveNeeds, sessionNeeds, type EngineEvent } from './relevance';
 
 export type Session = Output<'session.get'>;
 export type CaptureInfo = Session['captures'][number];
@@ -120,6 +120,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState<string[]>([]);
   const listeners = useRef(new Set<(e: EngineEvent) => void>());
   const pending = useRef<number | null>(null);
+  const livePending = useRef<number | null>(null);
   const first = useRef(true);
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
@@ -156,6 +157,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pending.current = null;
       refresh();
     }, 30);
+  }, [refresh]);
+
+  // a live capture's progress: at most four reads a second
+  const refreshLive = useCallback(() => {
+    if (livePending.current !== null) return;
+    livePending.current = window.setTimeout(() => {
+      livePending.current = null;
+      refresh();
+    }, 250);
   }, [refresh]);
 
   const run = useCallback(
@@ -203,6 +213,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const e = raw as EngineEvent;
       listeners.current.forEach((l) => l(e));
       if (sessionNeeds(e)) refreshSoon();
+      else if (sessionLiveNeeds(e)) refreshLive();
       if (e.event === 'view.changed' && e.actor?.startsWith('agent:')) {
         notify('agent', `${e.actor.slice(6)} moved your view.`);
       }
@@ -243,7 +254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       offAgent();
       offUpdate();
     };
-  }, [refresh, refreshSoon, notify]);
+  }, [refresh, refreshSoon, refreshLive, notify]);
 
   const dismiss = useCallback((id: number) => setNotices((n) => n.filter((x) => x.id !== id)), []);
   const dismissLost = useCallback(() => setLost(null), []);

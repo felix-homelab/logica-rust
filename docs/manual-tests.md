@@ -4,6 +4,25 @@ Checks a person runs by hand because they need a real agent client, a display or
 says what to do and what should happen; note the date, the versions and anything that differed in
 the pull request that touched the area.
 
+## Live capture from the virtual analyser (M2)
+
+Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Listening on
+127.0.0.1:7171`), then `npm start`.
+
+1. **Found.** The start screen lists "Virtual analyser: Bench" with "Capture live". (Started the
+   other way round: open the device panel and press "Look for devices".)
+2. **Live.** "Capture live" opens a tab "Live: Bench" with a "capturing" badge; the bar above the
+   waveform counts the seconds; the waveform moves smoothly with the newest data on the right.
+3. **Decode while it runs.** Add a UART decoder on CH0 (Decoders tab). Messages such as "status
+   OK\r\n" appear under CH0 and in the decoded table, which keeps growing.
+4. **Look back.** Drag the waveform to the right: the bar says you are looking back and the view
+   stays put while data keeps arriving. "Follow" (or the End key) goes back to the newest data.
+   Zooming with the wheel while following keeps following.
+5. **Stop.** "Stop capture": the bar goes, the tab loses its badge, the capture keeps what arrived
+   and says it was stopped (its notes), and it can be saved.
+6. **Gone.** Stop `logica-vla` with Ctrl+C during a capture: the capture ends with a warning that
+   the analyser closed the connection, keeping what arrived.
+
 ## Claude Code through `logica mcp` (M1)
 
 Setup: build with `cargo build -p logica-cli`, then register the binary once:

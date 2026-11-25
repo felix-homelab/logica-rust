@@ -64,7 +64,7 @@ impl StoreTarget {
         StoreTarget { backing: Arc::new(MemFile::new()), cache_budget: DEFAULT_CACHE_BUDGET }
     }
 
-    pub(crate) fn create(&self, initial: &[Level]) -> Result<CaptureStore, ImportError> {
+    pub fn create(&self, initial: &[Level]) -> Result<CaptureStore, ImportError> {
         Ok(crate::lacap::new_capture(self.backing.clone(), initial, self.cache_budget)?)
     }
 }

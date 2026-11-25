@@ -75,12 +75,37 @@ What is done, what is next, and decisions made on the way. Newest first.
 - The channel list's groups have a settings button that opens the decoder's settings in a dialog
   (the same form as the Decoders panel).
 
+### Live capture and the virtual analyser (after the decoder groups)
+
+- `logica-vla` (`tools/virtual-analyser`): a separate program that behaves like a streaming logic
+  analyser on a TCP port. A JSON file configures its signals (UART, I2C, SPI, PWM, clocks, random
+  noise) with random payloads and pauses; the same seed gives the same signals. It paces its data to
+  real time (or any speed) and draws with Logica's own generators. Its wire protocol is Logica's
+  own (`PROTOCOL.md`), implemented once in the driver crate and used by both ends.
+- Driver `vla`: finds analysers at `LOGICA_VLA` (else `127.0.0.1:7171`), streams their data in, and
+  honours stop. Drivers can be `hotplug`: `device.list` asks them again; `session.get` does not.
+- Engine: every device capture now goes through a bounded relay (doc 04 "Ingest"); the capture is
+  in the session from its first block in the state `capturing`, grows as the engine polls (every
+  50 ms while capturing, driven by the shared engine for both the app and `logica mcp`), reports
+  `capture.progress`, and ends complete, stopped, or failed with what arrived kept. Decoders added
+  while capturing follow the data (`LiveDecode`) and match a decode of the finished capture.
+  Saving waits for the end; closing a running capture stops it (an agent may not close the
+  person's).
+- Window: the live view of doc 08 (follows the newest data, "Stay here", "Follow", "Stop capture"),
+  "Capture live" on the start screen, "Look for devices" and a length in seconds for streaming
+  devices in the device panel. The session is read at most four times a second during a capture.
+  The waveform shows answers that were overtaken by newer requests instead of dropping them, and a
+  following view draws the range its data is for, so it is never empty.
+
 ### Not done or not verified
 
+- Live capture: an agent's `view.set` on a capture that is running is not adopted by the window
+  (the person steers a live view); no live protocol triggers yet; packed blocks are converted on
+  the engine side, not yet measured at DLA stream rates (doc 04). The `vla` driver is for
+  development; its data has perfect timing.
 - The `.demo` files' own decoder presets (such as "display as decimal") are not applied when a
   file opens; they are listed by the CLI only.
-- Not built yet: live view while capturing (captures appear when finished; comes with streaming
-  devices in M3), channel reordering by drag and the bus grouping editor, per-channel thresholds,
+- Not built yet: channel reordering by drag and the bus grouping editor, per-channel thresholds,
   the trigger editor and output confirmations (M3, with real devices), compare (M5), the
   capture folder setting, putting `logica` on the PATH from the installers (it ships in
   `resources/bin`).

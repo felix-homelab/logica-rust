@@ -7,12 +7,21 @@ export interface EngineEvent {
   capture?: string;
   decoder?: string;
   actor?: string;
+  /** capture.progress and capture.done: samples per channel so far. */
+  samples?: number;
 }
 
-/** The session summary: anything recorded, decoders, captures, leases; views only from others. */
+/** The session summary: anything recorded, captures, leases; views only from others. */
 export const sessionNeeds = (e: EngineEvent): boolean =>
-  ['state.changed', 'decoder.updated', 'capture.done', 'lease.changed', 'device.disconnected'].includes(e.event) ||
+  ['state.changed', 'capture.done', 'lease.changed', 'device.disconnected'].includes(e.event) ||
   (e.event === 'view.changed' && e.actor !== 'user');
+
+/**
+ * The session summary again, but not at once: a live capture reports progress and decodes about 20
+ * times a second, and the summary (length, problem counts) needs a few updates a second. Changes a
+ * person or agent makes also send state.changed, so nothing waits on this.
+ */
+export const sessionLiveNeeds = (e: EngineEvent): boolean => e.event === 'capture.progress' || e.event === 'decoder.updated';
 
 /** A capture's waveform data: its decoders and the end of its recording. */
 export const waveformNeeds = (e: EngineEvent, capture: string): boolean =>

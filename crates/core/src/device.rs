@@ -217,6 +217,11 @@ pub trait Device: Send {
 pub trait VirtualDriver: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
+    /// Whether its devices come and go (a separate program that may or may not be running), so
+    /// the engine lists them again on every `device.list` instead of once.
+    fn hotplug(&self) -> bool {
+        false
+    }
     fn enumerate(&self) -> Vec<DeviceInfo>;
     fn open(&self, id: &str) -> Result<Box<dyn Device>, DeviceError>;
 }

@@ -1,0 +1,32 @@
+{
+  "name": "Busy sensor bus",
+  "channelCount": 8,
+  "sampleRatesHz": [4000000, 10000000, 25000000],
+  "seed": 1,
+  "signals": [
+    {
+      "kind": "i2c",
+      "scl": 0,
+      "sda": 1,
+      "clockHz": 400000,
+      "addresses": [72, 104, 118],
+      "bytes": [1, 6],
+      "readChance": 0.5,
+      "nackChance": 0.1,
+      "everyMs": [1, 10]
+    },
+    {
+      "kind": "spi",
+      "clk": 2,
+      "cs": 3,
+      "mosi": 4,
+      "miso": 5,
+      "clockHz": 250000,
+      "mode": 3,
+      "bytes": [2, 8],
+      "everyMs": [5, 30]
+    },
+    { "kind": "pwm", "channel": 6, "name": "FAN", "frequencyHz": 25000, "duty": 0.6 },
+    { "kind": "noise", "channel": 7, "name": "BUTTON", "meanUs": 50000 }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "UART console",
+  "channelCount": 2,
+  "sampleRatesHz": [1000000, 2000000, 10000000],
+  "signals": [
+    {
+      "kind": "uart",
+      "channel": 0,
+      "name": "TX",
+      "baud": 115200,
+      "messages": ["> help\r\n", "> status\r\n", "> reboot\r\n"],
+      "everyMs": [200, 800]
+    },
+    {
+      "kind": "uart",
+      "channel": 1,
+      "name": "RX",
+      "baud": 115200,
+      "randomBytes": [8, 32],
+      "everyMs": [100, 400]
+    }
+  ]
+}

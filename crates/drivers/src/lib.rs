@@ -3,3 +3,4 @@
 //! (`docs/clean-room.md`).
 
 pub mod synthetic;
+pub mod vla;

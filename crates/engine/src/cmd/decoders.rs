@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use logica_core::Sample;
-use logica_protocols::analyse::{Batching, decode_store};
+use logica_protocols::analyse::{Batching, LiveDecode, decode_store};
 use logica_protocols::format::as_text;
 use logica_protocols::protocol::Symptom;
 use logica_protocols::types::{
@@ -39,6 +39,25 @@ pub(crate) fn run_decode(
     let c = e.capture(capture)?;
     decode_store(&e.registry, &c.store, &c.meta, &cfg.protocol, &cfg.roles, &cfg.settings, Batching::Whole)
         .map_err(|m| err(ErrorCode::InvalidInput, m))
+}
+
+/// Decodes a capture as it is now: a finished capture whole; a capture still running up to its
+/// newest data, with a live decode that follows it from there.
+fn decode_now(
+    e: &Engine,
+    capture: &str,
+    cfg: &DecoderConfig,
+) -> Result<(DecodeResult, Option<LiveDecode>), CommandError> {
+    let c = e.capture(capture)?;
+    if c.meta.state != logica_core::capture::CaptureState::Capturing {
+        return Ok((run_decode(e, capture, cfg)?, None));
+    }
+    let bad = |m: String| err(ErrorCode::InvalidInput, m);
+    let mut live = LiveDecode::new(&e.registry, &c.store, &c.meta, &cfg.protocol, &cfg.roles, &cfg.settings)
+        .map_err(bad)?;
+    let mut result = DecodeResult::default();
+    live.advance(&c.store, &mut result).map_err(bad)?;
+    Ok((result, Some(live)))
 }
 
 fn channels_text(r: &Roles) -> String {
@@ -97,7 +116,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
         name: i.name.clone().unwrap_or_else(|| title.clone()),
         data_format: i.data_format.unwrap_or_default(),
     };
-    let result = run_decode(e, &i.capture, &cfg)?;
+    let (result, live) = decode_now(e, &i.capture, &cfg)?;
     let id = match &i.id {
         Some(id) => {
             e.reserve_id(id);
@@ -105,7 +124,8 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
         }
         None => e.new_id(&format!("{}-", i.protocol)),
     };
-    let d = decoder(e, cfg.clone(), result);
+    let mut d = decoder(e, cfg.clone(), result);
+    d.live = live;
     let c = e.capture_mut(&i.capture)?;
     if c.decoders.contains_key(&id) {
         return Err(err(ErrorCode::InvalidInput, format!("A decoder with the id \"{id}\" already exists.")));
@@ -201,18 +221,19 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: DecoderUpdateIn) -> Result<Done
     }
     // the name and the data format do not change what is decoded
     let same = cfg.roles == old.roles && cfg.settings == old.settings;
-    let result = if same {
+    let (result, live) = if same {
         let c = e.capture_mut(&i.capture)?;
         let d = c
             .decoders
             .get_mut(&i.decoder)
             .ok_or_else(|| err(ErrorCode::NotFound, "There is no such decoder."))?;
-        std::mem::take(&mut d.result)
+        (std::mem::take(&mut d.result), d.live.take())
     } else {
-        run_decode(e, &i.capture, &cfg)?
+        decode_now(e, &i.capture, &cfg)?
     };
     let after = result.problem_counts.clone();
-    let d = decoder(e, cfg, result);
+    let mut d = decoder(e, cfg, result);
+    d.live = live;
     let c = e.capture_mut(&i.capture)?;
     let summary = DecoderSummary::of(&i.decoder, &d);
     c.decoders.insert(i.decoder.clone(), d);

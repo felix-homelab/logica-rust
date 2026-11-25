@@ -95,7 +95,11 @@ impl LogicaEngine {
     /// (doc 04; the settings' memory for capture data), the engine's default when absent.
     #[napi(constructor)]
     pub fn new(work_dir: String, cache_mb: Option<u32>) -> Self {
-        let mut cfg = EngineConfig { data_dir: Some(work_dir.into()), ..EngineConfig::default() };
+        let mut cfg = EngineConfig {
+            data_dir: Some(work_dir.into()),
+            vla_addresses: EngineConfig::vla_from_env(),
+            ..EngineConfig::default()
+        };
         if let Some(mb) = cache_mb.filter(|mb| *mb >= 16) {
             cfg.cache_budget = usize::try_from(mb).unwrap_or(usize::MAX).saturating_mul(1 << 20);
         }

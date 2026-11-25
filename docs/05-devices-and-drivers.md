@@ -7,8 +7,10 @@ The traits live in `crates/core`, so drivers depend on `core` alone.
 - A **USB driver** has an id (`fnirsi-dla`, `fx2lafw`, …), a name and USB filters (vendor ID,
   optional product ID). `probe` opens a transport and identifies the device (or says it is not
   ours); `open` returns a device.
-- A **virtual driver** has no transport (the synthetic device): it enumerates its devices and opens
-  them by id.
+- A **virtual driver** has no transport (the synthetic device, the virtual analyser): it
+  enumerates its devices and opens them by id. A driver whose devices come and go (a separate
+  program that may or may not be running) says so (`hotplug`), and `device.list` asks it again
+  each time; devices that are open stay listed.
 - A **device** has its info (id, model, serial, firmware, channel count) and **capabilities** (rates
   per channel count, depth, modes, triggers, thresholds, outputs, options). It can be configured
   (rejected with an explanation when impossible), started with a block sink and a stop signal
@@ -30,6 +32,7 @@ Every driver is written clean-room ([clean-room.md](clean-room.md)) and has a `P
 | Device | Driver | Milestone | Notes |
 |---|---|---|---|
 | Synthetic | `synthetic` | M0 | Plays a program, repeated to the requested length: every generated protocol example, or `mix` (UART, I2C, SPI and PWM on 8 channels at 100 MHz, with an optional dense 25 MHz stretch). Streams one tile at a time, so 5e9 samples run in bounded memory. Like real hardware, a capture is exactly the requested length; a frame cut off at the end is reported by its decoder as incomplete |
+| Virtual analyser | `vla` | M2, for live capture | `logica-vla` (`tools/virtual-analyser`), a separate program that streams configurable signals (UART, I2C, SPI, PWM, clocks, noise; random payloads and pauses; a seed) in real time over TCP, in a protocol of Logica's own (`PROTOCOL.md` there). The engine connects out to it as a client, so ADR 0006 (ways into the engine) is unaffected. Where to look: `LOGICA_VLA` (comma-separated `host:port`), else `127.0.0.1:7171`; tests pass their own addresses and no others. Stream mode only; one capture at a time |
 | FNIRSI DLA-32 Plus / DLA-16 Plus | `fnirsi-dla` | spike S3 after M2; driver M3 | Buffer mode first, then threshold, trigger, PWM outputs, then stream mode. DLA-16 Plus untested (the owner has no device) |
 | FX2 analysers (original Saleae Logic, 8 ch / 24 MHz clones, USBee AX clones) | `fx2lafw` | M4 | Upload fx2lafw firmware, wait for re-enumeration, stream bulk data. No hardware trigger: software and protocol triggers in the engine |
 

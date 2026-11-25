@@ -1,9 +1,9 @@
 // The sidebar and inspector panels (doc 08): channels, analysis, decoders, search, device. Every
 // change goes through a command (ADR 0001); the panels redraw from the session the store re-reads.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
 import { Badge, Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
-import { Eye, EyeOff, Palette, Plus, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
+import { Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
 import { at, hz, int } from '../format';
 import { isAgent, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
@@ -599,11 +599,33 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
 }
 
 export function DevicePanel() {
-  const { session, run } = useStore();
-  const [config, setConfig] = useState<Record<string, { channels: number[]; rate: number; samples: number }>>({});
+  const { session, run, refresh } = useStore();
+  const [config, setConfig] = useState<Record<string, { channels: number[]; rate: number; samples: number; seconds: number }>>({});
+  const [looking, setLooking] = useState(false);
+  // devices that come and go (a virtual analyser) are found when asked for
+  const look = useCallback(async () => {
+    setLooking(true);
+    await run('device.list', {});
+    setLooking(false);
+    refresh();
+  }, [run, refresh]);
+  useEffect(() => {
+    void look();
+  }, [look]);
   if (!session) return null;
   return (
     <div className="pad stack">
+      <div className="row between">
+        <Button size="sm" variant="secondary" icon={<RefreshCw />} disabled={looking} onClick={() => void look()}>
+          {looking ? 'Looking…' : 'Look for devices'}
+        </Button>
+      </div>
+      {!session.devices.some((d) => d.info.driver === 'vla') && (
+        <p className="muted">
+          No virtual analyser found. To try live capture without hardware, run <code>cargo run -p logica-vla</code> in the
+          repository, then look again.
+        </p>
+      )}
       <Switch
         label="Stop agent actions"
         description="Agents cannot capture or drive outputs while this is on; running agent captures stop."
@@ -613,8 +635,16 @@ export function DevicePanel() {
       {session.devices.map((d) => {
         const id = d.info.id;
         const caps = d.capabilities;
-        const c = config[id] ?? { channels: caps.channels.slice(0, 4), rate: caps.ratesHz.at(-1) ?? 1e6, samples: 1_000_000 };
+        // a streaming device captures for a time (a minute unless chosen); a buffer fills its samples
+        const streams = !caps.modes.includes('buffer');
+        const c = config[id] ?? {
+          channels: streams ? caps.channels : caps.channels.slice(0, 4),
+          rate: (streams ? caps.ratesHz[0] : caps.ratesHz.at(-1)) ?? 1e6,
+          samples: 1_000_000,
+          seconds: 60,
+        };
         const set = (p: Partial<typeof c>) => setConfig({ ...config, [id]: { ...c, ...p } });
+        const samples = streams ? Math.max(1, Math.round(c.seconds * c.rate)) : c.samples;
         const holder = d.holder;
         const running = session.running.some((r) => r.device === id);
         return (
@@ -660,14 +690,24 @@ export function DevicePanel() {
                     ))}
                   </select>
                 </label>
-                <TextField label="Samples per channel" type="number" value={String(c.samples)} onChange={(e) => set({ samples: Number(e.target.value) })} />
+                {streams ? (
+                  <TextField
+                    label="Length in seconds"
+                    hint={`${int(samples)} samples per channel; stop earlier at any time.`}
+                    type="number"
+                    value={String(c.seconds)}
+                    onChange={(e) => set({ seconds: Number(e.target.value) })}
+                  />
+                ) : (
+                  <TextField label="Samples per channel" type="number" value={String(c.samples)} onChange={(e) => set({ samples: Number(e.target.value) })} />
+                )}
                 <div className="row">
                   <Button
                     size="sm"
                     variant="primary"
                     disabled={running}
                     onClick={async () => {
-                      const ok = await run('device.configure', { device: id, config: { channels: c.channels, sampleRateHz: c.rate, samples: c.samples, mode: caps.modes[0] ?? 'buffer' } });
+                      const ok = await run('device.configure', { device: id, config: { channels: c.channels, sampleRateHz: c.rate, samples, mode: caps.modes[0] ?? 'buffer' } });
                       if (ok) await run('capture.start', { device: id, wait: false });
                     }}
                   >

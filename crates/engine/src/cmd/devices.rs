@@ -7,7 +7,7 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use logica_core::device::{Capabilities, CaptureConfig, DeviceInfo, StopSignal, StoreSink};
+use logica_core::device::{Capabilities, CaptureConfig, DeviceInfo, StopSignal, device_source};
 use logica_core::import::StoreTarget;
 
 use crate::contract::{Actor, CommandError, ErrorCode, Event};
@@ -40,12 +40,24 @@ pub struct DeviceRef {
     pub device: String,
 }
 
-fn catalogue(e: &mut Engine) {
-    if !e.catalogue.is_empty() {
+/// Fills the catalogue on first use. With `rescan`, drivers whose devices come and go (the
+/// virtual analyser) are asked again; devices that are open stay listed.
+fn catalogue(e: &mut Engine, rescan: bool) {
+    let first = e.catalogue.is_empty();
+    if !first && !rescan {
         return;
     }
     for (k, d) in e.drivers.iter().enumerate() {
+        if !first && !d.hotplug() {
+            continue;
+        }
+        if !first {
+            e.catalogue.retain(|(dk, info, _)| *dk != k || e.devices.contains_key(&info.id));
+        }
         for info in d.enumerate() {
+            if e.catalogue.iter().any(|c| c.1.id == info.id) {
+                continue;
+            }
             if let Ok(dev) = d.open(&info.id) {
                 e.catalogue.push((k, info, dev.capabilities().clone()));
             }
@@ -53,8 +65,7 @@ fn catalogue(e: &mut Engine) {
     }
 }
 
-pub(crate) fn entries(e: &mut Engine) -> Vec<DeviceEntry> {
-    catalogue(e);
+fn entries_of(e: &Engine) -> Vec<DeviceEntry> {
     e.catalogue
         .iter()
         .map(|(_, info, caps)| DeviceEntry {
@@ -67,7 +78,24 @@ pub(crate) fn entries(e: &mut Engine) -> Vec<DeviceEntry> {
         .collect()
 }
 
+/// The devices known, without asking hotplug drivers again (for `session.get`).
+pub(crate) fn known_entries(e: &mut Engine) -> Vec<DeviceEntry> {
+    catalogue(e, false);
+    entries_of(e)
+}
+
+/// Every device, asking hotplug drivers again (`device.list`).
+pub(crate) fn entries(e: &mut Engine) -> Vec<DeviceEntry> {
+    catalogue(e, true);
+    entries_of(e)
+}
+
 fn entry(e: &mut Engine, id: &str) -> Result<DeviceEntry, CommandError> {
+    catalogue(e, false);
+    if let Some(d) = entries_of(e).into_iter().find(|d| d.info.id == id) {
+        return Ok(d);
+    }
+    // perhaps a virtual analyser started since the last list
     entries(e).into_iter().find(|d| d.info.id == id).ok_or_else(|| {
         err(
             ErrorCode::NotFound,
@@ -117,7 +145,7 @@ pub(crate) fn connect(e: &mut Engine, ctx: &Ctx, i: DeviceRef) -> Result<Done, C
     if !e.devices.contains_key(&i.device) {
         let k = e.catalogue.iter().find(|c| c.1.id == i.device).map(|c| c.0).unwrap_or(0);
         let dev = e.drivers[k].open(&i.device).map_err(|x| err(ErrorCode::Failed, x.0))?;
-        e.devices.insert(i.device.clone(), OpenDevice { device: Some(dev), configured: false });
+        e.devices.insert(i.device.clone(), OpenDevice { device: Some(dev), configured: false, samples: 0 });
     }
     let d = entry(e, &i.device)?;
     let model = d.info.model.clone();
@@ -169,6 +197,7 @@ pub(crate) fn configure(e: &mut Engine, ctx: &Ctx, i: DeviceConfigureIn) -> Resu
     let dev = d.device.as_mut().ok_or_else(|| err(ErrorCode::Busy, "The device is busy."))?;
     dev.configure(&i.config).map_err(|x| err(ErrorCode::InvalidInput, x.0))?;
     d.configured = true;
+    d.samples = i.config.samples;
     let rate = logica_protocols::format::hz(i.config.sample_rate_hz);
     Ok(Done::never(
         out(&Nothing {}),
@@ -208,6 +237,7 @@ pub(crate) fn start(e: &mut Engine, ctx: &Ctx, i: CaptureStartIn) -> Result<Done
             format!("Configure {} first with device.configure.", i.device),
         ));
     }
+    let samples = d.samples;
     let mut dev = d.device.take().ok_or_else(|| err(ErrorCode::Busy, "The device is busy."))?;
     let id = e.new_id("c");
     let title = i.title.clone().unwrap_or_else(|| format!("Capture {}", id.trim_start_matches('c')));
@@ -236,13 +266,28 @@ pub(crate) fn start(e: &mut Engine, ctx: &Ctx, i: CaptureStartIn) -> Result<Done
     };
     let stop = StopSignal::new();
     let stop2 = stop.clone();
+    let source = device_source(dev.info());
+    let (mut sink, feed) = crate::live::relay();
     let handle = std::thread::spawn(move || {
-        let mut sink = StoreSink::new(target);
-        let r = dev.run(&mut sink, &stop2).map(|o| (o, sink)).map_err(|x| x.0);
+        let r = dev.run(&mut sink, &stop2).map_err(|x| x.0);
+        // dropping the sink tells the engine the device is done
+        drop(sink);
         (dev, r)
     });
-    let running =
-        Running { device: i.device.clone(), capture: id.clone(), title: title.clone(), stop, handle };
+    let running = Running {
+        device: i.device.clone(),
+        capture: id.clone(),
+        title: title.clone(),
+        source,
+        stop,
+        handle,
+        feed,
+        target: Some(target),
+        samples,
+        begun: false,
+        failed: None,
+        reported: 0,
+    };
     let wait = i.wait.unwrap_or(true);
     let mut capture = None;
     if wait {

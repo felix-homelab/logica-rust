@@ -10,10 +10,12 @@ publish.workspace = true
 [dependencies]
 logica-core.workspace = true
 logica-protocols.workspace = true
+# the virtual analyser's handshake is JSON lines (both already used across the workspace)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 logica-fileio.workspace = true
-serde_json = "1"
 
 [[bench]]
 name = "baseline"

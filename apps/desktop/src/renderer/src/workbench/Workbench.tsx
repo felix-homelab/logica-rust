@@ -43,6 +43,7 @@ import { centreOn, zoomAt } from '../viewmath';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
+import { LiveWaveform, startLive } from './Live';
 import { Boundary } from '../Boundary';
 
 const AGENT_SETUP = 'claude mcp add logica -- logica mcp';
@@ -101,6 +102,11 @@ export function Workbench() {
       for (const c of session.captures) {
         const engine = fromEngine(c);
         const mine = old[c.id];
+        // the person steers a live view (it follows the newest data); the engine's grows behind it
+        if (mine && c.state === 'capturing') {
+          next[c.id] = mine;
+          continue;
+        }
         next[c.id] = !mine || (sent.current[c.id] !== key(engine) && key(mine) !== key(engine)) ? engine : mine;
       }
       return next;
@@ -131,6 +137,8 @@ export function Workbench() {
   );
 
   const view = active ? views[active.id] : undefined;
+  const activeId = active?.id;
+  const onActiveView = useCallback((v: ViewState) => activeId && setView(activeId, v), [activeId, setView]);
 
   const jump = useCallback(
     (from: number, to: number) => {
@@ -441,7 +449,11 @@ export function Workbench() {
             <main className="center">
               <section className="wave-area" aria-label="Waveform">
                 <Boundary name="waveform">
-                  <Waveform capture={active} view={view} onView={(v) => setView(active.id, v)} expert={expert} />
+                  {active.state === 'capturing' ? (
+                    <LiveWaveform key={active.id} capture={active} view={view} onView={onActiveView} expert={expert} />
+                  ) : (
+                    <Waveform capture={active} view={view} onView={onActiveView} expert={expert} />
+                  )}
                 </Boundary>
               </section>
               {showBottom && (
@@ -650,7 +662,15 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   const loss = capture.notes.find((n) => n.level === 'warning' && /lost|overwrit|dropped/i.test(n.message));
   return (
     <footer className="status" aria-label="Status">
-      <span>{running ? `Capturing (${running})` : device ? `${device.info.model}: connected` : 'No device connected'}</span>
+      <span>
+        {capture.state === 'capturing'
+          ? `Capturing: ${time(capture.seconds)} so far`
+          : running
+            ? `Capturing (${running})`
+            : device
+              ? `${device.info.model}: connected`
+              : 'No device connected'}
+      </span>
       <span className="lg-num">{hz(rate)}</span>
       <span className="lg-num">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
@@ -670,8 +690,14 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
 }
 
 function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => void; onDemo: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
-  const { settings, session } = useStore();
+  const { settings, session, run, refresh } = useStore();
   const recent = settings?.recent ?? [];
+  // a virtual analyser may have started since the engine first listed devices
+  useEffect(() => {
+    void run('device.list', {}).then(() => refresh());
+  }, [run, refresh]);
+  const devices = session?.devices ?? [];
+  const live = devices.filter((d) => d.info.driver === 'vla');
   return (
     <main className="start">
       <div className="start__inner">
@@ -704,14 +730,28 @@ function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => 
           </section>
           <section className="card">
             <h2 className="section-title">Devices</h2>
+            {live.map((d) => (
+              <div key={d.info.id} className="row between">
+                <span>{d.info.model}</span>
+                <Button size="sm" variant="primary" icon={<Activity />} disabled={d.capturing} onClick={() => void startLive(run, d)}>
+                  Capture live
+                </Button>
+              </div>
+            ))}
             <ul className="plain">
-              {(session?.devices ?? []).slice(0, 6).map((d) => (
-                <li key={d.info.id}>
-                  {d.info.model} <span className="muted">{d.connected ? '· connected' : ''}</span>
-                </li>
-              ))}
+              {devices
+                .filter((d) => d.info.driver !== 'vla')
+                .slice(0, 6)
+                .map((d) => (
+                  <li key={d.info.id}>
+                    {d.info.model} <span className="muted">{d.connected ? '· connected' : ''}</span>
+                  </li>
+                ))}
             </ul>
-            <p className="muted">Real analysers come with milestone M3; these synthetic devices produce known signals.</p>
+            <p className="muted">
+              Real analysers come with milestone M3; these synthetic devices produce known signals.
+              {live.length === 0 && ' To try live capture, start the virtual analyser (cargo run -p logica-vla).'}
+            </p>
           </section>
           <section className="card">
             <h2 className="section-title">Work with an agent</h2>

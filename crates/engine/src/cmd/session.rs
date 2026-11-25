@@ -35,7 +35,7 @@ pub struct SessionOut {
 }
 
 pub(crate) fn get(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
-    let devices = super::devices::entries(e);
+    let devices = super::devices::known_entries(e);
     let s = SessionOut {
         api_version: crate::contract::api_version(),
         revision: e.revision(),

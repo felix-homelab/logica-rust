@@ -512,15 +512,20 @@ pub struct Collected {
 
 impl Collected {
     pub fn take(&mut self, o: Output) {
-        for f in &o.frames {
-            for p in &f.problems {
-                *self.result.problem_counts.entry(p.code).or_default() += 1;
-            }
-        }
-        self.result.frames.extend(o.frames);
-        self.result.packets.extend(o.packets);
-        self.result.notes.extend(o.notes);
+        collect_into(&mut self.result, o);
     }
+}
+
+/// Appends what a decoder emitted to a result, counting the problems.
+pub fn collect_into(result: &mut DecodeResult, o: Output) {
+    for f in &o.frames {
+        for p in &f.problems {
+            *result.problem_counts.entry(p.code).or_default() += 1;
+        }
+    }
+    result.frames.extend(o.frames);
+    result.packets.extend(o.packets);
+    result.notes.extend(o.notes);
 }
 
 #[cfg(test)]
