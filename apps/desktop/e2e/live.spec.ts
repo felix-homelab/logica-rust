@@ -1,8 +1,10 @@
 // Live capture (doc 08) from the virtual analyser (`logica-vla`, a separate program on a loopback
 // port): the capture appears as a tab at once, the view follows the newest data, a decoder added
 // while capturing keeps decoding, and stopping ends it with what arrived.
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { repo, start } from './helpers';
@@ -11,9 +13,19 @@ async function shot(page: Page, name: string): Promise<void> {
   if (process.env.LOGICA_SHOTS) await page.screenshot({ path: `${process.env.LOGICA_SHOTS}/${name}.png` });
 }
 
-/** Starts the virtual analyser on a free port (built by cargo if needed); resolves with its address. */
-function analyser(extra: string[] = []): Promise<{ at: string; proc: ChildProcess }> {
-  const proc = spawn('cargo', ['run', '-q', '-p', 'logica-vla', '--', '--listen', '127.0.0.1:0', '--seed', '5', ...extra], { cwd: repo });
+// built once, then started directly: `cargo run` on Windows runs the program as its own child,
+// which killing cargo leaves running (still listening), so a test could not make it go away
+let built: Promise<string> | null = null;
+function program(): Promise<string> {
+  built ??= promisify(execFile)('cargo', ['build', '-q', '-p', 'logica-vla'], { cwd: repo, timeout: 600_000 }).then(() =>
+    join(repo, 'target', 'debug', process.platform === 'win32' ? 'logica-vla.exe' : 'logica-vla'),
+  );
+  return built;
+}
+
+/** Starts the virtual analyser on a free port (built by cargo first); resolves with its address. */
+async function analyser(extra: string[] = []): Promise<{ at: string; proc: ChildProcess }> {
+  const proc = spawn(await program(), ['--listen', '127.0.0.1:0', '--seed', '5', ...extra], { cwd: repo });
   return new Promise((resolve, reject) => {
     let out = '';
     const timer = setTimeout(() => reject(new Error(`logica-vla did not start within 3 minutes: ${out}`)), 180_000);
