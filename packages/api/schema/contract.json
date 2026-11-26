@@ -23,6 +23,15 @@
         "capture": {
           "type": "string"
         },
+        "height": {
+          "description": "Row height in pixels, 40 to 800 (160 unless given).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "id": {
           "description": "Chosen by the engine; redo and undo use the id it had.",
           "type": [
@@ -132,6 +141,13 @@
     "AnalogConfig": {
       "description": "A virtual analog channel's definition: what `analog.add` takes, an undo restores and a\n`.lacap` saves.",
       "properties": {
+        "height": {
+          "default": 160,
+          "description": "Height of its row in the waveform, in pixels (40 to 800).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "name": {
           "type": "string"
         },
@@ -430,6 +446,14 @@
         },
         "capture": {
           "type": "string"
+        },
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "name": {
           "type": [

@@ -15,19 +15,30 @@ test('a PWM level is added as a virtual analog channel, rescaled and undone', as
   await channels.getByRole('button', { name: 'Add virtual analog channel' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Add a virtual analog channel' });
-  const form = dialog.getByRole('form', { name: 'Add a virtual analog channel' });
-  // nothing to add before a source and its channel are chosen
-  await expect(form.getByRole('button', { name: 'Add channel' })).toBeDisabled();
-  await form.getByLabel('Source').selectOption({ label: 'PWM level' });
-  await expect(form.getByText(/One value per period/)).toBeVisible();
-  await form.getByLabel(/^Signal/).selectOption('0');
-  await form.getByLabel('Lowest value').fill('0');
-  await form.getByLabel('Highest value').fill('100');
-  await form.getByLabel('Unit').fill('%');
+  const next = dialog.getByRole('button', { name: 'Next' });
+  // step 1, the source: nothing goes on before a source and its channel are chosen, and the
+  // later steps cannot be skipped to
+  await expect(next).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: /Scaling/ })).toBeDisabled();
+  await dialog.getByLabel('Source').selectOption({ label: 'PWM level' });
+  await expect(dialog.getByText(/One value per period/)).toBeVisible();
+  await expect(dialog.getByText('Choose a channel for every role that is not optional.')).toBeVisible();
+  await dialog.getByLabel('Signal').selectOption('0');
+  await next.click();
+  // step 2, the PWM's own settings: duty is the default
+  await expect(dialog.getByLabel('Value')).toHaveValue('duty');
+  await next.click();
+  // step 3, the scaling
+  await dialog.getByLabel('Lowest value').fill('0');
+  await dialog.getByLabel('Highest value').fill('100');
+  await dialog.getByLabel('Unit').fill('%');
   const axe = await new AxeBuilder({ page }).setLegacyMode(true).analyze();
   expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
   await shot(page, 'analog-dialog');
-  await form.getByRole('button', { name: 'Add channel' }).click();
+  await next.click();
+  // step 4, name and look: the row height starts at 160 pixels
+  await expect(dialog.getByLabel('Row height (pixels)')).toHaveValue('160');
+  await dialog.getByRole('button', { name: 'Add channel' }).click();
   await expect(dialog).toHaveCount(0);
 
   const list = channels.getByRole('region', { name: 'Virtual analog channels' });
@@ -39,6 +50,8 @@ test('a PWM level is added as a virtual analog channel, rescaled and undone', as
   // rescaled to volts in the same dialog: nothing is computed again, the values follow
   await list.getByRole('button', { name: 'Settings of PWM level' }).click();
   const change = page.getByRole('dialog', { name: 'PWM level settings' });
+  // an existing channel opens on its first step, and any step can be visited
+  await change.getByRole('button', { name: /Scaling/ }).click();
   await change.getByLabel('Highest value').fill('5');
   await change.getByLabel('Unit').fill('V');
   await change.getByRole('button', { name: 'Apply' }).click();

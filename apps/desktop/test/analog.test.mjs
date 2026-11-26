@@ -63,6 +63,16 @@ test('virtual analog channels get a row of their own after everything else', () 
   assert.equal(a.analog, 'analog-3');
   assert.equal(a.h, ROW_HEIGHT.analog);
   assert.equal(a.y, 10 + ROW_HEIGHT.channel);
+  assert.equal(ROW_HEIGHT.analog, 160, 'tall enough to read a curve');
+  // a height of its own, and the rows after it move down
+  const two = layoutRows([], [], 0, [
+    { id: 'a', config: { name: 'A', height: 300 } },
+    { id: 'b', config: { name: 'B' } },
+  ]);
+  assert.deepEqual(two.map((r) => [r.y, r.h]), [
+    [0, 300],
+    [300, ROW_HEIGHT.analog],
+  ]);
 });
 
 test('analog values are read again for their own capture only', () => {

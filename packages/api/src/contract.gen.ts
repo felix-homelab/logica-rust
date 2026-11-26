@@ -245,6 +245,10 @@ historyEntry: HistoryEntry
 export interface AnalogAddIn {
 capture: string
 /**
+ * Row height in pixels, 40 to 800 (160 unless given).
+ */
+height?: (number | null)
+/**
  * Chosen by the engine; redo and undo use the id it had.
  */
 id?: (string | null)
@@ -283,6 +287,7 @@ capture: string
 export interface AnalogUpdateIn {
 analog: string
 capture: string
+height?: (number | null)
 name?: (string | null)
 replaceSettings?: boolean
 roles?: ({
@@ -783,6 +788,10 @@ step?: (number | null)
  * `.lacap` saves.
  */
 export interface AnalogConfig {
+/**
+ * Height of its row in the waveform, in pixels (40 to 800).
+ */
+height?: number
 name: string
 roles: {
 [k: string]: number | null

@@ -63,6 +63,8 @@ pub struct AnalogAddIn {
     pub name: Option<String>,
     pub unit: Option<String>,
     pub style: Option<AnalogStyle>,
+    /// Row height in pixels, 40 to 800 (160 unless given).
+    pub height: Option<u32>,
     /// Chosen by the engine; redo and undo use the id it had.
     pub id: Option<String>,
 }
@@ -116,6 +118,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
         name,
         unit,
         style: i.style.unwrap_or_default(),
+        height: i.height.unwrap_or(crate::analog::DEFAULT_HEIGHT),
     };
     let a = compute(e, &i.capture, cfg)?;
     let id = match &i.id {
@@ -140,6 +143,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
         name: Some(cfg.name.clone()),
         unit: Some(cfg.unit.clone()),
         style: Some(cfg.style),
+        height: Some(cfg.height),
         id: Some(id.clone()),
         ..i.clone()
     };
@@ -166,6 +170,7 @@ pub struct AnalogUpdateIn {
     pub name: Option<String>,
     pub unit: Option<String>,
     pub style: Option<AnalogStyle>,
+    pub height: Option<u32>,
 }
 
 pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done, CommandError> {
@@ -198,6 +203,9 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
     if let Some(s) = i.style {
         cfg.style = s;
     }
+    if let Some(h) = i.height {
+        cfg.height = h;
+    }
     let new = if old.needs_recompute(&cfg) {
         compute(e, &i.capture, cfg)?
     } else {
@@ -220,6 +228,7 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
         name: Some(before.name),
         unit: Some(before.unit),
         style: Some(before.style),
+        height: Some(before.height),
         ..i.clone()
     };
     Ok(Done::edit(
@@ -243,6 +252,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
         name: Some(cfg.name.clone()),
         unit: Some(cfg.unit),
         style: Some(cfg.style),
+        height: Some(cfg.height),
         id: Some(i.analog),
     };
     Ok(Done::edit(

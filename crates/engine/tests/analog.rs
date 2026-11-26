@@ -75,6 +75,7 @@ fn a_pwm_duty_channel_reads_the_duty_in_per_cent() {
     assert_eq!(a["config"]["name"], "PWM level");
     assert_eq!(a["config"]["unit"], "%");
     assert_eq!(a["config"]["style"], "step");
+    assert_eq!(a["config"]["height"], 160);
     assert_eq!(a["output"]["kind"], "fraction");
     assert!(a["points"].as_u64().unwrap() > 100, "{a}");
     assert!(
@@ -139,6 +140,8 @@ fn add_update_and_remove_are_undone_and_redone_exactly() {
             "analog.update",
             json!({ "capture": c, "analog": "fan", "settings": { "measure": "period" }, "scaling": { "kind": "linear", "gain": 1000 }, "unit": "ms" }),
         ),
+        // A taller row: only the window draws it differently.
+        ("analog.update", json!({ "capture": c, "analog": "fan", "height": 320 })),
         ("analog.remove", json!({ "capture": c, "analog": "fan" })),
     ];
     for (cmd, input) in steps {
@@ -151,9 +154,11 @@ fn add_update_and_remove_are_undone_and_redone_exactly() {
         run(&mut e, "history.redo", json!({}));
         assert_eq!(state(&mut e), after, "redo of {cmd}");
     }
-    // The scaling-only change rescaled the values: 30 % of 5 V plus 0.1 V.
-    run(&mut e, "history.undo", json!({}));
-    run(&mut e, "history.undo", json!({}));
+    // Back past remove, height and period: the scaling-only change rescaled the values, 30 % of
+    // 5 V plus 0.1 V.
+    for _ in 0..3 {
+        run(&mut e, "history.undo", json!({}));
+    }
     let a = state(&mut e)[0].clone();
     assert!(close(a["min"].as_f64().unwrap(), 1.6, 0.05), "{a}");
     assert_eq!(a["config"]["style"], "line");
@@ -197,6 +202,10 @@ fn mistakes_are_refused_with_a_reason() {
         "scaling": { "kind": "range", "low": 0, "high": 1 } }),
     );
     assert!(msg.contains("Channel 40"), "{msg}");
+    let mut low = duty(&c);
+    low["height"] = json!(10);
+    let (_, msg) = fail(&mut e, "analog.add", low);
+    assert_eq!(msg, "A row is 40 to 800 pixels high; 10 is not possible.");
     let (code, _) = fail(
         &mut e,
         "analog.add",

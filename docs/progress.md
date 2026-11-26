@@ -15,12 +15,13 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   a stopped PWM reads 0 % or 100 % with a reason).
 - Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
   live following, saving in `.lacap`.
-- Window: a row per channel with a value axis, steps or a line, problems outlined; the channel
-  list's "Virtual analog" section and the add and settings dialog.
+- Window: a row per channel (160 pixels unless resized by dragging its bottom edge or in the
+  dialog; the height is part of the definition, so it is saved and undoable) with a value axis,
+  steps or a line, problems outlined; the channel list's "Virtual analog" section and a dialog in
+  four steps (source, settings, scaling, name and look) to add or change a channel.
 
 ### Not done yet
 
-- Rows have a fixed height (72 px); resizing them (doc 08) comes later.
 - The value, raw code and step at the cursor (doc 08) come with the measurements step.
 - The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
   and says which to use.

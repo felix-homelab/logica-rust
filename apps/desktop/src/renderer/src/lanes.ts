@@ -103,12 +103,13 @@ export interface Row {
   group: number;
 }
 
-export const ROW_HEIGHT: Record<RowKind, number> = { group: 18, channel: 34, data: 22, text: 18, analog: 72 };
+export const ROW_HEIGHT: Record<RowKind, number> = { group: 18, channel: 34, data: 22, text: 18, analog: 160 };
 
 /** A virtual analog channel, as far as the rows need it (ADR 0010). */
 export interface LaneAnalog {
   id: string;
-  config: { name: string };
+  /** `height`: its row in pixels (ROW_HEIGHT.analog unless set). */
+  config: { name: string; height?: number | undefined };
 }
 
 export const FORMAT_LABEL: Record<DataFormat, string> = { ascii: 'ASCII', hex: 'Hex', decimal: 'Decimal', binary: 'Binary' };
@@ -134,9 +135,9 @@ export function layoutRows<C extends LaneChannel, D extends LaneDecoder>(channel
 
   const rows: Row[] = [];
   let y = top;
-  const push = (r: Omit<Row, 'y' | 'h'>) => {
-    rows.push({ ...r, y, h: ROW_HEIGHT[r.kind] });
-    y += ROW_HEIGHT[r.kind];
+  const push = (r: Omit<Row, 'y' | 'h'>, h = ROW_HEIGHT[r.kind]) => {
+    rows.push({ ...r, y, h });
+    y += h;
   };
   const decoderRows = (d: D, lane: number | null, owner: D | null, group: number) => {
     const role = lane === null ? null : roleOf(d, lane);
@@ -163,7 +164,9 @@ export function layoutRows<C extends LaneChannel, D extends LaneDecoder>(channel
   for (const c of other.filter((c) => !c.hidden)) channelRow(c, null, null, -1);
   // decoders on no channel of this capture (`loose`) have no channel to sit under either
   for (const d of atEnd.get(null) ?? []) decoderRows(d, null, null, -1);
-  analog.forEach((a, i) => push({ kind: 'analog', key: `a${a.id}`, label: a.config.name, analog: a.id, colourIndex: i, group: -1 }));
+  analog.forEach((a, i) =>
+    push({ kind: 'analog', key: `a${a.id}`, label: a.config.name, analog: a.id, colourIndex: i, group: -1 }, a.config.height ?? ROW_HEIGHT.analog),
+  );
   return rows;
 }
 

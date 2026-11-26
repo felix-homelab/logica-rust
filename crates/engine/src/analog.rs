@@ -40,6 +40,18 @@ pub struct AnalogConfig {
     pub unit: String,
     #[serde(default)]
     pub style: AnalogStyle,
+    /// Height of its row in the waveform, in pixels (40 to 800).
+    #[serde(default = "default_height")]
+    pub height: u32,
+}
+
+/// A row tall enough to read a curve.
+pub const DEFAULT_HEIGHT: u32 = 160;
+/// The rows a person can still read, and no taller than a screen.
+pub const HEIGHTS: std::ops::RangeInclusive<u32> = 40..=800;
+
+fn default_height() -> u32 {
+    DEFAULT_HEIGHT
 }
 
 pub struct Analog {
@@ -60,6 +72,14 @@ fn find_source(id: &str) -> Result<Box<dyn Source>, String> {
 
 /// Checks a definition: the source exists and the scaling fits what its points mean.
 pub fn check(cfg: &AnalogConfig) -> Result<SourceOutput, String> {
+    if !HEIGHTS.contains(&cfg.height) {
+        return Err(format!(
+            "A row is {} to {} pixels high; {} is not possible.",
+            HEIGHTS.start(),
+            HEIGHTS.end(),
+            cfg.height
+        ));
+    }
     let src = find_source(&cfg.source)?;
     let output = src.output(&SettingSpec::with_defaults(src.settings(), &cfg.settings));
     cfg.scaling.validate(output.kind).map_err(|e| e.to_string())?;

@@ -114,10 +114,13 @@ export function Waveform({
   const rate = capture.sampleRateHz;
   const plotW = Math.max(1, width - LABEL_W);
 
-  const rows = useMemo<Row[]>(
-    () => layoutRows(capture.channels, capture.decoders, AXIS + MARKERS, capture.analog),
-    [capture.channels, capture.decoders, capture.analog],
-  );
+  // a row being resized follows the pointer; the engine hears of it once, on release
+  const [resized, setResized] = useState<{ id: string; h: number } | null>(null);
+  const resize = useRef<{ id: string; y: number; h: number } | null>(null);
+  const rows = useMemo<Row[]>(() => {
+    const analog = capture.analog.map((a) => (a.id === resized?.id ? { ...a, config: { ...a.config, height: resized.h } } : a));
+    return layoutRows(capture.channels, capture.decoders, AXIS + MARKERS, analog);
+  }, [capture.channels, capture.decoders, capture.analog, resized]);
   const height = (rows.at(-1)?.y ?? AXIS + MARKERS) + (rows.at(-1)?.h ?? 0) + 8;
 
   useEffect(() => {
@@ -480,6 +483,11 @@ export function Waveform({
         }
         g.textAlign = 'left';
         g.font = `11px ${k.font}`;
+        // a grip on the bottom edge, and a line along it: drag it to resize the row
+        g.fillRect(LABEL_W / 2 - 12, r.y + r.h - 4, 24, 1);
+        g.fillRect(LABEL_W / 2 - 12, r.y + r.h - 2, 24, 1);
+        g.fillStyle = k.grid!;
+        g.fillRect(0, r.y + r.h - 1, width, 1);
         continue;
       }
       g.fillStyle = r.kind === 'channel' ? traceColour(r) : k.axis!;
@@ -552,13 +560,29 @@ export function Waveform({
     return t?.edges ?? [];
   };
 
+  /** The analog row whose bottom edge is under the pointer. */
+  const edgeOf = (e: { clientY: number }): Row | undefined => {
+    const y = e.clientY - canvas.current!.getBoundingClientRect().top;
+    return rows.find((r) => r.kind === 'analog' && Math.abs(y - (r.y + r.h)) <= 5);
+  };
   const onPointerDown = (e: PointerEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    const edge = edgeOf(e);
+    if (edge?.analog) {
+      resize.current = { id: edge.analog, y: e.clientY, h: edge.h };
+      return;
+    }
     drag.current = { x: e.clientX, start: view, moved: false, select: e.shiftKey };
   };
   const onPointerMove = (e: PointerEvent<HTMLCanvasElement>) => {
+    const r = resize.current;
+    if (r) {
+      setResized({ id: r.id, h: Math.round(Math.min(800, Math.max(40, r.h + e.clientY - r.y))) });
+      return;
+    }
     const d = drag.current;
+    e.currentTarget.style.cursor = !d && edgeOf(e) ? 'ns-resize' : '';
     if (!d) return;
     if (Math.abs(e.clientX - d.x) > 3) d.moved = true;
     if (!d.moved) return;
@@ -571,6 +595,18 @@ export function Waveform({
     }
   };
   const onPointerUp = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (resize.current) {
+      const id = resize.current.id;
+      resize.current = null;
+      const h = resized?.id === id ? resized.h : null;
+      if (h !== null) {
+        client
+          .run('analog.update', { capture: capture.id, analog: id, height: h })
+          .catch((x: unknown) => bridge().log('warn', `analog.update failed: ${x instanceof CommandError ? x.message : String(x)}`))
+          .finally(() => setResized(null));
+      }
+      return;
+    }
     const d = drag.current;
     drag.current = null;
     if (!d || d.moved) return;
