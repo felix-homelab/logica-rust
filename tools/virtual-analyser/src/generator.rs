@@ -16,7 +16,7 @@ enum Source {
         channel: u32,
         period: f64,
         high: f64,
-        /// A duty that wanders instead of staying at `high / period`.
+        /// A duty that changes instead of staying at `high / period`.
         wander: Option<Wander>,
     },
     Noise(Noise),
@@ -30,11 +30,13 @@ enum Source {
     },
 }
 
-/// A duty gliding from `from` to `to` between the times `start` and `end` (seconds); then on to a
-/// new random value in `range`.
+/// A changing duty: a glide from `from` to `to` between the times `start` and `end` (seconds),
+/// then on to a new random value in `range`; or, with `sine` (its period in seconds), a sine
+/// between the ends of `range`.
 struct Wander {
     range: [f64; 2],
     change_ms: [f64; 2],
+    sine: Option<f64>,
     from: f64,
     to: f64,
     start: f64,
@@ -44,6 +46,10 @@ struct Wander {
 impl Wander {
     /// The duty of the period starting at `t`.
     fn duty(&mut self, rng: &mut Rng, t: f64) -> f64 {
+        let [lo, hi] = self.range;
+        if let Some(period) = self.sine {
+            return (lo + hi) / 2.0 + (hi - lo) / 2.0 * (std::f64::consts::TAU * t / period).sin();
+        }
         while t >= self.end {
             self.from = self.to;
             self.to = rng.between(self.range[0], self.range[1]);
@@ -136,11 +142,20 @@ impl Generator {
                     (Source::Spi(sp), first)
                 }
                 // square waves rise after one period: a capture never has an edge at sample 0
-                Signal::Pwm(Pwm { channel, frequency_hz, duty, duty_range, change_ms, .. }) => {
+                Signal::Pwm(Pwm {
+                    channel,
+                    frequency_hz,
+                    duty,
+                    duty_range,
+                    change_ms,
+                    sine_period_ms,
+                    ..
+                }) => {
                     let period = 1.0 / frequency_hz;
                     let wander = duty_range.map(|range| {
                         let to = rng.between(range[0], range[1]);
-                        Wander { range, change_ms, from: to, to, start: 0.0, end: 0.0 }
+                        let sine = sine_period_ms.map(|ms| ms / 1e3);
+                        Wander { range, change_ms, sine, from: to, to, start: 0.0, end: 0.0 }
                     });
                     (Source::Square { channel, period, high: duty * period, wander }, period)
                 }
@@ -432,6 +447,25 @@ mod tests {
         assert!(step < 0.01, "largest change between periods {step}");
         // every period is still 1 ms
         assert!(e.windows(3).step_by(2).all(|w| w[2] - w[0] == 1000));
+    }
+
+    #[test]
+    fn the_sine_pwm_draws_a_sine_between_its_ends() {
+        // channel 12 of the example: 1 kHz, duty a sine from 10 % to 90 % once a second
+        let (store, _) = capture(&Config::example(), 1e6, 2.0, 0.02, 5);
+        let e = store.edges_in(12, 0, store.sample_count()).unwrap();
+        for w in e.windows(3).step_by(2) {
+            let duty = (w[1] - w[0]) as f64 / (w[2] - w[0]) as f64;
+            let t = w[0] as f64 / 1e6;
+            let want = 0.5 + 0.4 * (std::f64::consts::TAU * t).sin();
+            // one sample of 1,000 a period
+            assert!((duty - want).abs() <= 0.0011, "at {t} s: {duty}, a sine gives {want}");
+        }
+        let duties: Vec<f64> =
+            e.windows(3).step_by(2).map(|w| (w[1] - w[0]) as f64 / (w[2] - w[0]) as f64).collect();
+        let lo = duties.iter().copied().fold(f64::MAX, f64::min);
+        let hi = duties.iter().copied().fold(f64::MIN, f64::max);
+        assert!(lo < 0.101 && hi > 0.899, "the whole range: {lo} to {hi}");
     }
 
     #[test]

@@ -134,6 +134,10 @@ pub struct Pwm {
     /// How long each glide to a new random duty takes, in milliseconds (random between the two).
     #[serde(default = "default_change_ms")]
     pub change_ms: [f64; 2],
+    /// With `dutyRange`: the duty follows a sine with this period, in milliseconds, from the middle
+    /// of the range up to its top, down to its bottom and back, instead of wandering at random.
+    #[serde(default)]
+    pub sine_period_ms: Option<f64>,
 }
 
 /// A clock that follows the computer's clock instead of the capture's: analysers on the same
@@ -328,8 +332,15 @@ impl Signal {
                 s.bytes[1],
                 every(&s.every_ms)
             ),
-            Signal::Pwm(p) => match p.duty_range {
-                Some([lo, hi]) => format!(
+            Signal::Pwm(p) => match (p.duty_range, p.sine_period_ms) {
+                (Some([lo, hi]), Some(ms)) => format!(
+                    "PWM {} Hz, duty a sine between {} % and {} % every {} ms",
+                    p.frequency_hz,
+                    lo * 100.0,
+                    hi * 100.0,
+                    ms
+                ),
+                (Some([lo, hi]), None) => format!(
                     "PWM {} Hz, duty wandering between {} % and {} % (a glide every {}–{} ms)",
                     p.frequency_hz,
                     lo * 100.0,
@@ -337,7 +348,7 @@ impl Signal {
                     p.change_ms[0],
                     p.change_ms[1]
                 ),
-                None => format!("PWM {} Hz at {} % duty", p.frequency_hz, p.duty * 100.0),
+                (None, _) => format!("PWM {} Hz at {} % duty", p.frequency_hz, p.duty * 100.0),
             },
             Signal::Clock(p) => format!("clock {} Hz", p.frequency_hz),
             Signal::Noise(n) => format!("random changes about every {} µs", n.mean_us),
@@ -434,13 +445,13 @@ impl Config {
             .collect()
     }
 
-    /// The built-in configuration: one of each signal on twelve channels, and a PWM whose duty
-    /// wanders, to try virtual analog channels on.
+    /// The built-in configuration: one of each signal on thirteen channels, and two PWM levels to
+    /// try virtual analog channels on: one wandering at random, one a sine.
     pub fn example() -> Self {
         Config {
             name: default_name(),
             listen: default_listen(),
-            channel_count: 12,
+            channel_count: 13,
             sample_rates_hz: default_rates(),
             seed: None,
             speed: 1.0,
@@ -491,6 +502,7 @@ impl Config {
                     duty: 0.25,
                     duty_range: None,
                     change_ms: default_change_ms(),
+                    sine_period_ms: None,
                 }),
                 Signal::Clock(Pwm {
                     channel: 8,
@@ -499,6 +511,7 @@ impl Config {
                     duty: 0.5,
                     duty_range: None,
                     change_ms: default_change_ms(),
+                    sine_period_ms: None,
                 }),
                 Signal::Noise(Noise { channel: 9, name: None, mean_us: 500.0 }),
                 Signal::Shared(Shared { channel: 10, name: None, frequency_hz: default_shared_hz() }),
@@ -509,6 +522,16 @@ impl Config {
                     duty: 0.5,
                     duty_range: Some([0.05, 0.95]),
                     change_ms: default_change_ms(),
+                    sine_period_ms: None,
+                }),
+                Signal::Pwm(Pwm {
+                    channel: 12,
+                    name: Some("SINE".into()),
+                    frequency_hz: 1000.0,
+                    duty: 0.5,
+                    duty_range: Some([0.1, 0.9]),
+                    change_ms: default_change_ms(),
+                    sine_period_ms: Some(1000.0),
                 }),
             ],
         }
@@ -588,6 +611,14 @@ fn signal_problems(s: &Signal) -> Vec<String> {
                     p.push(format!(
                         "dutyRange is [{lo}, {hi}]; both must be above 0 and below 1, the first not above the second."
                     ));
+                }
+            }
+            if let Some(ms) = w.sine_period_ms {
+                if !positive(ms) {
+                    p.push(format!("sinePeriodMs is {ms}; it must be above 0."));
+                }
+                if w.duty_range.is_none() {
+                    p.push("sinePeriodMs needs a dutyRange: the sine runs between its two ends.".into());
                 }
             }
             if !(range_ok(&w.change_ms) && w.change_ms[0] > 0.0) {
@@ -695,11 +726,14 @@ mod tests {
     #[test]
     fn a_wandering_duty_is_checked_and_described() {
         let c: Config = serde_json::from_str(
-            r#"{"channelCount":4,"signals":[
+            r#"{"channelCount":7,"signals":[
                 {"kind":"pwm","channel":0,"frequencyHz":100,"dutyRange":[0.9,0.1]},
                 {"kind":"pwm","channel":1,"frequencyHz":100,"dutyRange":[0,0.5],"changeMs":[0,10]},
                 {"kind":"clock","channel":2,"frequencyHz":100,"dutyRange":[0.2,0.4]},
-                {"kind":"pwm","channel":3,"frequencyHz":1000,"dutyRange":[0.1,0.8],"changeMs":[50,60]}
+                {"kind":"pwm","channel":3,"frequencyHz":1000,"dutyRange":[0.1,0.8],"changeMs":[50,60]},
+                {"kind":"pwm","channel":4,"frequencyHz":1000,"sinePeriodMs":500},
+                {"kind":"pwm","channel":5,"frequencyHz":1000,"dutyRange":[0.2,0.6],"sinePeriodMs":0},
+                {"kind":"pwm","channel":6,"frequencyHz":1000,"dutyRange":[0.2,0.6],"sinePeriodMs":250}
             ]}"#,
         )
         .unwrap();
@@ -709,14 +743,17 @@ mod tests {
             "Signal 2: dutyRange is [0, 0.5]",
             "Signal 2: changeMs is [0, 10]",
             "Signal 3: dutyRange is for pwm",
+            "Signal 5: sinePeriodMs needs a dutyRange",
+            "Signal 6: sinePeriodMs is 0; it must be above 0.",
         ] {
             assert!(p.contains(want), "missing {want:?} in:\n{p}");
         }
-        assert!(!p.contains("Signal 4"), "{p}");
+        assert!(!p.contains("Signal 4") && !p.contains("Signal 7"), "{p}");
         assert_eq!(
             c.signals[3].describe(),
             "PWM 1000 Hz, duty wandering between 10 % and 80 % (a glide every 50–60 ms)"
         );
+        assert_eq!(c.signals[6].describe(), "PWM 1000 Hz, duty a sine between 20 % and 60 % every 250 ms");
         // the shortest pulse (10 % of 1 ms) sets the slowest faithful rate
         assert_eq!(c.signals[3].min_rate_hz(), STEPS * 1000.0 / 0.1);
     }

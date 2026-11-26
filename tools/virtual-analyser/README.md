@@ -9,7 +9,7 @@ hardware.
 ## Run it
 
 ```
-cargo run -p logica-vla                          # the built-in mix on twelve channels (CH11: a wandering PWM level), real time
+cargo run -p logica-vla                          # the built-in mix on thirteen channels (CH11, CH12: PWM levels), real time
 cargo run -p logica-vla -- --config tools/virtual-analyser/examples/busy-sensors.json
 cargo run -p logica-vla -- --seed 42             # the same signals in every capture
 cargo run -p logica-vla -- --print-config        # the built-in configuration as a starting point
@@ -43,7 +43,7 @@ Signals (`kind`), each on its own channels:
 | `uart` | `channel`, `name` (TX), `baud` (115200), `dataBits` (8), `parity` (none, even, odd), `stopBits` (1), `invert`, `messages` (random printable text when empty), `randomBytes` ([4, 16]), `everyMs` ([20, 200]) |
 | `i2c` | `scl`, `sda`, `clockHz` (100 kHz), `addresses` ([0x50]), `bytes` ([1, 4]), `readChance` (0.3), `nackChance` (0.05), `everyMs` |
 | `spi` | `clk`, `cs`, `mosi`, `miso` (at least one of the two), `clockHz` (500 kHz), `mode` (0), `msbFirst` (true), `bytes` ([1, 4]), `everyMs` |
-| `pwm` | `channel`, `name`, `frequencyHz`, `duty` (0.5), `dutyRange` (none): `[low, high]` makes the duty wander between the two, gliding to a new random value every `changeMs` ([200, 1500]) ms, for trying virtual analog channels |
+| `pwm` | `channel`, `name`, `frequencyHz`, `duty` (0.5), `dutyRange` (none): `[low, high]` makes the duty wander between the two, gliding to a new random value every `changeMs` ([200, 1500]) ms, or with `sinePeriodMs` follows a sine between the two, for trying virtual analog channels |
 | `clock` | `channel`, `name`, `frequencyHz` |
 | `noise` | `channel`, `name`, `meanUs` (200): random changes about that far apart |
 | `shared` | `channel`, `name` (SYNC), `frequencyHz` (100): a clock on the computer's time, so analysers on one computer see the same edges, each at its own samples |
