@@ -47,7 +47,7 @@ fn a_capture_streams_in_and_decodes() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].id, format!("vla/{at}"));
     assert_eq!(list[0].model, "Virtual analyser: Bench");
-    assert_eq!(list[0].channels, 11);
+    assert_eq!(list[0].channels, 12);
 
     let mut dev = driver.open(&list[0].id).unwrap();
     assert_eq!(dev.capabilities().rates_hz, vec![4e6, 10e6, 25e6, 100e6]);

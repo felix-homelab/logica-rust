@@ -44,5 +44,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - App: a redesigned window: colour means one thing, states are written as text, panels are flat
   with one scroll bar each, "Capture live" goes in steps that follow what is chosen, and nothing
   is cut off at the smallest window size. (#9, #10)
+- Devices: the virtual analyser's PWM can wander: with `dutyRange` its duty glides from one
+  random value to the next, and the built-in mix has such a level on CH11 (LEVEL), for trying
+  virtual analog channels without hardware. (#21)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main
