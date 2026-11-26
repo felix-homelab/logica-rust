@@ -143,3 +143,53 @@ test('measurements keep their rows together, and a long channel name shortens in
   expect(b.y - a.y, 'cursor B right under cursor A (one line and the gap)').toBeLessThan(40);
   await app.close();
 });
+
+/** The elements inside `panel` that scroll vertically now (no tolerance: one pixel is a bar). */
+const scrolling = (panel: Locator) =>
+  panel.evaluate((root) =>
+    [root, ...root.querySelectorAll('*')]
+      .filter((e) => {
+        const y = getComputedStyle(e).overflowY;
+        return (y === 'auto' || y === 'scroll') && e.scrollHeight > e.clientHeight;
+      })
+      .map((e) => (e as HTMLElement).className || e.tagName),
+  );
+
+test('each panel has one scroll bar, docked and as a drawer, at 100 % and 125 % scaling', async () => {
+  test.setTimeout(120_000);
+  const { app, page } = await start([fixture('captures/4_SPI_wrong_mode.demo')]);
+  await page.getByRole('region', { name: /Bus CH3/ }).getByRole('button', { name: 'Add decoder' }).click({ timeout: 20_000 });
+  const inspector = page.getByRole('complementary', { name: 'Inspector' });
+  const bottom = page.getByRole('region', { name: 'Bottom panel' });
+  // the Search tab with its hits is the longest content; the activity list grows with every action
+  await inspector.getByRole('tab', { name: 'Search' }).click();
+  await inspector.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(inspector.getByRole('status').filter({ hasText: /hits/ })).toBeVisible();
+  for (const zoom of [1, 1.25]) {
+    await app.evaluate(({ BrowserWindow }, z) => BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(z), zoom);
+    // docked (wide) and a drawer (narrow): the same CSS widths at either scaling
+    for (const [w, h, drawer] of [
+      [1440, 720, false],
+      [960, 600, true],
+    ] as const) {
+      // the window in device pixels; the page then measures w x h CSS pixels
+      await app.evaluate(({ BrowserWindow }, [dw, dh]) => BrowserWindow.getAllWindows()[0]?.setContentSize(dw!, dh!), [Math.round(w * zoom), Math.round(h * zoom)]);
+      await expect.poll(() => page.evaluate(() => Math.round(window.innerWidth))).toBe(w);
+      if (drawer && !(await inspector.isVisible())) await page.getByRole('toolbar', { name: 'Capture' }).getByRole('button', { name: 'Inspector' }).click();
+      for (const tab of ['Analysis', 'Decoders', 'Search', 'Device']) {
+        await inspector.getByRole('tab', { name: tab }).click();
+        await page.waitForTimeout(100);
+        const bars = await scrolling(inspector);
+        expect(bars.length, `${tab} at ${w}x${h}, ${zoom * 100} %: ${bars.join(', ')}`).toBeLessThanOrEqual(1);
+      }
+      if (drawer) await inspector.getByRole('button', { name: 'Close the inspector' }).click();
+      for (const tab of ['Decoded', 'Measurements', 'Activity']) {
+        await bottom.getByRole('tab', { name: tab }).click();
+        await page.waitForTimeout(100);
+        const bars = await scrolling(bottom);
+        expect(bars.length, `${tab} at ${w}x${h}, ${zoom * 100} %: ${bars.join(', ')}`).toBeLessThanOrEqual(1);
+      }
+    }
+  }
+  await app.close();
+});

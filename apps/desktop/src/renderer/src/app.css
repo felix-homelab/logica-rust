@@ -320,6 +320,11 @@ legend {
   min-height: 0;
   overflow: auto;
 }
+/* one scroll bar per panel: the inspector's tab content scrolls, never the panel around it (a
+   row above the tabs, or a pixel of rounding at 125 % scaling, would add a second bar beside it) */
+.inspector__content {
+  overflow: hidden;
+}
 .inspector[data-drawer] {
   position: absolute;
   top: 0;
@@ -386,6 +391,10 @@ legend {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+/* a tab whose content scrolls itself (a virtual list, the activity list) does not scroll around it */
+.lg-tabs__content.fill--own {
+  overflow: hidden;
 }
 
 /* channels */

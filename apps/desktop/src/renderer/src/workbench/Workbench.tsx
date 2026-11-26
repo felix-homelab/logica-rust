@@ -497,13 +497,13 @@ export function Workbench() {
                         <TabsTrigger value="measure">Measurements</TabsTrigger>
                         <TabsTrigger value="activity">Activity</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="decoded" className="fill">
+                      <TabsContent value="decoded" className="fill fill--own">
                         <DecodedTable capture={active} onJump={jump} />
                       </TabsContent>
                       <TabsContent value="measure" className="fill">
                         <Measurements capture={active} view={view} />
                       </TabsContent>
-                      <TabsContent value="activity" className="fill">
+                      <TabsContent value="activity" className="fill fill--own">
                         <ActivityFeed />
                       </TabsContent>
                     </TabsRoot>
