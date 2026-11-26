@@ -20,15 +20,15 @@ FX2-based analysers.
 
 ## Why Logica
 
-- **Built for agents, not just scriptable.** Every action in the app is a command, and the MCP
-  server is a full client of the same commands. Ask your agent to "capture the I²C bus and check
-  that register 0x20 was written with 0x57" while you watch it in the same view.
+- **Built for agents, not just scriptable.** Anything you can do in the window, an agent can do
+  too. Ask your agent to "capture the I²C bus and check that register 0x20 was written with 0x57"
+  and watch it happen in the same view.
 - **Explains, not only decodes.** Logica groups channels into buses, detects protocols with
   plain-language evidence, and says why a decode looks wrong.
 - **Open to other tools' files.** sigrok/PulseView `.sr`, VCD from simulators and FNIRSI `.demo`
   files open in one interface; Saleae exports follow.
 - **Hardware that lacks good open software.** First-class support for the FNIRSI DLA-32 Plus /
-  DLA-16 Plus is the next milestone, then FX2 clones.
+  DLA-16 Plus comes next, then cheap FX2 clones.
 - **One modern desktop app.** One installer gives the viewer, the decoders, the MCP server and the
   `logica` command line. No browser and no separate server to start.
 
@@ -37,16 +37,16 @@ FX2-based analysers.
 ```mermaid
 flowchart LR
   P[You] --> W[Logica window]
-  A[AI agent<br/>Claude Code and others] -->|MCP: stdio or HTTP on 127.0.0.1| E
+  A[AI agent<br/>Claude Code and others] -->|MCP| E
   W --> E[Logica engine<br/>Rust]
   C[logica command line] --> E
   E --> F[Capture files<br/>.lacap · .sr · VCD · .demo]
   E --> D[Analysers<br/>virtual today, DLA and FX2 next]
 ```
 
-There is one engine per desktop. The window, the command line and every connected agent are
-clients of it, so they all see the same captures, decoders and markers. Everything an agent does
-shows in the activity feed, can be undone, and **Stop agent actions** pauses it at once.
+The window, the command line and every connected agent share one engine, so they all see the
+same captures, decoders and markers. Everything an agent does shows in the activity feed and can
+be undone, and **Stop agent actions** pauses it at once.
 
 ## Features
 
@@ -56,10 +56,10 @@ What works today:
 |---|---|
 | **Protocol decoders** | UART, SPI, I²C, I²S, CAN, JTAG, SWD and PWM; NEC infrared, DHT sensors, WS2812 LEDs and 1-Wire; your own protocols described as JSON |
 | **Detection and analysis** | Automatic protocol detection with evidence, bus grouping, measurements (frequency, period, duty cycle, pulse widths), a byte analyser |
-| **Viewing** | Waveform with level of detail for very long captures (past 2^32 samples), cursors, selection, markers, decoded data as text under the frames, a decoded table, search, a command palette, light and dark themes |
+| **Viewing** | A fast waveform even for very long captures, cursors, selection, markers, decoded data as text under the frames, a decoded table, search, a command palette, light and dark themes |
 | **Files** | Opens FNIRSI `.demo`, sigrok `.sr` and VCD; saves `.lacap`, a single-file format with recovery from an interrupted save; file associations and drag and drop |
 | **Live capture** | Live capture and live decoding, from one device or several lined up in one capture; a virtual analyser to try it without hardware |
-| **AI agents (MCP)** | Tools to open, capture, decode, search, measure, render a range as an image and point things out to you; stdio through `logica mcp`, or HTTP on 127.0.0.1 with a token |
+| **AI agents (MCP)** | Tools to open, capture, decode, search, measure, render a range as an image and point things out to you; connects through `logica mcp`, or over HTTP on your own machine only |
 | **Command line** | `logica inspect`, `logica convert`, `logica open`, `logica mcp` |
 | **Updates** | The app updates itself on Windows and Linux |
 
@@ -144,64 +144,37 @@ npm start                    # start the desktop app (the first run downloads El
 npm run package              # installers for this system, in apps/desktop/dist
 ```
 
-`cargo test` and `npm test` run the tests. The full list of commands is in
-[CLAUDE.md](CLAUDE.md#commands).
+`cargo test` and `npm test` run the tests.
 
 ## Roadmap
 
-| Release | Milestone | What it brings |
-|---|---|---|
-| v0.1.0 | M0–M2 | Files, decoders, detection, MCP, the command line, the desktop app, live capture with the virtual analyser |
-| v0.2.0 | M3 | FNIRSI DLA-32 Plus / DLA-16 Plus |
-| v0.3.0 | M4 | FX2 / fx2lafw analysers |
-| v0.4.0 | M5 | Saleae files, exports, protocol depth (layer decoders, register maps, capture comparison) |
-| v1.0.0 | M6 | Install guides, user documentation, the Claude Code setup guide |
+| Release | What it brings |
+|---|---|
+| v0.1.0 | Files, decoders, detection, MCP, the command line, the desktop app, live capture with the virtual analyser |
+| v0.2.0 | FNIRSI DLA-32 Plus / DLA-16 Plus |
+| v0.3.0 | FX2 / fx2lafw analysers |
+| v0.4.0 | Saleae files, exports, deeper protocol support (layered decoders, register maps, comparing captures) |
+| v1.0.0 | Install guides, user documentation, a setup guide for Claude Code |
 
-Progress is tracked in [docs/progress.md](docs/progress.md), the plan in
-[docs/11-roadmap.md](docs/11-roadmap.md).
+What is done so far is in [docs/progress.md](docs/progress.md).
 
-## Design documents
+## Documentation
 
-The documents are the plan: they say what Logica does and why, before the code does it.
+- [MCP server](docs/07-mcp-server.md): how agents connect, and the tools they get.
+- [File formats](docs/09-file-formats.md): what Logica opens and saves, and the `.lacap` format.
+- [Devices](docs/05-devices-and-drivers.md): the analysers Logica supports and how to set them up.
+- [Virtual analyser](tools/virtual-analyser/README.md): signals for trying Logica without hardware.
 
-| # | Document | What it settles |
-|---|---|---|
-| 01 | [Vision and scope](docs/01-vision-and-scope.md) | Who it is for, what it does, what it deliberately does not do |
-| 02 | [Feasibility and constraints](docs/02-feasibility-and-constraints.md) | What USB, operating systems, vendors and licences allow; verdict per feature, with sources |
-| 03 | [Architecture](docs/03-architecture.md) | One engine and its clients, processes, repository layout, the command API |
-| 04 | [Data model and storage](docs/04-data-model-and-storage.md) | Chunked transition storage, level of detail, very large captures, ingest |
-| 05 | [Devices and drivers](docs/05-devices-and-drivers.md) | Driver and transport interfaces, plan per device, setup help, safety |
-| 06 | [Protocol engine](docs/06-protocol-engine.md) | Streaming decoders, detection, stacking, register maps, queries, custom protocols |
-| 07 | [MCP server](docs/07-mcp-server.md) | Transports, security, tools, resources, prompts |
-| 08 | [User interface](docs/08-ui.md) | Desktop look, layout, panels, performance budgets, accessibility |
-| 09 | [File formats](docs/09-file-formats.md) | Import and export, and the `.lacap` specification |
-| 10 | [Testing and quality](docs/10-testing-and-quality.md) | Definition of done, test layers, fixtures, replay testing, CI |
-| 11 | [Roadmap](docs/11-roadmap.md) | Spikes and milestones with exit criteria |
-| 12 | [Decisions and risks](docs/12-decisions-and-risks.md) | What the owner decided, and what could go wrong |
-| — | [Clean-room rule](docs/clean-room.md) | Which sources drivers and importers may be built from |
-| — | [Benchmarks](docs/benchmarks.md) | Measured numbers and the baseline to beat |
-| ADR | [Architecture decision records](docs/adr/) | The few decisions that are expensive to reverse |
+How Logica is designed and built is described in the [docs](docs/) folder.
 
 ## Contributing and support
 
-- Bugs and ideas: [issues](https://github.com/felix-homelab/logica-rust/issues), with the bug and
-  feature templates.
-- Changes: [CONTRIBUTING.md](CONTRIBUTING.md) says how a change reaches `main`;
-  [RELEASING.md](RELEASING.md) covers versions and releases.
-- Security vulnerabilities: privately, as [SECURITY.md](SECURITY.md) says, never in a public
-  issue.
-- Drivers and file importers are written clean-room from documented facts only, never from GPL or
-  vendor code ([docs/clean-room.md](docs/clean-room.md)).
-
-## Where it comes from
-
-Logica grew out of Signal Detective, the owner's learning tool for protocols: its detectors,
-evidence texts and sample captures are the reference for Logica's protocol knowledge and its
-acceptance tests, though none of its code is carried over (decision D12). A TypeScript prototype
-tried the storage and decoding design first; its measured numbers are the baseline in
-[docs/benchmarks.md](docs/benchmarks.md).
+- Bugs and ideas: [open an issue](https://github.com/felix-homelab/logica-rust/issues).
+- Code and documents: [CONTRIBUTING.md](CONTRIBUTING.md) says how a change gets in. Drivers and
+  file importers are built from documented facts only, never from GPL or vendor code.
+- Security vulnerabilities: report them privately, as [SECURITY.md](SECURITY.md) explains.
 
 ## License
 
-Logica is open source under the [Apache License 2.0](LICENSE) (ADR 0009). The engine is written in
-Rust, the window in TypeScript with React and Electron (ADR 0002).
+Logica is open source under the [Apache License 2.0](LICENSE). The engine is written in Rust, the
+window in TypeScript with React and Electron.
