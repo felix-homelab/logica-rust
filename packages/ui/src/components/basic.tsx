@@ -89,6 +89,19 @@ export function Badge({ tone = 'neutral', children, title }: { tone?: Tone; chil
   );
 }
 
+/**
+ * A state written as text with a small dot in its colour ("● capturing", "● 2 problems"): reads as
+ * text, not as a coloured label, and the colour is never the only signal.
+ */
+export function Status({ tone = 'neutral', children, title, pulse }: { tone?: Tone; children: ReactNode; title?: string; pulse?: boolean }) {
+  return (
+    <span className={cx('lg-status', `lg-status--${tone}`, pulse && 'lg-status--pulse')} title={title}>
+      <span className="lg-status__dot" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label: string;
   hint?: string;

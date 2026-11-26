@@ -4,13 +4,13 @@ import type { DragEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COMMANDS } from '@logica/api';
 import {
-  Badge,
   Button,
   CommandPalette,
   Dialog,
   IconButton,
   Kbd,
   Splitter,
+  Status,
   TabsContent,
   TabsList,
   TabsRoot,
@@ -400,13 +400,17 @@ export function Workbench() {
                     onClick={() => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {})}
                   >
                     <span className="tabs__label">{c.title}</span>
-                    {c.unsaved && (
+                    {c.unsaved && c.state !== 'capturing' && (
                       <span className="tabs__unsaved" title="Unsaved changes">
                         <span aria-hidden="true">●</span>
                         <span className="lg-visually-hidden">, unsaved changes</span>
                       </span>
                     )}
-                    {c.state === 'capturing' && <Badge tone="accent">capturing</Badge>}
+                    {c.state === 'capturing' && (
+                      <Status tone="danger" pulse>
+                        capturing
+                      </Status>
+                    )}
                   </button>
                   <IconButton label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
                 </li>
@@ -676,17 +680,26 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   return null;
 }
 
-function AgentIndicator() {
-  const { session, mcp, startedByAgent } = useStore();
+/** Who can work in this window besides the person: a dot and a word, in the agents' colour when one is. */
+function useAgentState(): { tone: 'agent' | 'neutral' | 'warning'; label: string; detail: string } {
+  const { session, mcp } = useStore();
   const agents = new Set((session?.recent ?? []).map((h) => h.actor).filter(isAgent));
-  const label = mcp.port ? `${agents.size ? `${agents.size} agent${agents.size === 1 ? '' : 's'} active` : 'Agents can connect'}` : 'MCP is off';
+  if (!mcp.port) return { tone: mcp.error ? 'warning' : 'neutral', label: mcp.error ? 'MCP not started' : 'MCP off', detail: mcp.error ?? 'Switch MCP on in the settings.' };
+  const detail = `MCP at http://127.0.0.1:${mcp.port}/mcp`;
+  if (agents.size) return { tone: 'agent', label: `${agents.size} agent${agents.size === 1 ? '' : 's'} active`, detail };
+  return { tone: 'neutral', label: 'Agents can connect', detail };
+}
+
+function AgentIndicator() {
+  const { session, startedByAgent } = useStore();
+  const state = useAgentState();
   return (
-    <div className="agent-indicator" title={mcp.error ?? (mcp.port ? `MCP at http://127.0.0.1:${mcp.port}/mcp` : 'Switch MCP on in the settings')}>
-      {startedByAgent && <Badge tone="agent">started by an agent</Badge>}
-      {session?.agentsPaused && <Badge tone="warning">agent actions stopped</Badge>}
-      <Badge tone={agents.size ? 'agent' : 'neutral'}>
-        <Bot aria-hidden="true" size={12} /> {label}
-      </Badge>
+    <div className="agent-indicator">
+      {startedByAgent && <Status tone="agent">Started by an agent</Status>}
+      {session?.agentsPaused && <Status tone="warning">Agent actions stopped</Status>}
+      <Status tone={state.tone} title={state.detail}>
+        {state.label}
+      </Status>
     </div>
   );
 }
@@ -737,62 +750,93 @@ function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () 
   // devices come and go (an analyser started, a device plugged in): look again while this shows
   useDeviceWatch(true);
   const devices = session?.devices ?? [];
+  const agents = useAgentState();
   return (
     <main className="start">
       <div className="start__inner">
-        <h2 className="start__title">Start</h2>
-        <p className="muted">Open a recording, or capture from a device. Drop a file anywhere on this window to open it.</p>
-        <div className="row">
-          <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
-            Open file…
-          </Button>
-          <Button icon={<Activity />} onClick={onCapture}>
-            Capture live…
-          </Button>
-        </div>
-        <div className="start__grid">
-          <section className="card stack-sm">
-            <h2 className="section-title">Recent captures</h2>
+        <header className="start__head">
+          <h2 className="start__title">Start</h2>
+          <p className="muted">Open a recording, or capture from a device. You can also drop a file anywhere on this window.</p>
+          <div className="row">
+            <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
+              Open file…
+            </Button>
+            <Button icon={<Activity />} onClick={onCapture}>
+              Capture live…
+            </Button>
+          </div>
+        </header>
+        <div className="start__cols">
+          <section className="start__section" aria-labelledby="start-recent">
+            <h3 id="start-recent" className="start__label">
+              Recent
+            </h3>
             {recent.length === 0 ? (
-              <p className="muted">Files you open appear here.</p>
+              <p className="muted start__empty">Files you open are listed here.</p>
             ) : (
-              <ul className="plain">
-                {recent.map((f) => (
-                  <li key={f} className="start__recent">
-                    <button type="button" className="link" onClick={() => onOpenRecent(f)} title={f}>
-                      {f.split(/[\\/]/).pop()}
-                    </button>
-                  </li>
-                ))}
+              <ul className="start__list">
+                {recent.map((f) => {
+                  const parts = f.split(/[\\/]/);
+                  const name = parts.pop() ?? f;
+                  return (
+                    <li key={f}>
+                      <button type="button" className="start__item" onClick={() => onOpenRecent(f)} title={f}>
+                        <span className="start__name">{name}</span>
+                        <span className="start__where">{parts.join('/')}</span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
-          <section className="card stack-sm">
-            <h2 className="section-title">Devices</h2>
-            {devices.length > 0 && (
-              <ul className="plain">
-                {devices.map((d) => (
-                  <li key={d.info.id}>
-                    {d.info.model} <span className="muted">{d.capturing ? '· capturing' : d.connected ? '· connected' : ''}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="muted">
-              {devices.length === 0
-                ? 'No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser (cargo run -p logica-vla).'
-                : '"Capture live…" captures from one or several of them at once.'}
-            </p>
-          </section>
-          <section className="card stack-sm">
-            <h2 className="section-title">Work with an agent</h2>
-            <p className="muted">Claude Code and other MCP clients can open, decode and mark captures with you, in this window.</p>
-            <div className="row">
-              <Button size="sm" icon={<Bot />} onClick={onAgent}>
-                How to connect
-              </Button>
-            </div>
-          </section>
+          <div className="start__side">
+            <section className="start__section" aria-labelledby="start-devices">
+              <h3 id="start-devices" className="start__label">
+                Devices
+              </h3>
+              {devices.length > 0 ? (
+                <ul className="start__list">
+                  {devices.map((d) => (
+                    <li key={d.info.id} className="start__row">
+                      <span className="start__name" title={d.info.id}>
+                        {d.info.model}
+                      </span>
+                      {d.capturing ? (
+                        <Status tone="danger" pulse>
+                          capturing
+                        </Status>
+                      ) : d.connected ? (
+                        <Status tone="success">connected</Status>
+                      ) : (
+                        <Status>available</Status>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted start__empty">
+                  No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser with <code>cargo run -p logica-vla</code>.
+                </p>
+              )}
+            </section>
+            <section className="start__section" aria-labelledby="start-agents">
+              <h3 id="start-agents" className="start__label">
+                Agents
+              </h3>
+              <div className="start__row">
+                <Status tone={agents.tone} title={agents.detail}>
+                  {agents.label}
+                </Status>
+              </div>
+              <p className="muted start__empty">Claude Code and other MCP clients can open, decode and mark captures with you, in this window.</p>
+              <div className="row">
+                <Button size="sm" icon={<Bot />} onClick={onAgent}>
+                  How to connect
+                </Button>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </main>

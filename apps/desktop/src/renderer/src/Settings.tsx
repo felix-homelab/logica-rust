@@ -1,6 +1,6 @@
 // The settings window (doc 08): theme, MCP for agents, expert mode, memory, updates.
 import { useEffect, useState } from 'react';
-import { Badge, Button, Switch, TextField } from '@logica/ui';
+import { Button, Status, Switch, TextField } from '@logica/ui';
 import { bridge, type Settings as S } from './bridge';
 import { useStore } from './store';
 
@@ -51,14 +51,14 @@ export function Settings() {
         <p className="muted" role="status">
           {mcp.port ? (
             <>
-              <Badge tone="success">on</Badge> at http://127.0.0.1:{mcp.port}/mcp
+              <Status tone="success">on</Status> at http://127.0.0.1:{mcp.port}/mcp
             </>
           ) : mcp.error ? (
             <>
-              <Badge tone="warning">not started</Badge> {mcp.error}
+              <Status tone="warning">not started</Status> {mcp.error}
             </>
           ) : (
-            <Badge>off</Badge>
+            <Status>off</Status>
           )}
         </p>
         <p className="muted">

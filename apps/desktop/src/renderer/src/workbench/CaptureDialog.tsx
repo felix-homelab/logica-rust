@@ -4,7 +4,7 @@
 // own tab, or all into one capture (one rate), lined up at their starts or by a signal they share.
 // All are configured first and then started together.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Dialog, TextField } from '@logica/ui';
+import { Button, Dialog, Status, TextField } from '@logica/ui';
 import { Activity, RefreshCw } from 'lucide-react';
 import { hz, int } from '../format';
 import { isAgent, useDeviceWatch, useStore, who } from '../store';
@@ -233,7 +233,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   </label>
                   {why ? (
                     <span className="row">
-                      <Badge tone={d.holder && isAgent(d.holder) ? 'agent' : 'neutral'}>{why}</Badge>
+                      <Status tone={d.holder && isAgent(d.holder) ? 'agent' : 'neutral'}>{why}</Status>
                       {d.holder && d.holder !== 'user' && (
                         <Button size="sm" variant="secondary" onClick={() => void run('lease.take', { device: d.info.id }).then(() => refresh())}>
                           Take over
@@ -241,7 +241,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                       )}
                     </span>
                   ) : (
-                    d.connected && <Badge>connected</Badge>
+                    d.connected && <Status tone="success">connected</Status>
                   )}
                 </li>
               );
