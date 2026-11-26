@@ -26,6 +26,11 @@ pub struct Config {
     /// Signal time per batch sent, in milliseconds.
     #[serde(default = "default_tile_ms")]
     pub tile_ms: f64,
+    /// How far this analyser's sample clock is off, in parts per million (positive runs fast). It
+    /// shows only in `shared` signals, the ones that come from outside: so lining several analysers
+    /// up by a shared signal has drift to correct, as with real devices.
+    #[serde(default)]
+    pub clock_ppm: f64,
     pub signals: Vec<Signal>,
 }
 
@@ -123,6 +128,18 @@ pub struct Pwm {
     pub duty: f64,
 }
 
+/// A clock that follows the computer's clock instead of the capture's: analysers on the same
+/// computer see the same edges, each at its own samples, as if one clock were wired to both.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Shared {
+    pub channel: u32,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default = "default_shared_hz")]
+    pub frequency_hz: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Noise {
@@ -147,6 +164,9 @@ pub enum Signal {
     Clock(Pwm),
     /// Random level changes.
     Noise(Noise),
+    /// A clock shared with other analysers on this computer (it follows the computer's clock), to
+    /// line several up in one capture.
+    Shared(Shared),
 }
 
 fn default_name() -> String {
@@ -206,6 +226,9 @@ fn default_read_chance() -> f64 {
 fn default_nack_chance() -> f64 {
     0.05
 }
+fn default_shared_hz() -> f64 {
+    100.0
+}
 fn default_noise_us() -> f64 {
     200.0
 }
@@ -231,6 +254,7 @@ impl Signal {
             Signal::Pwm(p) => vec![named(p.channel, &p.name, "PWM")],
             Signal::Clock(p) => vec![named(p.channel, &p.name, "CLOCK")],
             Signal::Noise(n) => vec![named(n.channel, &n.name, "NOISE")],
+            Signal::Shared(s) => vec![named(s.channel, &s.name, "SYNC")],
         }
     }
 
@@ -246,6 +270,7 @@ impl Signal {
             Signal::Clock(p) => 2.0 * STEPS * p.frequency_hz,
             // random changes closer than a sample simply cancel
             Signal::Noise(_) => 0.0,
+            Signal::Shared(s) => 2.0 * STEPS * s.frequency_hz,
         }
     }
 
@@ -292,6 +317,7 @@ impl Signal {
             Signal::Pwm(p) => format!("PWM {} Hz at {} % duty", p.frequency_hz, p.duty * 100.0),
             Signal::Clock(p) => format!("clock {} Hz", p.frequency_hz),
             Signal::Noise(n) => format!("random changes about every {} µs", n.mean_us),
+            Signal::Shared(s) => format!("shared clock {} Hz (follows the computer's clock)", s.frequency_hz),
         }
     }
 }
@@ -319,6 +345,9 @@ impl Config {
         }
         if !self.speed.is_finite() || self.speed < 0.0 {
             p.push("speed must be 0 (as fast as possible) or above.".into());
+        }
+        if !(self.clock_ppm.is_finite() && self.clock_ppm.abs() <= 1000.0) {
+            p.push(format!("clockPpm is {}; choose -1000 to 1000.", self.clock_ppm));
         }
         if !(1.0..=1000.0).contains(&self.tile_ms) {
             p.push(format!("tileMs is {}; choose 1 to 1000.", self.tile_ms));
@@ -381,16 +410,17 @@ impl Config {
             .collect()
     }
 
-    /// The built-in configuration: one of each signal on ten channels.
+    /// The built-in configuration: one of each signal on eleven channels.
     pub fn example() -> Self {
         Config {
             name: default_name(),
             listen: default_listen(),
-            channel_count: 10,
+            channel_count: 11,
             sample_rates_hz: default_rates(),
             seed: None,
             speed: 1.0,
             tile_ms: default_tile_ms(),
+            clock_ppm: 0.0,
             signals: vec![
                 Signal::Uart(Uart {
                     channel: 0,
@@ -432,6 +462,7 @@ impl Config {
                 Signal::Pwm(Pwm { channel: 7, name: None, frequency_hz: 1000.0, duty: 0.25 }),
                 Signal::Clock(Pwm { channel: 8, name: None, frequency_hz: 10e3, duty: 0.5 }),
                 Signal::Noise(Noise { channel: 9, name: None, mean_us: 500.0 }),
+                Signal::Shared(Shared { channel: 10, name: None, frequency_hz: default_shared_hz() }),
             ],
         }
     }
@@ -507,6 +538,11 @@ fn signal_problems(s: &Signal) -> Vec<String> {
         Signal::Noise(n) => {
             if !positive(n.mean_us) {
                 p.push("meanUs must be above 0.".into());
+            }
+        }
+        Signal::Shared(s) => {
+            if !positive(s.frequency_hz) {
+                p.push("frequencyHz must be above 0.".into());
             }
         }
     }

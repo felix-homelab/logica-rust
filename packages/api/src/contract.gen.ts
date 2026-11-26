@@ -229,6 +229,15 @@ capture: string
 title: string
 }
 export interface CaptureStartIn {
+/**
+ * Lines the devices up by a signal they all see (a shared clock or any shared line): for
+ * `device` and every device in `with`, the channel that carries it, by device id. The offset
+ * is found from its rising edges (between equally good offsets, as with a steady clock, the
+ * smallest) and each clock's drift is followed while capturing.
+ */
+align?: ({
+[k: string]: number
+} | null)
 device: string
 /**
  * The tab title; "Capture N" when absent.
@@ -239,6 +248,12 @@ title?: (string | null)
  * `capture.done` follows.
  */
 wait?: (boolean | null)
+/**
+ * More devices captured at the same time into the same capture, after `device`'s channels
+ * (numbered on, and named by device). Each is configured first, all at the same sample rate.
+ * Devices do not share a clock: they are lined up at their starts, or by `align`.
+ */
+with?: (string[] | null)
 }
 export interface DeviceRef {
 /**

@@ -105,6 +105,12 @@ What is done, what is next, and decisions made on the way. Newest first.
   The device panel shows status, connect, take over and stop; its own capture form went. The `vla`
   driver looks at 127.0.0.1:7171 to 7174 by default, and `logica-vla --name` names an analyser, so
   several can run side by side.
+- Several devices into one capture (`capture.start` with `with`, doc 05): channels numbered on and
+  named by device, the capture as long as every device delivered. Lined up at their starts, or by
+  a shared signal (`align`): the shift from its rising edges, then each clock's drift followed with
+  a straight-line fit. The dialog offers "Each device into its own tab" or "All into one capture"
+  and the shared channel per device. `logica-vla` has a `shared` signal (SYNC on CH10 in the
+  built-in configuration, 100 Hz on the computer's clock) and `clockPpm` to try it.
 - Devices on screen (start screen, device panel, "Capture live") are looked for every two seconds,
   so an analyser that starts or stops shows by itself; the `vla` driver greets its addresses at
   once. The time captured (live bar, status bar) keeps two fixed decimals.
@@ -114,6 +120,9 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Not done or not verified
 
+- Several devices in one capture: not tried with real hardware; lining up by a steady clock needs
+  the devices to start within half its period; packed and bit blocks are converted for the merger,
+  not measured at high rates.
 - Live capture: an agent's `view.set` on a capture that is running is not adopted by the window
   (the person steers a live view); no live protocol triggers yet; packed blocks are converted on
   the engine side, not yet measured at DLA stream rates (doc 04). The `vla` driver is for

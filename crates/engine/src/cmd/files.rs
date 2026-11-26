@@ -253,8 +253,9 @@ pub(crate) fn close(e: &mut Engine, ctx: &Ctx, i: CaptureRef) -> Result<Done, Co
     let title = e.capture(&i.capture)?.meta.title.clone();
     // closing a running capture stops it, which needs the device's lease
     if let Some(r) = e.running.iter().find(|r| r.capture == i.capture) {
-        let device = r.device.clone();
-        match e.leases.get(&device) {
+        let held = r.devices.iter().find(|d| e.leases.get(*d).is_some_and(|h| *h != ctx.actor));
+        let device = held.cloned().unwrap_or_default();
+        match held.and(e.leases.get(&device)) {
             Some(h) if *h != ctx.actor && ctx.actor != crate::contract::Actor::User => {
                 return Err(err(
                     ErrorCode::Busy,

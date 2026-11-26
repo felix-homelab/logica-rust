@@ -119,3 +119,47 @@ export function configFor(c: Caps, choice: Choice, length: Length) {
     ...(choice.thresholdVolts !== null ? { thresholdVolts: choice.thresholdVolts } : {}),
   };
 }
+
+/**
+ * For devices captured into one capture: the channel on each that most likely carries a signal
+ * they share, by a name every one of them gives a channel (a clock or sync line first), or null
+ * when they name none alike.
+ */
+export function guessShared(all: Caps[]): number[] | null {
+  if (all.length < 2) return null;
+  const named = (c: Caps) => c.channels.map((ch, i) => ({ ch, name: (c.channelNames[i] ?? '').trim() })).filter((x) => x.name && x.name !== `CH${x.ch}`);
+  const first = named(all[0]!);
+  const common = first.filter((x) => all.every((c) => named(c).some((y) => y.name === x.name)));
+  const pick = common.find((x) => /sync|ref/i.test(x.name)) ?? common.find((x) => /clk|clock/i.test(x.name)) ?? common[0];
+  if (!pick) return null;
+  return all.map((c) => named(c).find((y) => y.name === pick.name)!.ch);
+}
+
+/** "Live: Bench + Second" for one capture from several devices. */
+export function togetherTitle(models: string[]): string {
+  return `Live: ${models.map((m) => m.replace(/^Virtual analyser: /, '')).join(' + ')}`;
+}
+
+/**
+ * What stands in the way of capturing several devices into one capture, beyond each device's own
+ * problems: they need a rate in common, and when lined up by a shared signal, each captures the
+ * channel it is on.
+ */
+export function togetherProblems(
+  devices: { model: string; caps: Caps; choice: Choice }[],
+  align: number[] | null,
+  label: (c: Caps, ch: number) => string,
+): string[] {
+  const out: string[] = [];
+  if (commonRates(devices.map((d) => d.caps)).length === 0) {
+    out.push('These devices share no sample rate, so they cannot be one capture; capture them each into a tab instead.');
+  }
+  if (align) {
+    devices.forEach((d, k) => {
+      const ch = align[k];
+      if (ch === undefined || !d.caps.channels.includes(ch)) out.push(`Choose the channel of ${d.model} that sees the shared signal.`);
+      else if (!d.choice.channels.includes(ch)) out.push(`${d.model}: capture ${label(d.caps, ch)} too; the capture is lined up by it.`);
+    });
+  }
+  return out;
+}

@@ -11,7 +11,7 @@ Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Lis
 
 1. **Found.** The start screen lists "Virtual analyser: Bench". (Started the other way round:
    "Capture live…" looks again, or "Look again" in its dialog.)
-2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its ten
+2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its eleven
    channels by name (CH0 TX, …), its lowest rate and 60 seconds. "Start capture" opens a tab
    "Live: Bench" with a "capturing" badge; the bar above the waveform counts the seconds; the
    waveform moves smoothly with the newest data on the right.
@@ -31,6 +31,13 @@ Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Lis
    one: the problem shows under it and "Start 2 captures" is disabled. With channels back,
    "Until I stop it" and start: two tabs, both capturing; "Stop capture" in each (or the device
    panel) ends them.
+
+8. **One capture.** With both analysers, pick both, "All into one capture": the name is "Live:
+   Bench + Second", one rate for both, "By a signal they all see" with CH10 SYNC chosen on both.
+   Untick SYNC on one: the problem shows and Start is disabled. Tick it again and start: one tab
+   with both devices' channels ("Bench: TX", …, "Second: SYNC"); the two SYNC rows rise together
+   wherever you zoom. Stop it: its notes say where Second's sample 0 fell and how far its clock ran.
+   For drift, start the second analyser with a config file that sets `"clockPpm": 300`.
 
 ## Claude Code through `logica mcp` (M1)
 

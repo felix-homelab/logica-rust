@@ -5,15 +5,44 @@
 use logica_core::{Level, Sample};
 use logica_protocols::synth::{I2cTransfer, Lane, UartOptions, i2c_transaction, spi_frame, uart_send};
 
-use crate::config::{Config, I2c, Noise, Parity, Pwm, Signal, Spi, Uart};
+use crate::config::{Config, I2c, Noise, Parity, Pwm, Shared, Signal, Spi, Uart};
 use crate::rng::Rng;
 
 enum Source {
     Uart(Uart),
     I2c(I2c),
     Spi(Spi),
-    Square { channel: u32, period: f64, high: f64 },
+    Square {
+        channel: u32,
+        period: f64,
+        high: f64,
+    },
     Noise(Noise),
+    /// Half-periods of a clock on the computer's time: half-period `k` starts at `k * half_ns`
+    /// nanoseconds after 1970 and is high when `k` is even.
+    Shared {
+        channel: u32,
+        half_ns: u128,
+        k: u128,
+        clock: Clock,
+    },
+}
+
+/// Where the capture sits on the computer's clock: sample 0 at `epoch_ns` (nanoseconds since
+/// 1970), and the sample clock off by `scale` (1 + ppm / 1e6).
+#[derive(Clone, Copy, Debug)]
+pub struct Clock {
+    pub epoch_ns: u128,
+    pub scale: f64,
+}
+
+impl Clock {
+    /// Capture time in seconds of the computer's time `t_ns`, at or after the start.
+    fn seconds(&self, t_ns: u128) -> f64 {
+        // differences only: f64 keeps nanoseconds for days
+        let d = t_ns.saturating_sub(self.epoch_ns);
+        u64::try_from(d).map_or(f64::MAX, |d| d as f64) * 1e-9 * self.scale
+    }
 }
 
 /// A signal and the time of its next burst, period or change, in seconds.
@@ -50,8 +79,9 @@ fn random_bytes(rng: &mut Rng, range: [u32; 2], printable: bool) -> Vec<u8> {
 }
 
 impl Generator {
-    /// Everything at its idle level; the first bursts come after a random pause.
-    pub fn new(config: &Config, rate: f64, seed: u64) -> Self {
+    /// Everything at its idle level; the first bursts come after a random pause. `clock` places the
+    /// capture on the computer's time, for `shared` signals.
+    pub fn new(config: &Config, rate: f64, seed: u64, clock: Clock) -> Self {
         let mut seeds = Rng::new(seed);
         let mut lanes: Vec<Lane> = (0..config.channel_count).map(|_| Lane::low(rate)).collect();
         let mut sources = Vec::new();
@@ -91,6 +121,13 @@ impl Generator {
                     let first = rng.exponential(n.mean_us * 1e-6);
                     (Source::Noise(n), first)
                 }
+                Signal::Shared(Shared { channel, frequency_hz, .. }) => {
+                    let half_ns = u128::from(logica_protocols::num::round(5e8 / frequency_hz).max(1));
+                    let now = clock.epoch_ns / half_ns;
+                    lanes[channel as usize] = Lane::new(rate, Level::from(now.is_multiple_of(2)));
+                    let k = now + 1;
+                    (Source::Shared { channel, half_ns, k, clock }, clock.seconds(k * half_ns))
+                }
             };
             sources.push(Scheduled { source, next: first, rng });
         }
@@ -110,7 +147,7 @@ impl Generator {
             let rng = &mut s.rng;
             while s.next < until {
                 let t = s.next;
-                s.next = match &s.source {
+                s.next = match &mut s.source {
                     Source::Uart(u) => {
                         let bytes = if u.messages.is_empty() {
                             random_bytes(rng, u.random_bytes, true)
@@ -160,14 +197,19 @@ impl Generator {
                     Source::Square { channel, period, high } => {
                         let lane = &mut lanes[*channel as usize];
                         lane.set(t, Level::High);
-                        lane.set(t + high, Level::Low);
-                        t + period
+                        lane.set(t + *high, Level::Low);
+                        t + *period
                     }
                     Source::Noise(n) => {
                         let lane = &mut lanes[n.channel as usize];
                         let to = !lane.level;
                         lane.set(t, to);
                         t + rng.exponential(n.mean_us * 1e-6)
+                    }
+                    Source::Shared { channel, half_ns, k, clock } => {
+                        lanes[*channel as usize].set(t, Level::from(k.is_multiple_of(2)));
+                        *k += 1;
+                        clock.seconds(*k * *half_ns)
                     }
                 };
             }
@@ -240,7 +282,8 @@ mod tests {
         tile: f64,
         seed: u64,
     ) -> (CaptureStore, CaptureMeta) {
-        let mut g = Generator::new(config, rate, seed);
+        let mut g =
+            Generator::new(config, rate, seed, Clock { epoch_ns: 1_700_000_000_123_456_789, scale: 1.0 });
         let channels: Vec<u32> = (0..config.channel_count).collect();
         let initial: Vec<Level> = g.initial(&channels).into_iter().map(Level::from).collect();
         let mut store =
@@ -348,6 +391,37 @@ mod tests {
         };
         assert_eq!(edges(&a), edges(&b));
         assert_ne!(edges(&a), edges(&d), "another seed gives other data");
+    }
+
+    #[test]
+    fn analysers_on_one_computer_see_the_same_shared_clock_at_their_own_samples() {
+        let config = Config::example();
+        let rate = 1e6;
+        let epoch = 1_700_000_000_123_456_789;
+        // B starts 3.21 ms later, and its sample clock runs 200 ppm fast
+        let mut a = Generator::new(&config, rate, 1, Clock { epoch_ns: epoch, scale: 1.0 });
+        let mut b =
+            Generator::new(&config, rate, 2, Clock { epoch_ns: epoch + 3_210_000, scale: 1.0 + 200e-6 });
+        a.fill(1.0);
+        b.fill(1.0);
+        let (ea, eb) = (a.take(10, 1_000_000), b.take(10, 1_000_000));
+        // 100 Hz: two edges every 10 ms
+        assert!((198..=201).contains(&ea.len()), "{}", ea.len());
+        let mut matched = 0;
+        for &x in &ea {
+            // the same moment on B's clock
+            let y = (x as f64 / rate - 3.21e-3) * rate * (1.0 + 200e-6);
+            if y < 0.0 || y > 999_000.0 {
+                continue;
+            }
+            let near = eb.iter().map(|&e| (e as f64 - y).abs()).fold(f64::MAX, f64::min);
+            assert!(near <= 1.0, "A's edge {x} is {near} samples from B's");
+            matched += 1;
+        }
+        assert!(matched > 190, "{matched}");
+        // the level at sample 0 is the shared clock's at that moment
+        let phase_ms = (epoch / 1_000_000) % 10;
+        assert_eq!(a.initial(&[10]), [phase_ms < 5]);
     }
 
     #[test]

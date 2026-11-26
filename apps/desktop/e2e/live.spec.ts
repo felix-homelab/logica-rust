@@ -136,7 +136,7 @@ test('several analysers capture together, each into its own tab, with settings c
     await dialog.getByRole('radio', { name: 'One per device' }).check();
     await expect(benchSettings.getByLabel('Sample rate')).toBeVisible();
     await dialog.getByRole('radio', { name: 'Until I stop it' }).check();
-    await expect(secondSettings).toContainText('2 of 10 channels');
+    await expect(secondSettings).toContainText('2 of 11 channels');
     const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await shot(page, 'capture-dialog');
@@ -153,6 +153,52 @@ test('several analysers capture together, each into its own tab, with settings c
     for (const name of ['Virtual analyser: Bench', 'Virtual analyser: Second']) {
       await page.getByRole('region', { name, exact: true }).getByRole('button', { name: 'Stop capture' }).click();
     }
+    await expect(tabs.getByText('capturing')).toHaveCount(0);
+    await app.close();
+  } finally {
+    one.proc.kill();
+    two.proc.kill();
+  }
+});
+
+test('two analysers go into one capture, lined up by the clock they share', async () => {
+  test.setTimeout(300_000);
+  const [one, two] = await Promise.all([analyser(), analyser(['--name', 'Second'])]);
+  try {
+    const { app, page } = await start([], { env: { LOGICA_VLA: `${one.at},${two.at}` } });
+    await page.getByRole('button', { name: 'Capture live…', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Capture live' });
+    await dialog.getByRole('checkbox', { name: /Virtual analyser: Bench/ }).check();
+    await dialog.getByRole('checkbox', { name: /Virtual analyser: Second/ }).check();
+    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+    await dialog.getByRole('radio', { name: 'All into one capture' }).check();
+    await expect(dialog.getByLabel('Capture name')).toHaveValue('Live: Bench + Second');
+    // one capture has one rate; the shared SYNC line is found on both by its name
+    await expect(dialog.getByRole('radio', { name: 'One per device' })).toHaveCount(0);
+    await expect(dialog.getByRole('radio', { name: 'By a signal they all see' })).toBeChecked();
+    await expect(dialog.getByLabel('Shared signal on Virtual analyser: Second')).toHaveValue('10');
+
+    // the line it is lined up by must be captured
+    const second = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Second' });
+    await second.getByRole('checkbox', { name: 'CH10 SYNC' }).uncheck();
+    await expect(dialog.getByRole('list', { name: 'Problems with one capture' })).toContainText('Virtual analyser: Second: capture CH10 SYNC too');
+    const go = dialog.getByRole('button', { name: 'Start capture' });
+    await expect(go).toBeDisabled();
+    await second.getByRole('checkbox', { name: 'CH10 SYNC' }).check();
+    const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    await shot(page, 'capture-together');
+
+    await go.click();
+    await expect(dialog).toHaveCount(0);
+    const tabs = page.locator('.tabs');
+    await expect(tabs.getByRole('button', { name: /^Live: Bench \+ Second/ })).toBeVisible();
+    await expect(tabs.getByText('capturing')).toHaveCount(1);
+    // both devices' channels, named by device
+    await expect(page.getByText('Second: SYNC').first()).toBeVisible();
+    await expect(page.getByText('Bench: SYNC').first()).toBeVisible();
+    await shot(page, 'capture-together-live');
+    await page.getByRole('group', { name: 'Live capture' }).getByRole('button', { name: 'Stop capture' }).click();
     await expect(tabs.getByText('capturing')).toHaveCount(0);
     await app.close();
   } finally {

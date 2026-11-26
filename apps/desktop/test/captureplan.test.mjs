@@ -2,7 +2,7 @@
 // choices, sample counts, and problems explained before anything starts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UNTIL_STOPPED_SECONDS, channelLabel, commonRates, configFor, defaultChoice, problems, samplesFor, titleFor } from '../src/renderer/src/captureplan.ts';
+import { UNTIL_STOPPED_SECONDS, channelLabel, commonRates, configFor, defaultChoice, guessShared, problems, samplesFor, titleFor, togetherProblems, togetherTitle } from '../src/renderer/src/captureplan.ts';
 import { hz } from '../src/renderer/src/format.ts';
 
 const vla = {
@@ -78,4 +78,25 @@ test('problems are explained, one sentence each', () => {
   assert.deepEqual(say(vla, { mode: 'buffer' }), ['This device cannot capture in that mode.']);
   assert.deepEqual(say(vla, { thresholdVolts: 1 }), ['This device has no adjustable threshold.']);
   assert.deepEqual(say(dla, { thresholdVolts: 9, rateHz: 1e6 }, seconds(0.5)), ['The threshold must be between -5 V and 5 V.']);
+});
+
+test('devices in one capture: a shared line is found by name, and what is missing is explained', () => {
+  const a = { ...vla, channels: [0, 1, 10], channelNames: ['TX', 'CLK', 'SYNC'] };
+  const b = { ...vla, channels: [0, 1, 7], channelNames: ['RX', 'CLK', 'SYNC'] };
+  assert.deepEqual(guessShared([a, b]), [10, 7], 'a sync line before another clock');
+  assert.deepEqual(guessShared([a, { ...b, channelNames: ['RX', 'CLK', 'X'] }]), [1, 1]);
+  assert.equal(guessShared([a, dla]), null, 'nothing named alike');
+  assert.equal(guessShared([a]), null, 'one device needs no lining up');
+  assert.equal(togetherTitle(['Virtual analyser: Bench', 'Virtual analyser: Second']), 'Live: Bench + Second');
+
+  const choice = (caps, channels) => ({ ...defaultChoice(caps, 'x'), channels });
+  const both = [
+    { model: 'Bench', caps: a, choice: choice(a, [0, 10]) },
+    { model: 'Second', caps: b, choice: choice(b, [0]) },
+  ];
+  assert.deepEqual(togetherProblems(both, null, channelLabel), []);
+  assert.deepEqual(togetherProblems(both, [10, 7], channelLabel), ['Second: capture CH7 SYNC too; the capture is lined up by it.']);
+  assert.deepEqual(togetherProblems(both, [10, 99], channelLabel), ['Choose the channel of Second that sees the shared signal.']);
+  const apart = [both[0], { model: 'DLA', caps: { ...dla, ratesHz: [1e6] }, choice: choice(dla, [0]) }];
+  assert.match(togetherProblems(apart, null, channelLabel)[0], /share no sample rate, so they cannot be one capture/);
 });

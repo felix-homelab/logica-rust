@@ -120,12 +120,16 @@ pub struct OpenDevice {
     pub configured: bool,
     /// Samples per channel of the last configuration.
     pub samples: Sample,
+    /// Rate and channels of the last configuration (several devices in one capture must agree).
+    pub rate_hz: f64,
+    pub channels: Vec<u32>,
 }
 
 /// A capture running on a worker thread. Its data arrives on `feed` (see [`crate::live`]); the
 /// capture joins the session with the first block, in the state `capturing`.
 pub struct Running {
-    pub device: String,
+    /// The devices it captures from: one, or several into one capture ([`crate::group`]).
+    pub devices: Vec<String>,
     pub capture: String,
     pub title: String,
     pub source: Source,
@@ -144,7 +148,8 @@ pub struct Running {
     pub reported: Sample,
 }
 
-pub type RunResult = (Box<dyn Device>, Result<RunOutcome, String>);
+/// The devices back, by id, and how the capture went.
+pub type RunResult = (Vec<(String, Box<dyn Device>)>, Result<RunOutcome, String>);
 
 pub struct Engine {
     pub(crate) cfg: EngineConfig,
@@ -597,7 +602,7 @@ impl Engine {
             }
         }
         self.pump(&mut r, None);
-        let Ok((device, result)) = r.handle.join() else {
+        let Ok((devices, result)) = r.handle.join() else {
             if r.begun {
                 self.end_live(&r.capture, None, true, Some("The device driver stopped unexpectedly.".into()));
             } else {
@@ -605,8 +610,10 @@ impl Engine {
             }
             return;
         };
-        if let Some(d) = self.devices.get_mut(&r.device) {
-            d.device = Some(device);
+        for (id, device) in devices {
+            if let Some(d) = self.devices.get_mut(&id) {
+                d.device = Some(device);
+            }
         }
         if !r.begun {
             let why =

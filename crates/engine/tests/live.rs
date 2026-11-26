@@ -247,3 +247,145 @@ fn the_newest_data_is_drawn_while_it_arrives() {
     }
     run(&mut e, &Actor::User, "capture.stop", json!({ "device": dev }));
 }
+
+/// An analyser on a free port, as fast as the engine takes the data; returns its device id.
+fn analyser(name: &str, seed: u64, ppm: f64) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let at = listener.local_addr().unwrap().to_string();
+    let mut c = Config::example();
+    c.name = name.into();
+    c.seed = Some(seed);
+    c.speed = 0.0;
+    c.clock_ppm = ppm;
+    c.listen.clone_from(&at);
+    std::thread::spawn(move || logica_vla::server::serve(listener, c, Arc::new(|_: &str| {})));
+    format!("vla/{at}")
+}
+
+fn two(ppm: f64) -> (Engine, String, String) {
+    let (a, b) = (analyser("Bench", 21, 0.0), analyser("Second", 22, ppm));
+    let addresses = [&a, &b].iter().map(|d| d.trim_start_matches("vla/").to_string()).collect();
+    (Engine::new(EngineConfig { vla_addresses: addresses, ..EngineConfig::default() }), a, b)
+}
+
+fn notes(c: &Value) -> Vec<String> {
+    c["notes"].as_array().unwrap().iter().map(|n| n["message"].as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn two_analysers_capture_into_one_capture_lined_up_by_a_shared_clock() {
+    let (mut e, a, b) = two(250.0);
+    run(&mut e, &Actor::User, "device.list", json!({}));
+    let all: Vec<u32> = (0..11).collect();
+    configure(&mut e, &Actor::User, &a, &all, 4_000_000);
+    configure(&mut e, &Actor::User, &b, &all, 4_000_000);
+    let o = run(
+        &mut e,
+        &Actor::User,
+        "capture.start",
+        json!({ "device": a, "with": [b], "align": { a.clone(): 10, b.clone(): 10 }, "title": "Both" }),
+    );
+    let id = o["id"].as_str().unwrap().to_string();
+    let c = summary(&mut e, &id);
+    assert_eq!(c["state"], "complete", "{c}");
+    // as far as both have data: Second's fast clock covers 250 ppm (1000 samples) less time, and
+    // it may start a few ms before Bench on a busy machine (4000 samples a ms)
+    let n = c["sampleCount"].as_u64().unwrap();
+    assert!((3_950_000..=4_000_000).contains(&n), "{n}");
+    let channels = c["channels"].as_array().unwrap();
+    assert_eq!(channels.len(), 22);
+    assert_eq!((channels[0]["index"].clone(), channels[0]["name"].clone()), (json!(0), json!("Bench: TX")));
+    assert_eq!(
+        (channels[21]["index"].clone(), channels[21]["name"].clone()),
+        (json!(21), json!("Second: SYNC"))
+    );
+    let n = notes(&c);
+    assert!(
+        n.iter().any(|m| m.starts_with("Second is lined up with Bench CH10 SYNC by its CH10 SYNC")),
+        "{n:?}"
+    );
+    let drift = n.iter().find_map(|m| m.strip_prefix("Second's clock ran ")).expect("a drift note");
+    let ppm: f64 = drift.split(' ').next().unwrap().parse().unwrap();
+    assert!((ppm - 250.0).abs() < 5.0, "{drift}");
+    assert_eq!(c["source"]["kind"], "device");
+    assert!(c["source"]["detail"].as_str().unwrap().contains("lined up by a shared signal"));
+
+    // the second analyser's UART decodes on its channel in the shared capture
+    let d = run(
+        &mut e,
+        &Actor::User,
+        "decoder.add",
+        json!({ "capture": id, "protocol": "uart", "roles": { "data": 11 } }),
+    );
+    let did = d["decoder"]["id"].as_str().unwrap().to_string();
+    let f = run(&mut e, &Actor::User, "decoder.frames", json!({ "capture": id, "decoder": did, "limit": 1 }));
+    assert!(f["total"].as_u64().unwrap() > 0, "{f}");
+
+    // both devices are free again
+    let list = run(&mut e, &Actor::User, "device.list", json!({}));
+    assert!(list["devices"].as_array().unwrap().iter().all(|d| d["capturing"] == false));
+}
+
+#[test]
+fn capturing_together_is_refused_with_reasons() {
+    let (mut e, a, b) = two(0.0);
+    run(&mut e, &Actor::User, "device.list", json!({}));
+    configure(&mut e, &Actor::User, &a, &[0, 10], 400_000);
+    run(&mut e, &Actor::User, "device.connect", json!({ "device": b }));
+    let start = |w: Value| {
+        let mut i = json!({ "device": a, "with": [b] });
+        if let Value::Object(m) = w {
+            i.as_object_mut().unwrap().extend(m);
+        }
+        i
+    };
+    let (_, m) = fail(&mut e, &Actor::User, "capture.start", start(json!({})));
+    assert!(m.contains(&format!("Configure {b} first")), "{m}");
+    run(
+        &mut e,
+        &Actor::User,
+        "device.configure",
+        json!({ "device": b, "config": { "channels": [0], "sampleRateHz": 10e6, "samples": 400_000, "mode": "stream" } }),
+    );
+    let (code, m) = fail(&mut e, &Actor::User, "capture.start", start(json!({})));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(m.contains("one capture has one rate"), "{m}");
+    configure(&mut e, &Actor::User, &b, &[0], 400_000);
+    let (_, m) = fail(&mut e, &Actor::User, "capture.start", start(json!({ "with": [b, b] })));
+    assert!(m.contains("is listed twice"), "{m}");
+    let (_, m) = fail(&mut e, &Actor::User, "capture.start", start(json!({ "align": { a.clone(): 10 } })));
+    assert!(m.contains(&format!("align has no channel for {b}")), "{m}");
+    let (_, m) = fail(
+        &mut e,
+        &Actor::User,
+        "capture.start",
+        start(json!({ "align": { a.clone(): 10, b.clone(): 10 } })),
+    );
+    assert!(m.contains(&format!("{b} does not capture channel 10")), "{m}");
+    let (_, m) =
+        fail(&mut e, &Actor::User, "capture.start", json!({ "device": a, "align": { a.clone(): 10 } }));
+    assert!(m.contains("name the others in with"), "{m}");
+    // nothing was taken: each device still captures on its own
+    let o = run(&mut e, &Actor::User, "capture.start", json!({ "device": b }));
+    assert_eq!(summary(&mut e, o["id"].as_str().unwrap())["state"], "complete");
+}
+
+#[test]
+fn stopping_one_device_of_a_shared_capture_stops_it_all() {
+    let (mut e, a, b) = two(0.0);
+    run(&mut e, &Actor::User, "device.list", json!({}));
+    // far longer than the test waits
+    configure(&mut e, &Actor::User, &a, &[0, 10], 4_000_000_000);
+    configure(&mut e, &Actor::User, &b, &[0, 10], 4_000_000_000);
+    let o = run(&mut e, &Actor::User, "capture.start", json!({ "device": a, "with": [b], "wait": false }));
+    let id = o["id"].as_str().unwrap().to_string();
+    poll_until(&mut e, |e| summary(e, &id)["sampleCount"].as_u64().unwrap_or(0) > 1_000_000);
+    let s = run(&mut e, &Actor::User, "session.get", json!({}));
+    let running: Vec<&str> =
+        s["running"].as_array().unwrap().iter().map(|r| r["device"].as_str().unwrap()).collect();
+    assert_eq!(running, [a.as_str(), b.as_str()], "one entry per device, same capture");
+    run(&mut e, &Actor::User, "capture.stop", json!({ "device": b }));
+    let c = summary(&mut e, &id);
+    assert_eq!(c["state"], "aborted");
+    assert!(run(&mut e, &Actor::User, "session.get", json!({}))["running"].as_array().unwrap().is_empty());
+}

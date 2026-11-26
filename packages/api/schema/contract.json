@@ -393,6 +393,18 @@
     "CaptureStartIn": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Lines the devices up by a signal they all see (a shared clock or any shared line): for\n`device` and every device in `with`, the channel that carries it, by device id. The offset\nis found from its rising edges (between equally good offsets, as with a steady clock, the\nsmallest) and each clock's drift is followed while capturing.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "device": {
           "type": "string"
         },
@@ -407,6 +419,16 @@
           "description": "Wait until the capture ends (default). Without waiting, the capture runs on and\n`capture.done` follows.",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "with": {
+          "description": "More devices captured at the same time into the same capture, after `device`'s channels\n(numbered on, and named by device). Each is configured first, all at the same sample rate.\nDevices do not share a clock: they are lined up at their starts, or by `align`.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         }

@@ -13,7 +13,7 @@ logica-vla: a virtual logic analyser for trying Logica's live capture without ha
 Usage: logica-vla [options]
 
   --config <file>   Signals to generate, as JSON (see tools/virtual-analyser/examples).
-                    Without it, one of each signal on ten channels.
+                    Without it, one of each signal on eleven channels.
   --listen <addr>   Address to listen on (default 127.0.0.1:7171, or the file's).
   --name <text>     The analyser's name in Logica (default Bench, or the file's).
   --seed <n>        Same seed, same signals in every capture. Default: new ones each time.

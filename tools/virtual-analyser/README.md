@@ -9,7 +9,7 @@ hardware.
 ## Run it
 
 ```
-cargo run -p logica-vla                          # the built-in mix on ten channels, real time
+cargo run -p logica-vla                          # the built-in mix on eleven channels, real time
 cargo run -p logica-vla -- --config tools/virtual-analyser/examples/busy-sensors.json
 cargo run -p logica-vla -- --seed 42             # the same signals in every capture
 cargo run -p logica-vla -- --print-config        # the built-in configuration as a starting point
@@ -34,6 +34,7 @@ A JSON file; everything but `signals` has a default:
 | `seed` | none | The same seed gives the same signals; without one, each capture differs |
 | `speed` | 1 | 1 is real time, 0 as fast as Logica takes the data |
 | `tileMs` | 20 | Signal time per batch sent |
+| `clockPpm` | 0 | How far its sample clock is off, in ppm (positive runs fast); shows in `shared` signals |
 
 Signals (`kind`), each on its own channels:
 
@@ -45,6 +46,7 @@ Signals (`kind`), each on its own channels:
 | `pwm` | `channel`, `name`, `frequencyHz`, `duty` (0.5) |
 | `clock` | `channel`, `name`, `frequencyHz` |
 | `noise` | `channel`, `name`, `meanUs` (200): random changes about that far apart |
+| `shared` | `channel`, `name` (SYNC), `frequencyHz` (100): a clock on the computer's time, so analysers on one computer see the same edges, each at its own samples |
 
 `everyMs` is the pause between bursts, picked at random between the two numbers. Mistakes are
 explained before anything listens (`--check` only checks). Examples are in `examples/`.
@@ -61,3 +63,7 @@ device; listing does not disturb a running capture.
 Because the signals come from the same generators the decoder tests use, this program checks the
 live path (streaming, the store while it grows, live decoding, the window), not the decoders'
 reading of imperfect signals: its timing is perfect.
+
+The built-in configuration has a `shared` clock, SYNC on CH10. Two analysers (the second with
+`--listen 127.0.0.1:7172 --name Second`) captured "All into one capture" in Logica can be lined
+up by it; give one a configuration with `clockPpm` to see its drift corrected.
