@@ -1,17 +1,73 @@
 name: Release
 
-# Unsigned installers for Windows, Linux and macOS (doc 11 M2), published to the GitHub Release of
-# a version tag such as v0.2.0. The app updates itself from these releases on Windows and Linux.
+# A release tag (RELEASING.md, "Release process") builds a draft GitHub Release: the changelog
+# section as its notes, the unsigned installers for Windows, Linux and macOS (doc 11 M2; the app
+# updates itself from them on Windows and Linux), the standalone `logica` command-line tool per
+# system, and SHA256SUMS. A pre-release tag (vX.Y.Z-rc.N) makes a GitHub pre-release, which
+# installed stable versions never update to. The maintainer publishes the draft by hand.
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ['v*']
 
 permissions:
   contents: write
 
+env:
+  TAG: ${{ github.ref_name }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# One run per tag; a second push of the same tag cannot happen (tags are immutable), a re-run waits.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  check:
+    name: Check the tag and draft the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # the checkout may have made the tag lightweight; fetch it as it is on the remote
+      - name: Fetch the tag as pushed
+        run: git fetch --force origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+      - name: Check the tag, the versions and the changelog
+        run: |
+          # a patch from a maintenance branch: its commit is on release/X.Y, not on main
+          branch=origin/main
+          minor=$(cut -d. -f1,2 <<<"${TAG#v}")
+          if ! git merge-base --is-ancestor "${TAG}^{commit}" origin/main &&
+            git rev-parse -q --verify "origin/release/${minor}" >/dev/null; then
+            branch="origin/release/${minor}"
+          fi
+          # on success stdout is the release notes; on failure it holds the ::error:: lines
+          status=0
+          .github/scripts/check-release-tag.sh "$TAG" "$branch" >"$RUNNER_TEMP/notes.md" || status=$?
+          cat "$RUNNER_TEMP/notes.md"
+          exit "$status"
+      - name: Create the draft release
+        run: |
+          if state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ $state != true ]]; then
+              echo "::error::the release $TAG is already published; a published release is never rebuilt (RELEASING.md, \"Tags\")"
+              exit 1
+            fi
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            pre=()
+            if [[ $TAG == *-* ]]; then
+              pre=(--prerelease)
+            fi
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag "${pre[@]}" \
+              --title "Logica ${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
+
   installers:
-    name: Installers (${{ matrix.os }})
+    name: Installers and command-line tool (${{ matrix.os }})
+    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -20,15 +76,59 @@ jobs:
     env:
       # unsigned for now: no code-signing identity is looked for
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v7
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - run: npm ci
       - run: npm run build
-      - name: Build and publish the installers
+      # electron-builder finds the draft of the check job by its tag and uploads to it
+      - name: Build and upload the installers
         run: npm exec -w apps/desktop -- electron-builder --publish always
+      - name: Upload the command-line tool
+        shell: bash
+        run: |
+          os=$(tr '[:upper:]' '[:lower:]' <<<"$RUNNER_OS")
+          arch=$(tr '[:upper:]' '[:lower:]' <<<"$RUNNER_ARCH")
+          exe=
+          if [[ $os == windows ]]; then
+            exe=.exe
+          fi
+          name="logica-${TAG#v}-${os}-${arch}${exe}"
+          cp "target/release/logica${exe}" "$RUNNER_TEMP/$name"
+          gh release upload "$TAG" "$RUNNER_TEMP/$name" --repo "$GITHUB_REPOSITORY" --clobber
+
+  checksums:
+    name: SHA256SUMS
+    needs: installers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check the release files and add SHA256SUMS
+        run: |
+          dir="$RUNNER_TEMP/release"
+          mkdir -p "$dir"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$dir"
+          cd "$dir"
+          version=${TAG#v}
+          missing=0
+          # the update feeds of Windows and Linux; macOS has no auto-update (decision D8)
+          for f in "logica-${version}-linux-x64" "logica-${version}-windows-x64.exe" \
+            "logica-${version}-macos-arm64" latest.yml latest-linux.yml; do
+            if [[ ! -f $f ]]; then
+              echo "::error::the release has no $f"
+              missing=1
+            fi
+          done
+          if ((missing)); then
+            exit 1
+          fi
+          # a re-run downloads the SHA256SUMS of the last run, which is not listed in itself
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\n' | LC_ALL=C sort |
+            xargs -d '\n' sha256sum -- | tee "$RUNNER_TEMP/SHA256SUMS"
+          gh release upload "$TAG" "$RUNNER_TEMP/SHA256SUMS" --repo "$GITHUB_REPOSITORY" --clobber

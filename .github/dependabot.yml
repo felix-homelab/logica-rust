@@ -1,0 +1,60 @@
+# Dependency updates (CONTRIBUTING.md, "Repository settings"). Every ecosystem groups its updates,
+# so each pull-request title stays a short Conventional Commit header that passes
+# check-pr-title.sh: "ci(deps): bump the actions group …", "build(deps): bump the cargo group …".
+# Dependabot adds the colon after a prefix that ends with ")". The Rust toolchain
+# (rust-toolchain.toml) and Electron are updated by hand: Electron is pinned to an exact version
+# for electron-builder (docs/progress.md, S7), and a new Electron needs the end-to-end tests and the
+# doc 08 budgets run on purpose.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - no-changelog
+      - type:improvement
+      - area:ops
+    groups:
+      actions:
+        patterns: ["*"]
+      actions-sec:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build(deps)
+    labels:
+      - no-changelog
+      - type:improvement
+    groups:
+      cargo:
+        patterns: ["*"]
+      cargo-sec:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    ignore:
+      - dependency-name: electron
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build(deps)
+    labels:
+      - no-changelog
+      - type:improvement
+    groups:
+      npm:
+        patterns: ["*"]
+      npm-sec:
+        applies-to: security-updates
+        patterns: ["*"]
