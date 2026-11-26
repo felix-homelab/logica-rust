@@ -50,6 +50,8 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
     }
     assert.ok(ratio(t['--on-accent'], t['--accent-bg']) >= 4.5, `${name} --on-accent on --accent-bg`);
     assert.ok(ratio(t['--on-accent'], t['--accent-bg-hover']) >= 4.5, `${name} --on-accent on --accent-bg-hover`);
+    assert.ok(ratio(t['--on-primary'], t['--primary-bg']) >= 4.5, `${name} --on-primary on --primary-bg`);
+    assert.ok(ratio(t['--on-primary'], t['--primary-bg-hover']) >= 4.5, `${name} --on-primary on --primary-bg-hover`);
     for (const [fg, bg] of [['--danger', '--danger-bg'], ['--warning', '--warning-bg'], ['--success', '--success-bg'], ['--agent', '--agent-bg'], ['--text', '--bg-selected']]) {
       assert.ok(ratio(t[fg], t[bg]) >= 4.5, `${name} ${fg} on ${bg}: ${ratio(t[fg], t[bg]).toFixed(2)}`);
     }
@@ -62,6 +64,29 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
         assert.ok(r >= 3, `${name} ${fg} on ${bg}: ${r.toFixed(2)}`);
       }
     }
+  });
+}
+
+/** Hue in degrees (0–360) of a #rrggbb colour. */
+const hue = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+};
+const apart = (a, b) => Math.min(Math.abs(hue(a) - hue(b)), 360 - Math.abs(hue(a) - hue(b)));
+
+for (const [name, t] of [['light', light], ['dark', dark]]) {
+  test(`${name}: colour means one thing: the accent is not the agents' colour, the main action is neutral`, () => {
+    // agents' actions must stand out from the person's selection and focus (doc 08)
+    for (const k of ['--accent', '--accent-bg', '--focus-ring', '--bg-selected']) {
+      assert.ok(apart(t[k], t['--agent']) >= 40, `${name} ${k} is ${apart(t[k], t['--agent']).toFixed(0)}° from --agent`);
+    }
+    // the main action is ink, not a hue (saturation below 15 %)
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(t['--primary-bg'].slice(i, i + 2), 16));
+    assert.ok(Math.max(r, g, b) - Math.min(r, g, b) < 0.15 * 255, `${name} --primary-bg is grey`);
   });
 }
 

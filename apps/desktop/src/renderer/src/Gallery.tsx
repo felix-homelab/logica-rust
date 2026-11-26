@@ -14,6 +14,7 @@ import {
   MenuSeparator,
   Panel,
   Splitter,
+  Status,
   Switch,
   TabsContent,
   TabsList,
@@ -68,7 +69,16 @@ export function Gallery() {
         </div>
       </Panel>
 
-      <Panel title="Badges and shortcuts">
+      <Panel title="Status, badges and shortcuts">
+        <div className="row pad">
+          <Status>available</Status>
+          <Status tone="success">connected</Status>
+          <Status tone="danger" pulse>
+            capturing
+          </Status>
+          <Status tone="warning">agent actions stopped</Status>
+          <Status tone="agent">1 agent active</Status>
+        </div>
         <div className="row pad">
           <Badge>neutral</Badge>
           <Badge tone="accent">accent</Badge>

@@ -3,7 +3,7 @@
 // progress events (about 20 a second), so following is smooth without reading the whole session;
 // only this part of the window updates that often.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button } from '@logica/ui';
+import { Button, Status } from '@logica/ui';
 import { Pause, Play, Square } from 'lucide-react';
 import { elapsed } from '../format';
 import { useStore, type CaptureInfo } from '../store';
@@ -85,9 +85,9 @@ export function LiveWaveform({
   return (
     <div className="live">
       <div className="live__bar" role="group" aria-label="Live capture">
-        <Badge tone="danger">
-          <span className="live__dot" aria-hidden="true" /> Live
-        </Badge>
+        <Status tone="danger" pulse>
+          Live
+        </Status>
         <span className="lg-num live__time">{elapsed(known / rate)} captured</span>
         <span className="muted live__note">{span === null ? 'You are looking back; new data keeps arriving.' : 'Following the newest data.'}</span>
         {span === null ? (

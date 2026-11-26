@@ -32,6 +32,12 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 - The ui-ux-pro-max skill shaped the grey scale and density; doc 08 kept the system font and
   Lucide, and the accent is indigo because green is a channel colour.
+- Redesign (replaces the indigo accent): indigo sat 23° from the agents' violet and was on every
+  button, tab, switch and badge, so agent actions did not stand out and colour said nothing. The
+  main action is now ink, the accent is blue for focus, selection and links only, violet is the
+  agents' alone (doc 08, "Colour means one thing each"; checked in `packages/ui/test/tokens.test.mjs`).
+  States are a dot and a word (`Status`) instead of pills; the inspector is flat sections; the
+  start screen lists recent files, devices and agents instead of three cards.
 - The window handles every shortcut itself; the menu shows them without registering them.
 - The person's own pans are sent to the engine throttled and not recorded; the window adopts the
   engine's view only when someone else changed it.

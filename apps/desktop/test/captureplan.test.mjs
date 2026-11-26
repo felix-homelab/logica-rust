@@ -2,7 +2,7 @@
 // choices, sample counts, and problems explained before anything starts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UNTIL_STOPPED_SECONDS, channelLabel, commonRates, configFor, defaultChoice, guessShared, problems, samplesFor, titleFor, togetherProblems, togetherTitle } from '../src/renderer/src/captureplan.ts';
+import { UNTIL_STOPPED_SECONDS, channelLabel, commonRates, configFor, defaultChoice, guessShared, problems, samplesFor, titleFor, togetherIssues, togetherProblems, captureSteps, currentStep, shortModel, togetherTitle } from '../src/renderer/src/captureplan.ts';
 import { hz } from '../src/renderer/src/format.ts';
 
 const vla = {
@@ -99,4 +99,53 @@ test('devices in one capture: a shared line is found by name, and what is missin
   assert.deepEqual(togetherProblems(both, [10, 99], channelLabel), ['Choose the channel of Second that sees the shared signal.']);
   const apart = [both[0], { model: 'DLA', caps: { ...dla, ratesHz: [1e6] }, choice: choice(dla, [0]) }];
   assert.match(togetherProblems(apart, null, channelLabel)[0], /share no sample rate, so they cannot be one capture/);
+});
+
+test('a problem with one capture says which device it is about, when it is about one', () => {
+  const pick = (channels) => ({ ...defaultChoice(vla, 'Bench'), channels });
+  const both = [
+    { model: 'Bench', caps: vla, choice: pick([0, 2]) },
+    { model: 'Second', caps: vla, choice: pick([0]) },
+  ];
+  assert.deepEqual(togetherIssues(both, [2, 2], channelLabel), [{ text: 'Second: capture CH2 SCL too; the capture is lined up by it.', topic: 'signal', device: 1 }]);
+  const unchosen = togetherIssues(both, [2, 99], channelLabel)[0];
+  assert.equal(unchosen.device, null, 'choosing the shared signal belongs to lining up, not a device');
+  assert.equal(unchosen.topic, 'signal');
+  const apart = [both[0], { model: 'DLA', caps: { ...dla, ratesHz: [1e6] }, choice: { ...defaultChoice(dla, 'DLA'), channels: [0] } }];
+  assert.equal(togetherIssues(apart, null, channelLabel)[0].topic, 'rate');
+});
+
+test('the dialog has a step per chosen device, between how to capture and the start', () => {
+  assert.deepEqual(
+    captureSteps([]).map((s) => s.id),
+    ['devices'],
+    'nothing chosen: only the devices',
+  );
+  const one = captureSteps([{ id: 'vla/a', model: 'Virtual analyser: Bench' }]);
+  assert.deepEqual(one.map((s) => s.id), ['devices', 'capture', 'device:vla/a', 'review']);
+  assert.deepEqual(one.map((s) => s.label), ['Devices', 'Capture', 'Bench', 'Check and start']);
+  const two = captureSteps([
+    { id: 'vla/a', model: 'Virtual analyser: Bench' },
+    { id: 'vla/b', model: 'Virtual analyser: Bench' },
+    { id: 'usb/1', model: 'DLA-16 Plus' },
+  ]);
+  assert.deepEqual(two.map((s) => s.label), ['Devices', 'Capture', 'Bench 1', 'Bench 2', 'DLA-16 Plus', 'Check and start'], 'the same model twice is numbered');
+  assert.equal(shortModel('DLA-16 Plus'), 'DLA-16 Plus');
+});
+
+test('lining up is a step only when several devices go into one capture', () => {
+  const two = [
+    { id: 'vla/a', model: 'Virtual analyser: Bench' },
+    { id: 'vla/b', model: 'Virtual analyser: Second' },
+  ];
+  assert.deepEqual(captureSteps(two, { lineUp: true }).map((s) => s.id), ['devices', 'capture', 'lineup', 'device:vla/a', 'device:vla/b', 'review']);
+  assert.ok(!captureSteps(two).some((s) => s.id === 'lineup'), 'each into its own tab: nothing to line up');
+  assert.ok(!captureSteps(two.slice(0, 1), { lineUp: true }).some((s) => s.id === 'lineup'), 'one device: nothing to line up');
+});
+
+test('a step that went away (its device was unpicked) falls back to the first', () => {
+  const steps = captureSteps([{ id: 'vla/a', model: 'Bench' }]);
+  assert.equal(currentStep(steps, 'review'), 3);
+  assert.equal(currentStep(steps, 'device:vla/gone'), 0);
+  assert.equal(currentStep(captureSteps([]), 'capture'), 0);
 });
