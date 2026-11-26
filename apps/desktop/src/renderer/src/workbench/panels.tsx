@@ -198,7 +198,7 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
         <EmptyState title="No protocol was recognised">The channels are listed below with what was measured on them.</EmptyState>
       )}
       {a?.buses.map((b) => (
-        <section key={b.bus.id} className="card" aria-label={`Bus ${b.bus.channels.map((c) => `CH${c}`).join(', ')}`}>
+        <section key={b.bus.id} className="card stack-sm" aria-label={`Bus ${b.bus.channels.map((c) => `CH${c}`).join(', ')}`}>
           {b.chosen.map((d) => (
             <div key={`${d.protocolId}${rolesText(d.roles)}`} className="stack-sm">
               <div className="row between">
@@ -264,7 +264,7 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
         </section>
       ))}
       {a && (
-        <section className="card">
+        <section className="card stack-sm">
           <h3 className="section-title">Channels</h3>
           <ul className="plain">
             {a.measurements.map((m) => (
@@ -313,6 +313,8 @@ function SettingField({
   }
   return (
     <TextField
+      // a new value from elsewhere (an agent, undo) replaces what the field shows
+      key={String(value ?? k.default)}
       label={`${spec.label}${k.unit ? ` (${k.unit})` : ''}`}
       type="number"
       defaultValue={String(value ?? k.default)}

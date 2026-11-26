@@ -39,6 +39,7 @@ import { bridge, client, mod } from '../bridge';
 import { at, elapsed, hz, int, time } from '../format';
 import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { centreOn, zoomAt } from '../viewmath';
+import { DEFAULTS, LIMITS, fitPanels } from '../panelsize';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
@@ -79,18 +80,27 @@ export function Workbench() {
   const [showSidebar, setShowSidebar] = useStored('logica.sidebar', true);
   const [showInspector, setShowInspector] = useStored('logica.inspector', true);
   const [showBottom, setShowBottom] = useStored('logica.bottom', true);
-  const [sidebarW, setSidebarW] = useStored('logica.sidebarW', 240);
-  const [inspectorW, setInspectorW] = useStored('logica.inspectorW', 340);
-  const [bottomH, setBottomH] = useStored('logica.bottomH', 240);
-  const [narrow, setNarrow] = useState(window.innerWidth < 1280);
+  const [sidebarW, setSidebarW] = useStored<unknown>('logica.sidebarW', DEFAULTS.sidebar);
+  const [inspectorW, setInspectorW] = useStored<unknown>('logica.inspectorW', DEFAULTS.inspector);
+  const [bottomH, setBottomH] = useStored<unknown>('logica.bottomH', DEFAULTS.bottom);
+  const [win, setWin] = useState({ width: window.innerWidth, height: window.innerHeight });
   // below 1280 px the inspector is a drawer over the workspace (doc 08): closed until asked for
+  const narrow = win.width < 1280;
   const [drawer, setDrawer] = useState(false);
   const inspectorOpen = narrow ? drawer : showInspector;
   const openInspector = useCallback(() => (narrow ? setDrawer(true) : setShowInspector(true)), [narrow, setShowInspector]);
   const expert = settings?.expert ?? false;
+  // remembered sizes, fitted to this window: the waveform always keeps room
+  const panels = fitPanels({ sidebar: sidebarW, inspector: inspectorW, bottom: bottomH }, win, { sidebar: showSidebar, dockedInspector: !narrow && showInspector });
+
+  // the active tab stays in sight when more tabs are open than fit
+  const tabStrip = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    tabStrip.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active?.id, session?.captures.length, win.width]);
 
   useEffect(() => {
-    const f = () => setNarrow(window.innerWidth < 1280);
+    const f = () => setWin({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', f);
     return () => window.removeEventListener('resize', f);
   }, []);
@@ -372,16 +382,24 @@ export function Workbench() {
         <h1 className="lg-visually-hidden">{active ? `Logica: ${active.title}` : 'Logica'}</h1>
         <div className="tabs">
           <nav className="tabs__list" aria-label="Open captures">
-            <ul className="tabs__ul">
+            <ul
+              className="tabs__ul"
+              ref={tabStrip}
+              onWheel={(e) => {
+                // more tabs than fit: the wheel scrolls them sideways
+                if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
+              }}
+            >
               {session.captures.map((c) => (
                 <li key={c.id} className="tabs__tab" data-active={c.id === active?.id || undefined}>
                   <button
                     type="button"
                     aria-current={c.id === active?.id ? 'page' : undefined}
                     className="tabs__title"
+                    title={c.title}
                     onClick={() => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {})}
                   >
-                    {c.title}
+                    <span className="tabs__label">{c.title}</span>
                     {c.unsaved && (
                       <span className="tabs__unsaved" title="Unsaved changes">
                         <span aria-hidden="true">●</span>
@@ -398,7 +416,7 @@ export function Workbench() {
             <IconButton label="Capture live" icon={<Activity />} onClick={actions['capture.live']} />
           </nav>
           <button type="button" className="tabs__palette" onClick={() => setPalette(true)}>
-            <Command aria-hidden="true" /> Search commands… <Kbd keys={[mod(), 'K']} />
+            <Command aria-hidden="true" /> <span className="tabs__palette-label">Search commands…</span> <Kbd keys={[mod(), 'K']} />
           </button>
           <AgentIndicator />
         </div>
@@ -430,13 +448,20 @@ export function Workbench() {
           <div className="workspace">
             {showSidebar && (
               <aside className="sidebar" aria-label="Channels">
-                <div className="sidebar__content" style={{ width: sidebarW }}>
+                <div className="sidebar__content" style={{ width: panels.size.sidebar }}>
                   <h2 className="section-title pad-x">Channels</h2>
                   <Boundary name="channel list">
                     <ChannelList capture={active} />
                   </Boundary>
                 </div>
-                <Splitter orientation="vertical" label="Sidebar width" value={sidebarW} min={180} max={420} onChange={setSidebarW} />
+                <Splitter
+                  orientation="vertical"
+                  label="Sidebar width"
+                  value={panels.size.sidebar}
+                  min={LIMITS.sidebar[0]}
+                  max={panels.max.sidebar}
+                  onChange={setSidebarW}
+                />
               </aside>
             )}
             <main className="center">
@@ -451,8 +476,16 @@ export function Workbench() {
               </section>
               {showBottom && (
                 <>
-                  <Splitter orientation="horizontal" label="Bottom panel height" value={bottomH} min={120} max={600} onChange={setBottomH} invert />
-                  <section className="bottom" style={{ height: bottomH }} aria-label="Bottom panel">
+                  <Splitter
+                    orientation="horizontal"
+                    label="Bottom panel height"
+                    value={panels.size.bottom}
+                    min={LIMITS.bottom[0]}
+                    max={panels.max.bottom}
+                    onChange={setBottomH}
+                    invert
+                  />
+                  <section className="bottom" style={{ height: panels.size.bottom }} aria-label="Bottom panel">
                     <Boundary name="bottom panel">
                     <TabsRoot value={bottomTab} onValueChange={setBottomTab} className="tabs-fill">
                       <TabsList label="Bottom panel">
@@ -488,8 +521,18 @@ export function Workbench() {
                   }
                 }}
               >
-                {!narrow && <Splitter orientation="vertical" label="Inspector width" value={inspectorW} min={260} max={560} onChange={setInspectorW} invert />}
-                <div className="inspector__content" style={{ width: inspectorW }}>
+                {!narrow && (
+                  <Splitter
+                    orientation="vertical"
+                    label="Inspector width"
+                    value={panels.size.inspector}
+                    min={LIMITS.inspector[0]}
+                    max={panels.max.inspector}
+                    onChange={setInspectorW}
+                    invert
+                  />
+                )}
+                <div className="inspector__content" style={{ width: panels.size.inspector }}>
                   {narrow && (
                     <div className="inspector__close">
                       <IconButton label="Close the inspector" shortcut={['Esc']} icon={<X />} onClick={() => setDrawer(false)} />
@@ -591,14 +634,14 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   if (engine.state === 'restarting') {
     return (
       <div className="banner" data-tone="warning" role="alert">
-        <span>{engine.reason ?? 'The engine stopped and is being restarted.'}</span>
+        <span className="banner__text">{engine.reason ?? 'The engine stopped and is being restarted.'}</span>
       </div>
     );
   }
   if (engine.state === 'failed') {
     return (
       <div className="banner" data-tone="danger" role="alert">
-        <span>{engine.reason}</span>
+        <span className="banner__text">{engine.reason}</span>
         <Button size="sm" variant="primary" onClick={() => bridge().restartEngine()}>
           Start the engine again
         </Button>
@@ -608,7 +651,7 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   if (engine.state === 'running' && lost) {
     return (
       <div className="banner" data-tone="warning" role="alert">
-        <span>
+        <span className="banner__text">
           The engine was restarted, so the open captures were closed.
           {lost.unsaved.length > 0 && ` Unsaved work in ${lost.unsaved.join(', ')} was lost.`}
         </span>
@@ -656,7 +699,8 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   const loss = capture.notes.find((n) => n.level === 'warning' && /lost|overwrit|dropped/i.test(n.message));
   return (
     <footer className="status" aria-label="Status">
-      <span>
+      {/* what does not fit shortens with "…" (the whole text is in the tooltip); the rest keeps its size */}
+      <span className="status__fit">
         {capture.state === 'capturing'
           ? `Capturing: ${elapsed(capture.seconds)} so far`
           : running
@@ -665,20 +709,24 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
               ? `${device.info.model}: connected`
               : 'No device connected'}
       </span>
-      <span className="lg-num">{hz(rate)}</span>
-      <span className="lg-num">
+      <span className="lg-num status__keep">{hz(rate)}</span>
+      <span className="lg-num status__fit">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
       </span>
-      {view.cursorA !== null && view.cursorB !== null && <span className="lg-num">Δt {time((view.cursorB - view.cursorA) / rate)}</span>}
-      {loss && <span className="status__warn">{loss.message}</span>}
-      <span className="status__grow" />
-      {busy && (
-        <span className="status__busy" role="status">
-          <span className="status__spinner" aria-hidden="true" />
-          {busy}
+      {view.cursorA !== null && view.cursorB !== null && <span className="lg-num status__keep">Δt {time((view.cursorB - view.cursorA) / rate)}</span>}
+      {loss && (
+        <span className="status__warn status__fit" title={loss.message}>
+          {loss.message}
         </span>
       )}
-      <span>{mcp.port ? `MCP on 127.0.0.1:${mcp.port}` : mcp.error ? 'MCP not started' : 'MCP off'}</span>
+      <span className="status__grow" />
+      {busy && (
+        <span className="status__busy status__fit" role="status" title={busy}>
+          <span className="status__spinner" aria-hidden="true" />
+          <span className="status__busy-text">{busy}</span>
+        </span>
+      )}
+      <span className="status__keep">{mcp.port ? `MCP on 127.0.0.1:${mcp.port}` : mcp.error ? 'MCP not started' : 'MCP off'}</span>
     </footer>
   );
 }
@@ -703,14 +751,14 @@ function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () 
           </Button>
         </div>
         <div className="start__grid">
-          <section className="card">
+          <section className="card stack-sm">
             <h2 className="section-title">Recent captures</h2>
             {recent.length === 0 ? (
               <p className="muted">Files you open appear here.</p>
             ) : (
               <ul className="plain">
                 {recent.map((f) => (
-                  <li key={f}>
+                  <li key={f} className="start__recent">
                     <button type="button" className="link" onClick={() => onOpenRecent(f)} title={f}>
                       {f.split(/[\\/]/).pop()}
                     </button>
@@ -719,7 +767,7 @@ function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () 
               </ul>
             )}
           </section>
-          <section className="card">
+          <section className="card stack-sm">
             <h2 className="section-title">Devices</h2>
             {devices.length > 0 && (
               <ul className="plain">
@@ -736,12 +784,14 @@ function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () 
                 : '"Capture live…" captures from one or several of them at once.'}
             </p>
           </section>
-          <section className="card">
+          <section className="card stack-sm">
             <h2 className="section-title">Work with an agent</h2>
             <p className="muted">Claude Code and other MCP clients can open, decode and mark captures with you, in this window.</p>
-            <Button size="sm" icon={<Bot />} onClick={onAgent}>
-              How to connect
-            </Button>
+            <div className="row">
+              <Button size="sm" icon={<Bot />} onClick={onAgent}>
+                How to connect
+              </Button>
+            </div>
           </section>
         </div>
       </div>
@@ -755,7 +805,7 @@ function Notices() {
     <div className="notices" role="status" aria-live="polite">
       {notices.map((n) => (
         <div key={n.id} className="notice" data-tone={n.tone}>
-          <span>{n.text}</span>
+          <span className="notice__text">{n.text}</span>
           <IconButton label="Dismiss" icon={<X />} onClick={() => dismiss(n.id)} />
         </div>
       ))}

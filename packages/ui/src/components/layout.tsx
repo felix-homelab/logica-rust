@@ -141,14 +141,17 @@ export function Dialog({
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal>
         <RDialog.Overlay className="lg-dialog__scrim" />
-        <RDialog.Content className={`lg-dialog${wide ? ' lg-dialog--wide' : ''}`} aria-describedby={description ? undefined : undefined}>
-          <RDialog.Title className="lg-dialog__title">{title}</RDialog.Title>
-          {description ? (
-            <RDialog.Description className="lg-dialog__description">{description}</RDialog.Description>
-          ) : (
-            <RDialog.Description className="lg-visually-hidden">{title}</RDialog.Description>
-          )}
-          {children}
+        <RDialog.Content className={`lg-dialog${wide ? ' lg-dialog--wide' : ''}`}>
+          {/* the title and the buttons stay in sight; a long form scrolls between them */}
+          <div className="lg-dialog__header">
+            <RDialog.Title className="lg-dialog__title">{title}</RDialog.Title>
+            {description ? (
+              <RDialog.Description className="lg-dialog__description">{description}</RDialog.Description>
+            ) : (
+              <RDialog.Description className="lg-visually-hidden">{title}</RDialog.Description>
+            )}
+          </div>
+          {children !== undefined && children !== null && children !== false && <div className="lg-dialog__body">{children}</div>}
           {footer && <div className="lg-dialog__footer">{footer}</div>}
         </RDialog.Content>
       </RDialog.Portal>

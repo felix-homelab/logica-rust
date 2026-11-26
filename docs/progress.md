@@ -23,6 +23,10 @@ What is done, what is next, and decisions made on the way. Newest first.
 - Tests: Playwright end-to-end tests with axe in both themes (also in CI on Linux and Windows),
   the doc 08 budgets measured in the app (`docs/benchmarks.md`), unit tests for the view
   arithmetic, formats, settings and tokens.
+- Layout hardened at the minimum window (960 × 600): the tab bar no longer shows a scroll bar or
+  hides its buttons, dialogs keep their buttons in sight and no longer slide in sideways, panel
+  sizes are fitted to the window, measurements, activity, start and analysis cards are spaced
+  alike; checked in `e2e/layout.spec.ts` and `test/panelsize.test.mjs`.
 
 ### Decisions on the way
 

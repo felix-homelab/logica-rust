@@ -59,6 +59,7 @@
   color: var(--text-secondary);
 }
 .card {
+  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -83,6 +84,7 @@
 }
 .query {
   margin: 0;
+  overflow-wrap: anywhere;
   padding: var(--space-2);
   max-height: 200px;
   overflow: auto;
@@ -97,6 +99,8 @@
   max-height: 320px;
 }
 .code-input {
+  width: 100%;
+  resize: vertical;
   height: auto;
   padding: var(--space-2);
   font-family: var(--font-mono);
@@ -113,9 +117,18 @@ details summary {
   margin-right: var(--space-2);
 }
 .channels-pick {
+  /* a fieldset is as wide as its content by default; these wrap in the dialog's width instead */
+  min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
+}
+legend {
+  padding: 0;
+}
+/* a card's title is spaced by the card's stack, not by its own margins */
+.card > .section-title {
+  margin: 0;
 }
 
 /* the "Capture live" dialog */
@@ -127,11 +140,18 @@ details summary {
 }
 .capture-pick__label {
   align-items: flex-start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.capture-pick > .row,
+.capture-pick > .lg-badge {
+  flex: none;
 }
 .capture-group {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
@@ -154,9 +174,13 @@ details summary {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  /* tabs shrink first, then scroll sideways (wheel or keyboard); no scroll bar inside the bar */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 .tabs {
   display: flex;
@@ -173,14 +197,21 @@ details summary {
   gap: var(--space-1);
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+}
+.tabs__list > .lg-button {
+  flex: none;
 }
 .tabs__tab {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
+  min-width: 112px;
   max-width: 260px;
   padding-left: var(--space-1);
   border-radius: var(--radius);
+}
+.tabs__tab > .lg-button {
+  flex: none;
 }
 .tabs__tab[data-active] {
   background: var(--bg-surface);
@@ -188,21 +219,27 @@ details summary {
 }
 .tabs__title {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   height: var(--control-md);
   padding: 0 var(--space-2);
-  overflow: hidden;
   border: 0;
   background: none;
   color: var(--text);
   font: inherit;
   white-space: nowrap;
-  text-overflow: ellipsis;
   cursor: pointer;
+}
+.tabs__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tabs__palette {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
   height: var(--control-md);
@@ -218,14 +255,32 @@ details summary {
   width: var(--icon-sm);
   height: var(--icon-sm);
 }
+.tabs__palette .lg-kbd {
+  margin-left: 0;
+}
+/* a narrow window keeps the palette's icon and shortcut, and leaves the room to the tabs */
+@media (max-width: 1100px) {
+  /* hidden from sight only: it stays the button's name */
+  .tabs__palette-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .agent-indicator {
   display: flex;
+  flex: none;
+  align-items: center;
   gap: var(--space-1);
 }
 
 /* toolbar */
 .toolbar {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-1);
   height: 36px;
@@ -234,6 +289,7 @@ details summary {
   background: var(--bg-surface);
 }
 .toolbar__sep {
+  flex: none;
   width: 1px;
   height: 18px;
   margin: 0 var(--space-1);
@@ -279,10 +335,18 @@ details summary {
   z-index: calc(var(--z-drawer) - 1);
   background: var(--scrim);
 }
+.inspector__content {
+  position: relative;
+}
+/* in a drawer, the close button sits at the end of the tab row instead of on a row of its own */
 .inspector__close {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-1) var(--space-1) 0;
+  position: absolute;
+  top: 2px;
+  right: var(--space-1);
+  z-index: 1;
+}
+.inspector[data-drawer] .lg-tabs__list {
+  padding-right: calc(var(--control-md) + var(--space-2));
 }
 .center {
   display: flex;
@@ -330,6 +394,9 @@ details summary {
   padding: 0 var(--space-1);
   list-style: none;
 }
+.channels__row > .lg-button {
+  flex: none;
+}
 .channels__row {
   display: flex;
   align-items: center;
@@ -355,6 +422,7 @@ details summary {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  display: block;
   height: var(--control-md);
   border: 0;
   padding: 0 var(--space-1);
@@ -420,6 +488,7 @@ details summary {
 .evidence li {
   display: flex;
   gap: var(--space-2);
+  overflow-wrap: anywhere;
 }
 .evidence__mark {
   flex: none;
@@ -447,6 +516,7 @@ details summary {
   color: var(--text);
   font: inherit;
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 .hits__item:hover,
@@ -490,11 +560,16 @@ details summary {
   background: var(--bg-selected);
 }
 .table__index {
+  flex: none;
   width: 56px;
   color: var(--text-muted);
 }
 .table__time {
+  flex: none;
   width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
 }
 .table__text {
@@ -510,12 +585,15 @@ details summary {
 /* measurements */
 .measure {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr);
-  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+  gap: var(--space-4) var(--space-5);
 }
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
+  /* rows keep their height; they do not spread over a taller neighbour */
+  align-content: start;
   gap: var(--space-1) var(--space-3);
   margin: 0;
 }
@@ -536,10 +614,17 @@ details summary {
   height: 100%;
 }
 .activity__bar {
+  flex: none;
   padding: 0 var(--space-3);
   border-bottom: 1px solid var(--border);
 }
+/* the switch at the end of the row, as in the device panel */
+.activity__bar > .lg-switch-row {
+  flex: 1;
+}
 .activity__list {
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: var(--space-1) var(--space-2);
   list-style: none;
@@ -556,6 +641,11 @@ details summary {
 .activity__item[data-agent] {
   background: var(--agent-bg);
 }
+.activity__item > .lg-badge,
+.activity__item > .lg-button,
+.activity__never {
+  flex: none;
+}
 .activity__item[data-undone] .activity__text {
   text-decoration: line-through;
   color: var(--text-muted);
@@ -563,6 +653,7 @@ details summary {
 .activity__text {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .activity__never {
   font-size: var(--text-xs);
@@ -582,8 +673,17 @@ details summary {
   white-space: nowrap;
   overflow: hidden;
 }
+.status > * {
+  flex: none;
+}
+.status > .status__fit {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .status__grow {
-  flex: 1;
+  flex: 1 1 0;
 }
 .status__warn {
   color: var(--warning);
@@ -612,6 +712,11 @@ details summary {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-3);
 }
+.start__recent {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* notices */
 .notices {
@@ -622,7 +727,7 @@ details summary {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-width: 420px;
+  max-width: min(420px, calc(100vw - 2 * var(--space-4)));
 }
 .notice {
   display: flex;
@@ -645,8 +750,13 @@ details summary {
 .notice[data-tone='success'] {
   border-left-color: var(--success);
 }
-.notice span {
+.notice__text {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notice > .lg-button {
+  flex: none;
 }
 
 /* settings window */
@@ -693,8 +803,12 @@ details summary {
 .banner[data-tone='danger'] {
   background: var(--danger-bg);
 }
-.banner > span {
-  flex: 1;
+.banner {
+  flex-wrap: wrap;
+}
+.banner__text {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 .boundary {
   display: flex;
@@ -705,6 +819,7 @@ details summary {
 }
 .boundary p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .wave {
   position: relative;
@@ -713,7 +828,8 @@ details summary {
   position: absolute;
   top: var(--space-2);
   left: 50%;
-  transform: translateX(-50%);
+  translate: -50% 0;
+  max-width: calc(100% - 2 * var(--space-4));
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -722,6 +838,14 @@ details summary {
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text);
+}
+.status__busy-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status__spinner {
+  flex: none;
 }
 .status__busy {
   display: inline-flex;
@@ -762,8 +886,19 @@ details summary {
   background: var(--bg-surface);
   color: var(--text);
 }
-.live__grow {
-  flex: 1;
+.live__bar > * {
+  flex: none;
+}
+.live__bar > .live__note {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.live__time {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
 }
 .live__dot {
   display: inline-block;

@@ -89,8 +89,7 @@ export function LiveWaveform({
           <span className="live__dot" aria-hidden="true" /> Live
         </Badge>
         <span className="lg-num live__time">{elapsed(known / rate)} captured</span>
-        <span className="muted">{span === null ? 'You are looking back; new data keeps arriving.' : 'Following the newest data.'}</span>
-        <span className="live__grow" />
+        <span className="muted live__note">{span === null ? 'You are looking back; new data keeps arriving.' : 'Following the newest data.'}</span>
         {span === null ? (
           <Button size="sm" variant="secondary" icon={<Play />} onClick={() => change({ ...shown, ...following(shown.to - shown.from, known) })}>
             Follow

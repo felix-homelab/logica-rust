@@ -92,7 +92,9 @@ export function CommandPalette({
                       {item.icon}
                     </span>
                     <span className="lg-palette__title">{item.title}</span>
-                    <span className="lg-palette__hint">{item.disabled ? item.disabledReason : item.hint}</span>
+                    <span className="lg-palette__hint" title={(item.disabled ? item.disabledReason : item.hint) ?? undefined}>
+                      {item.disabled ? item.disabledReason : item.hint}
+                    </span>
                     {item.shortcut && <Kbd keys={item.shortcut} />}
                   </div>
                 </li>
