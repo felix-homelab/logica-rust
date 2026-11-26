@@ -85,6 +85,10 @@ example files as public real-hardware fixtures.
 - Playwright against the Electron app on Linux under a virtual display (`xvfb`).
 - Packaging jobs on Windows, macOS and Linux (path handling, native module loading, USB permission
   messages). Releases go to GitHub Releases for electron-updater.
+- Repository rules ([CONTRIBUTING.md](../CONTRIBUTING.md)): the workflow `pr-rules` checks every
+  PR's title, branch name, commit headers and changelog entry, and reports its size; the CI job
+  "Repository checks" tests those scripts and checks that every file holds the same version. A
+  release tag is checked before anything is built from it ([RELEASING.md](../RELEASING.md)).
 - Benchmarks and performance traces are recorded and their trend reported; CI fails only on
   regressions of more than 2× the baseline. The real budgets (doc 08) are checked on the owner's
   reference machine at every milestone exit.

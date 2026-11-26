@@ -37,6 +37,10 @@ progress is tracked in [docs/progress.md](docs/progress.md).
 | — | [Benchmarks](docs/benchmarks.md) | Measured numbers and the baseline to beat |
 | ADR | [Architecture decision records](docs/adr/) | The few decisions that are expensive to reverse |
 
+How a change reaches `main` is in [CONTRIBUTING.md](CONTRIBUTING.md); versions, the changelog and
+releases are in [RELEASING.md](RELEASING.md), and what changed in each release is in
+[CHANGELOG.md](CHANGELOG.md). Vulnerabilities are reported privately ([SECURITY.md](SECURITY.md)).
+
 ## Where it comes from
 
 - `../signal-detective`, the owner's learning tool (TypeScript, ISC licence), is the reference for

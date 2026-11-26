@@ -28,6 +28,34 @@ needs to differ from them, update the doc in the same change and say why.
 - FNIRSI's example captures (`I2C.demo`, `SPI.demo`, `UART.demo`) are local-only fixtures and
   must never be committed (doc 10).
 
+## Branches, commits and releases
+
+[CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASING.md](RELEASING.md) are the rules; this is the
+summary, changed in the same PR as they are.
+
+- Never push to `main` (a ruleset blocks it), never rewrite `main`, `release/*` or a tag, never
+  force-push and never delete a remote branch. Bring a pushed branch up to date by merging `main`
+  into it. Run the checks of what changed before the first push; until v1.0.0 fix what CI then
+  finds with a further commit.
+- Branches: `feature/<issue>-<desc>` and `bugfix/<issue>-<desc>` need a GitHub issue;
+  `improvement/<desc>` (no behaviour change), `merge/<desc>`, `tmp/<desc>` (never merged).
+  Lowercase, digits, `-`, `.`; at most 60 characters.
+- Commits and PR titles: Conventional Commits, `<type>(<scope>)!: <subject>`, at most 72
+  characters, lowercase subject without a period. Types `feat fix perf refactor docs test build ci
+  chore revert`; scopes `core protocols drivers engine fileio mcp node cli desktop ui api vla ops
+  adr deps release`. The body says why. Substantial AI-written content carries a
+  `Co-Authored-By:` footer. PRs are merged with merge commits, so every commit must build and
+  have a valid header; fold fix-ups in before merging.
+- Every PR adds a `CHANGELOG.md` entry under `## [Unreleased]` (user-facing, present tense, ends
+  with the PR number) or carries the `no-changelog` label. Breaking changes (to `.lacap`, the
+  command API and MCP, or the CLI) get `!`, a `BREAKING CHANGE:` footer and a `**Breaking:**`
+  entry.
+- One logical change per PR; CI warns from 400 changed lines of production code.
+- The version is one for everything and lives in the files: change it only with
+  `node scripts/set-version.mjs X.Y.Z`, in a `chore(release)` PR. Tags `vX.Y.Z` and
+  `vX.Y.Z-rc.N` are signed and made by the maintainer only.
+- A PR that adds or renames a CI job updates the required checks in `.github/repo-settings.mjs`.
+
 ## Definition of done
 
 - Rust: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` clean.
@@ -54,5 +82,11 @@ changing a command's input or output types:
 `npm run generate -w packages/api`, and commit both generated files. The toolchain is pinned in
 `rust-toolchain.toml`.
 
-Releases: pushing a tag `vX.Y.Z` (with `apps/desktop/package.json` at that version) builds
-unsigned installers for Windows, Linux and macOS into a draft GitHub Release.
+`bash .github/scripts/test-checks.sh` tests the PR and release checks;
+`node .github/repo-settings.mjs` shows how the GitHub settings differ from CONTRIBUTING.md (the
+maintainer applies them).
+
+Releases (RELEASING.md): the maintainer pushes a signed tag `vX.Y.Z` (or `vX.Y.Z-rc.N`) on a
+`main` commit whose files hold that version and whose `CHANGELOG.md` has the dated section; the
+release workflow checks that and builds a draft GitHub Release with the changelog notes, the
+unsigned installers for Windows, Linux and macOS, the `logica` binaries and `SHA256SUMS`.
