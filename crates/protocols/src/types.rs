@@ -329,6 +329,9 @@ pub struct DecodeResult {
     pub packets: Vec<Packet>,
     pub problem_counts: BTreeMap<ProblemCode, u64>,
     pub notes: Vec<String>,
+    /// Points of a virtual analog source (doc 06); empty for protocol decoders.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<logica_core::analog::Point>,
 }
 
 // ------------------------------------------------------------------ detection

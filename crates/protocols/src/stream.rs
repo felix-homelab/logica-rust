@@ -547,6 +547,7 @@ pub fn collect_into(result: &mut DecodeResult, o: Output) {
     result.frames.extend(o.frames);
     result.packets.extend(o.packets);
     result.notes.extend(o.notes);
+    result.points.extend(o.points);
 }
 
 #[cfg(test)]

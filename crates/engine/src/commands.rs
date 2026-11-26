@@ -139,6 +139,21 @@ pub const COMMANDS: &[CommandSpec] = &[
         "decoder.frames",
         "Decoded packets or frames by time range, kind, problem and text, paged; optionally explained.",
     ),
+    // virtual analog channels (ADR 0010)
+    query("analog.sources", "The sources of virtual analog channels, with their channels and settings."),
+    edit(
+        "analog.add",
+        "Add a virtual analog channel computed from digital channels (source, roles, settings, scaling); undo removes it.",
+    ),
+    edit(
+        "analog.update",
+        "Change a virtual analog channel's source, channels, settings, scaling, name, unit or style.",
+    ),
+    edit("analog.remove", "Remove a virtual analog channel; undo restores it with the same id."),
+    query(
+        "analog.values",
+        "Values of a virtual analog channel in a range, in its unit: points, or an envelope per bucket, with problems.",
+    ),
     // search and comparison
     query("search.run", "Search edges and decoded content with a typed query; hits with times."),
     // markers and notes

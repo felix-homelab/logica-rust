@@ -164,6 +164,10 @@ pub enum Event {
     /// Also after undo, redo, open and close.
     #[serde(rename = "decoder.updated")]
     DecoderUpdated { capture: String, decoder: String },
+    /// A virtual analog channel was added, changed, removed or computed further. Also after undo
+    /// and redo.
+    #[serde(rename = "analog.updated")]
+    AnalogUpdated { capture: String, analog: String },
     #[serde(rename = "view.changed")]
     ViewChanged { capture: String, actor: Actor },
     #[serde(rename = "lease.changed")]

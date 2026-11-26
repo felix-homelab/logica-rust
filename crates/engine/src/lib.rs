@@ -2,6 +2,7 @@
 //! orchestration, the command API with events, actors, undo history and device leases. Every
 //! capability is a command first (ADR 0001); the window, MCP, the CLI and tests are clients.
 
+pub mod analog;
 pub mod cmd;
 pub mod commands;
 pub mod contract;

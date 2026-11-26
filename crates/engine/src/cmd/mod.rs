@@ -1,6 +1,7 @@
 //! Command handlers, and the one table that binds every command name to its input type, output
 //! type and handler. The JSON Schema of the contract is generated from the same table.
 
+mod analog;
 mod analysis;
 mod decoders;
 mod devices;
@@ -17,6 +18,7 @@ use serde_json::Value;
 use crate::contract::{CommandError, ErrorCode, Invocation};
 use crate::engine::{Ctx, Done, Engine, err};
 
+pub use analog::*;
 pub use analysis::*;
 pub use decoders::*;
 pub use devices::*;
@@ -103,6 +105,11 @@ commands! {
     "decoder.update": DecoderUpdateIn => DecoderUpdateOut = decoders::update;
     "decoder.remove": DecoderRef => Nothing = decoders::remove;
     "decoder.frames": DecoderFramesIn => DecoderFramesOut = decoders::frames;
+    "analog.sources": Nothing => AnalogSourcesOut = analog::list_sources;
+    "analog.add": AnalogAddIn => AnalogOut = analog::add;
+    "analog.update": AnalogUpdateIn => AnalogOut = analog::update;
+    "analog.remove": AnalogRef => Nothing = analog::remove;
+    "analog.values": AnalogValuesIn => AnalogValuesOut = analog::values;
     "search.run": SearchIn => SearchOut = analysis::search;
     "marker.add": MarkerAddIn => MarkerOut = edit::marker_add;
     "marker.update": MarkerUpdateIn => MarkerOut = edit::marker_update;

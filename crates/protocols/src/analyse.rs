@@ -16,7 +16,9 @@ use crate::buses::{Bus, group_buses};
 use crate::format;
 use crate::protocol::{DetectContext, Protocol, Registry};
 use crate::stream::{BoundChannel, Collected, DecoderSetup, StreamDecoder, collect_into};
-use crate::types::{DecodeResult, Detection, Rejection, Roles, SettingSpec, SettingValue, Settings};
+use crate::types::{
+    DecodeResult, Detection, Rejection, RoleSpec, Roles, SettingSpec, SettingValue, Settings,
+};
 use crate::window::Window;
 
 /// Below this confidence a detection is listed as an alternative only.
@@ -172,6 +174,56 @@ pub fn decoding_protocol<'r>(registry: &'r Registry, protocol_id: &str) -> Resul
     Ok(target.as_ref())
 }
 
+/// What a decode of a capture needs: roles, settings and a streaming decoder. Protocols (through
+/// [`Decoding`]) and virtual analog sources both provide it, so they share one driver.
+pub trait Decodes {
+    fn role_specs(&self) -> &[RoleSpec];
+    fn setting_specs(&self) -> &[SettingSpec];
+    fn create(
+        &self,
+        setup: &DecoderSetup,
+        snapshot: Option<serde_json::Value>,
+    ) -> Result<Box<dyn StreamDecoder>, String>;
+}
+
+/// A protocol as something that decodes.
+pub struct Decoding<'a>(pub &'a dyn Protocol);
+
+impl Decodes for Decoding<'_> {
+    fn role_specs(&self) -> &[RoleSpec] {
+        self.0.roles()
+    }
+    fn setting_specs(&self) -> &[SettingSpec] {
+        self.0.settings()
+    }
+    fn create(
+        &self,
+        setup: &DecoderSetup,
+        snapshot: Option<serde_json::Value>,
+    ) -> Result<Box<dyn StreamDecoder>, String> {
+        self.0.decoder(setup, snapshot)
+    }
+}
+
+/// A virtual analog source as something that decodes.
+pub struct Sourcing<'a>(pub &'a dyn crate::analog::Source);
+
+impl Decodes for Sourcing<'_> {
+    fn role_specs(&self) -> &[RoleSpec] {
+        self.0.roles()
+    }
+    fn setting_specs(&self) -> &[SettingSpec] {
+        self.0.settings()
+    }
+    fn create(
+        &self,
+        setup: &DecoderSetup,
+        snapshot: Option<serde_json::Value>,
+    ) -> Result<Box<dyn StreamDecoder>, String> {
+        self.0.create(setup, snapshot)
+    }
+}
+
 /// Binds roles to the capture's channels: the bound channels in role order with their store
 /// slots, or a message for the person.
 pub fn bind_roles(
@@ -179,8 +231,17 @@ pub fn bind_roles(
     meta: &CaptureMeta,
     roles: &Roles,
 ) -> Result<Vec<(BoundChannel, usize)>, String> {
+    bind_role_specs(protocol.roles(), meta, roles)
+}
+
+/// [`bind_roles`] for any list of roles.
+pub fn bind_role_specs(
+    specs: &[RoleSpec],
+    meta: &CaptureMeta,
+    roles: &Roles,
+) -> Result<Vec<(BoundChannel, usize)>, String> {
     let mut out = Vec::new();
-    for r in protocol.roles() {
+    for r in specs {
         let Some(&Some(ch)) = roles.get(&r.key) else {
             if r.optional {
                 continue;
@@ -201,13 +262,13 @@ pub fn bind_roles(
 
 /// Runs a decoder over merged edge batches and collects everything it emits.
 fn run_decoder(
-    protocol: &dyn Protocol,
+    protocol: &dyn Decodes,
     setup: &DecoderSetup,
     mut next: impl FnMut(usize) -> Result<Option<EdgeBatch>, String>,
     end: Sample,
     batching: Batching,
 ) -> Result<DecodeResult, String> {
-    let mut dec: Box<dyn StreamDecoder> = protocol.decoder(setup, None)?;
+    let mut dec: Box<dyn StreamDecoder> = protocol.create(setup, None)?;
     let mut col = Collected::default();
     let size = match batching {
         Batching::Whole => usize::MAX,
@@ -218,7 +279,7 @@ fn run_decoder(
         col.take(dec.drain());
         if let Batching::WithSnapshots(_) = batching {
             let snap = dec.snapshot();
-            dec = protocol.decoder(setup, Some(snap))?;
+            dec = protocol.create(setup, Some(snap))?;
         }
     }
     dec.finish(end);
@@ -238,11 +299,23 @@ pub fn decode_store(
     batching: Batching,
 ) -> Result<DecodeResult, String> {
     let protocol = decoding_protocol(registry, protocol_id)?;
-    let bound = bind_roles(protocol, meta, roles)?;
+    decode_store_with(&Decoding(protocol), store, meta, roles, settings, batching)
+}
+
+/// [`decode_store`] for anything that decodes: a protocol or a virtual analog source.
+pub fn decode_store_with(
+    protocol: &dyn Decodes,
+    store: &CaptureStore,
+    meta: &CaptureMeta,
+    roles: &Roles,
+    settings: &Settings,
+    batching: Batching,
+) -> Result<DecodeResult, String> {
+    let bound = bind_role_specs(protocol.role_specs(), meta, roles)?;
     let start = analysis_start(meta).min(store.sample_count());
     let count = store.sample_count();
     let slots: Vec<usize> = bound.iter().map(|(_, s)| *s).collect();
-    let settings = SettingSpec::with_defaults(protocol.settings(), settings);
+    let settings = SettingSpec::with_defaults(protocol.setting_specs(), settings);
     if count == 0 || start >= count {
         let levels = slots
             .iter()
@@ -305,8 +378,18 @@ impl LiveDecode {
         roles: &Roles,
         settings: &Settings,
     ) -> Result<Self, String> {
-        let protocol = decoding_protocol(registry, protocol_id)?;
-        let bound = bind_roles(protocol, meta, roles)?;
+        Self::with(&Decoding(decoding_protocol(registry, protocol_id)?), store, meta, roles, settings)
+    }
+
+    /// [`LiveDecode::new`] for anything that decodes: a protocol or a virtual analog source.
+    pub fn with(
+        protocol: &dyn Decodes,
+        store: &CaptureStore,
+        meta: &CaptureMeta,
+        roles: &Roles,
+        settings: &Settings,
+    ) -> Result<Self, String> {
+        let bound = bind_role_specs(protocol.role_specs(), meta, roles)?;
         let slots: Vec<usize> = bound.iter().map(|(_, s)| *s).collect();
         let start = analysis_start(meta).min(store.sample_count());
         let start_levels = slots
@@ -319,9 +402,9 @@ impl LiveDecode {
             start,
             start_levels,
             channels: bound.into_iter().map(|(b, _)| b).collect(),
-            settings: SettingSpec::with_defaults(protocol.settings(), settings),
+            settings: SettingSpec::with_defaults(protocol.setting_specs(), settings),
         };
-        Ok(LiveDecode { decoder: protocol.decoder(&setup, None)?, slots, pos: start })
+        Ok(LiveDecode { decoder: protocol.create(&setup, None)?, slots, pos: start })
     }
 
     /// Pushes the edges up to the store's current end and appends what the decoder emitted to
@@ -334,13 +417,13 @@ impl LiveDecode {
         // the merger delivers edges after its start sample: from `pos` on
         let mut merger =
             store.merger(&self.slots, self.pos.saturating_sub(1), count).map_err(|e| e.to_string())?;
-        let before = (into.frames.len(), into.packets.len(), into.notes.len());
+        let before = (into.frames.len(), into.packets.len(), into.notes.len(), into.points.len());
         while let Some(b) = merger.next_batch(1 << 16, Sample::MAX).map_err(|e| e.to_string())? {
             self.decoder.push(&b);
             collect_into(into, self.decoder.drain());
         }
         self.pos = count;
-        Ok((into.frames.len(), into.packets.len(), into.notes.len()) != before)
+        Ok((into.frames.len(), into.packets.len(), into.notes.len(), into.points.len()) != before)
     }
 
     /// The capture ended at `end`: pushes the rest and lets the decoder emit what is pending.
@@ -392,5 +475,5 @@ pub fn decode_window(
         settings: SettingSpec::with_defaults(protocol.settings(), settings),
     };
     let mut batch = Some(EdgeBatch { edges, end: window.end });
-    run_decoder(protocol, &setup, |_| Ok(batch.take()), window.end, Batching::Whole)
+    run_decoder(&Decoding(protocol), &setup, |_| Ok(batch.take()), window.end, Batching::Whole)
 }

@@ -44,5 +44,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - App: a redesigned window: colour means one thing, states are written as text, panels are flat
   with one scroll bar each, "Capture live" goes in steps that follow what is chosen, and nothing
   is cut off at the smallest window size. (#9, #10)
+- Virtual analog channels: the duty, frequency, period or pulse width of a PWM signal as values
+  in your own unit and range, computed from the capture, followed live while capturing and saved
+  with the `.lacap`. A PWM that stops toggling reads 0 % or 100 % and says why. Agents create and
+  read them through `run_command` (`analog.sources`, `analog.add`, `analog.values`). (#19)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main
