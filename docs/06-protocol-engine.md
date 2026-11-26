@@ -104,9 +104,10 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 - **Sources are streaming decoders** with the lifecycle above; instead of frames they drain points,
   problems and notes. The batching and snapshot rules apply to them unchanged.
 - **Scaling.** Fraction: `low + fraction × (high − low) + offset`. Measured quantity:
-  `quantity × gain + offset`. A code of N bits is a fraction of 2^N: unsigned, or two's complement
-  (fraction from −0.5 to just under 0.5, so `low` and `high` are the bipolar range). The unit is
-  free text, `V` by default.
+  `quantity × gain + offset`. A fraction runs from 0 to just under 1. A code of N bits is a
+  fraction of 2^N: unsigned, or two's complement, where the most negative code is 0 and the code 0
+  is one half, so `low` and `high` are the ends of a bipolar range. The unit is free text, `V` by
+  default.
 
 | Source | Reads | Settings | Sample time |
 |---|---|---|---|
