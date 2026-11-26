@@ -38,7 +38,10 @@ If a feature does not serve one of these four, it waits.
 
 ## In scope (version 1)
 
-- Digital channels only; up to 32 channels per device.
+- Digital channels; up to 32 channels per device.
+- Virtual analog channels computed from them: an ADC read over SPI, I2C or a parallel bus, a PWM
+  level, a PDM or sigma-delta bitstream, and math on those, with measurements, search and export
+  (ADR 0010).
 - Capture from the FNIRSI DLA-32 Plus (tested by the owner) and DLA-16 Plus (same driver, untested
   until someone with the device reports back), and FX2-based analysers (original Saleae Logic and
   the many 8-channel 24 MHz clones).
@@ -62,7 +65,8 @@ If a feature does not serve one of these four, it waits.
 
 ## Out of scope (version 1)
 
-- Analog channels and oscilloscope functions.
+- Analog inputs and oscilloscope functions (virtual analog channels computed from digital data are
+  in scope).
 - Pattern generation beyond outputs a device already has.
 - Writing FNIRSI `.demo` or Saleae `.sal` files.
 - Capture through Saleae's automation API, a sigrok bridge, and Pico-based analysers (after

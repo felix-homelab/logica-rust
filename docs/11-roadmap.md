@@ -20,7 +20,8 @@ talking to the DLA-32 Plus at all, is tested right after M2, before any driver w
 
 Each finished milestone is released ([RELEASING.md](../RELEASING.md), decision D15): M0 to M2 as
 v0.1.0, M3 as v0.2.0, M4 as v0.3.0, M5 as v0.4.0 and M6 as v1.0.0, each after a release
-candidate. The GitHub milestones carry the version numbers.
+candidate. M2a, virtual analog channels, is built right after M2 (owner's decision, November 2026)
+and released with it in v0.1.0. The GitHub milestones carry the version numbers.
 
 ### M0 Foundations
 - Cargo workspace and npm workspace (doc 03), lint and format, CI on GitHub Actions, `LICENSE`,
@@ -63,6 +64,19 @@ candidate. The GitHub milestones carry the version numbers.
 - **Exit:** doc 08 budgets met on the reference machine; axe checks clean; an agent's `show_user`
   markers and view changes appear live in the open window; the owner runs the Windows build with
   Claude Code in WSL attached (S8).
+
+### M2a Virtual analog channels (ADR 0010)
+- In this order, one pull request each: the value-series store and scaling in `core` (doc 04);
+  the PWM source end to end (`analog.*` commands, MCP through `run_command` and the reading tools,
+  the waveform row and the dialog), which proves the whole path with the simplest source; layer
+  decoders (doc 06, "Stacking") and the serial ADC with its presets; the parallel bus; PDM;
+  then measurements, CSV export, search and triggers over values, and math channels.
+- Detection suggests virtual channels with evidence (doc 06).
+- **Exit:** every source's generated ramp and sine decode back within one LSB (PDM: within its
+  effective resolution) for any batching and across snapshot and restore; a virtual channel
+  follows a live capture from the virtual analyser; a saved `.lacap` reopens with its virtual
+  channels; an agent creates a PWM channel through `run_command`, reads its mean over a range with
+  `measure` and finds where it crosses a level with `search`.
 
 ### Spike S3 (DLA feasibility)
 - **Exit:** a written yes or no with transcripts in `fixtures/usb/fnirsi-dla/` and a provenance

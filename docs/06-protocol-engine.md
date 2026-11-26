@@ -67,7 +67,9 @@ A layer decoder consumes another decoder's packets instead of edges. It names th
 sit on (`uart`, `spi`, `i2c`) and turns packets into frames and packets of its own.
 
 First layers: Modbus RTU (on UART), SPI NOR flash commands (on SPI), I2C/SPI register maps (below),
-NMEA sentences (on UART), AT command and response pairing (on UART).
+NMEA sentences (on UART), AT command and response pairing (on UART). The serial ADC source of
+virtual analog channels (below) is a layer too, and the first one built: it emits points instead
+of frames.
 
 ## Register maps
 
@@ -92,11 +94,67 @@ Start with the chips the samples already use: 24Cxx EEPROM, DS3231, LM75/TMP102,
 BME280, MPU6050, DS18B20 (1-Wire). A chip can be recognised from its address or WHO_AM_I reply
 (with evidence, as with protocols).
 
+## Virtual analog channels (ADR 0010)
+
+A virtual analog channel turns digital data back into the quantity it stands for. A **source**
+emits points; the shared **scaling** in `core` turns them into values; doc 04 stores them.
+
+- **Points.** A sample index and either a fraction of full scale (with the raw code where there is
+  one) or a measured quantity with a unit (`Hz`, `s`). A source never scales.
+- **Sources are streaming decoders** with the lifecycle above; instead of frames they drain points,
+  problems and notes. The batching and snapshot rules apply to them unchanged.
+- **Scaling.** Fraction: `low + fraction × (high − low) + offset`. Measured quantity:
+  `quantity × gain + offset`. A code of N bits is a fraction of 2^N: unsigned, or two's complement
+  (fraction from −0.5 to just under 0.5, so `low` and `high` are the bipolar range). The unit is
+  free text, `V` by default.
+
+| Source | Reads | Settings | Sample time |
+|---|---|---|---|
+| Serial ADC | packets of an SPI or I2C decoder (a layer, see "Stacking") | stream (MOSI, MISO, or the I2C data read), bits to skip, bit count N, bit order, encoding; I2C address and register; an optional match filter (for example "MOSI bits 6..4 = 2" or the mux field of a config register) | the start of the transfer |
+| Parallel bus | edges of up to 32 channels, one per bit, bit 0 first | N follows the channels; latch on a clock or strobe edge (rising, falling, both) with an optional enable line, or without a clock once the word has been stable for a settle time (default 3 samples) | the latch edge, or the start of the stable word |
+| PWM | edges of one channel | measure: duty, frequency, period, high or low pulse width; polarity; expected period (learned from the first periods when not given) | the start of each period |
+| PDM / sigma-delta | a data and a clock channel | clock edge; sinc³ CIC decimation ratio R (default 64); the effective resolution is shown | the end of each output word |
+
+- **Presets.** ADCs are described as data files beside the register maps
+  (`crates/protocols/data/adc/`), loaded through the same validation as a person's own; a preset
+  fills the serial ADC settings, and for a multiplexed ADC it creates one channel per input:
+
+  ```json
+  { "id": "mcp3201", "name": "MCP3201 12-bit ADC", "bus": ["spi"],
+    "sample": { "stream": "miso", "skipBits": 3, "bits": 12, "order": "msb" },
+    "encoding": "unsigned", "range": { "low": 0, "high": "vref" } }
+  ```
+
+  First presets: MCP3201, MCP3008/3208 (multiplexed), ADS1115 (I2C), and the 8-bit parallel
+  ADC0804.
+- **PWM at the ends.** A line that stops toggling for more than two expected periods reads 0 %
+  (low) or 100 % (high), with a note saying the PWM stopped toggling; frequency, period and pulse
+  width leave a gap instead, since they have no value without edges.
+- **Problems.** A point that cannot be made is left out and a problem is recorded at its time, with
+  a code and a message that says why: `adc-short-frame` ("The SPI transfer has 8 bits; the sample
+  needs bits 3 to 14"), `adc-nack`, `parallel-unstable` ("The word changed before it was stable
+  for 3 samples"), `pdm-settling` (the first 3 × R bits fill the filter), `pwm-irregular` (a
+  period more than twice the expected one). Problems are searchable and counted like decoder
+  problems.
+- **Math channels** take other virtual channels and a typed JSON expression (`add`, `sub`, `mul`,
+  `div`, `scale`, `abs`, `min`, `max`, constants), with the unit given by the person. Inputs are
+  combined by sample and hold: a point whenever any input has a new one, using the latest value of
+  each, and none before every input has its first. Division by zero leaves a gap with a problem. A
+  definition that would form a cycle is refused.
+- **Detection** offers virtual channels as suggestions, with evidence, and never creates them:
+  a channel whose PWM duty varies slowly ("duty moves between 12 % and 87 % over 400 periods"), a
+  clock and data pair with PDM density, a parallel bus with a strobe, and a decoded SPI or I2C bus
+  that matches an ADC preset (by I2C address, or by transfer length and the bits that stay zero).
+- **Tests.** Every source has a signal generator that encodes a known waveform (a ramp and a sine)
+  and is decoded back within one LSB (PDM: within its effective resolution), plus the batching and
+  snapshot rules, the problems above, and both encodings at their edges (0, 2^N − 1, −2^(N−1)).
+
 ## Search, triggers and comparison
 
-- Search over edges ("pulse narrower than 100 ns on CH3", "CH2 high while CH5 rises") and over
+- Search over edges ("pulse narrower than 100 ns on CH3", "CH2 high while CH5 rises"), over
   decoded content ("I2C NACK", "SPI MOSI starts with 9F", "UART text contains ERROR", "frames with
-  problems").
+  problems") and over virtual analog values ("ADC 1 above 2.5 V", "crosses 1.65 V rising",
+  "PWM duty below 10 % for longer than 5 ms").
 - Queries are a **typed JSON structure** defined in the command API contract, not a text grammar.
   The engine, the MCP `search` tool and triggers all take it; agents write it from the schema; the
   UI has a query builder that produces it:

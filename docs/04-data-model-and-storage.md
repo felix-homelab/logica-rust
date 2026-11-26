@@ -30,6 +30,7 @@
 | state | capturing, complete, aborted |
 | artefact | a start-up artefact excluded from analysis (DLA captures) |
 | saved decoders | decoder settings found in an imported file; shown for comparison, never used by detection |
+| virtual analog channels | definitions of channels computed from the digital data (below, ADR 0010) |
 
 ## Transitions, chunked (ADR 0004)
 
@@ -92,6 +93,25 @@ are without loading them.
 - Stored per decoder in append-only pages of 64k frames, each with a `[min start, max end]` index
   for windowed queries and paging (MCP `get_decoded` uses page cursors).
 - Problems are also indexed by code, for "jump to next error".
+
+## Value series (virtual analog channels, ADR 0010)
+
+- A virtual analog channel belongs to a capture: id, name, colour, unit, source with its channels
+  and settings (doc 06), scaling, drawing style (step or line), and for a math channel its
+  expression. Only this definition is session state; the values are derived.
+- Its values are a **value series**: points of sample index (`u64`, strictly increasing), value
+  (`f64`) and raw code (`i64`, where the source has one), stored in append-only pages of 64k
+  points with a `[first, last]` sample index for windowed reads, plus the problems with their
+  sample index, indexed by code like decoder problems.
+- **LOD** per page and per bucket of 2^16 samples: point count, minimum, maximum and the last
+  value before the bucket, so a zoomed-out view draws an envelope and a gap without loading
+  points. Sparse series (a few points per bucket) answer from the points.
+- Pages live in the same evictable cache as chunk payloads, with the memory backing; they are not
+  written to `.lacap` (doc 09) and are computed again when a capture is opened or a definition
+  changes. A series follows a live capture like a live decode.
+- A gap is explicit: a series records where it has no value (before the first point, where a
+  source left a point out, at the ends of segments), so drawing, measurements and math channels
+  never bridge it.
 
 ## Storage
 

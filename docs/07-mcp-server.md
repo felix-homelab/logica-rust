@@ -67,14 +67,14 @@ indices, so follow-up calls are exact.
 | `capture` | capture | `start` with the configuration inline (channels and names, sample rate, duration or sample count, threshold, buffer or stream mode, trigger as a query, doc 06); validates against capabilities and explains rejections. `wait: true` (default) blocks with progress notifications and can be cancelled. `stop` ends a running capture |
 | `session` | read | Open captures and their state (samples so far, data-loss notes), decoders with problem counts, markers, the person's view per tab (range, cursors, selection), lease holders, recent activity |
 | `open_file` | read | Import a file from a path on the machine running the engine (doc 09) |
-| `save_capture` | read | Save as `.lacap`, or export as `.sr`, VCD, CSV, Saleae binary, or decoded packets (CSV, JSON) |
-| `summarize` | read | Per-channel measurements, bus groups, detected protocols with confidence and evidence, problems; for the whole capture or a time range; bounded length |
-| `measure` | read | `stats` (frequency, period, duty, pulse widths, edge counts for a channel and range), `edges` (edges of chosen channels in a range, capped and paged), `between` (time between two edges) |
+| `save_capture` | read | Save as `.lacap`, or export as `.sr`, VCD, CSV, Saleae binary, decoded packets (CSV, JSON), or the values of virtual analog channels (CSV) |
+| `summarize` | read | Per-channel measurements, bus groups, detected protocols with confidence and evidence, virtual analog channels with their range and suggested ones, problems; for the whole capture or a time range; bounded length |
+| `measure` | read | `stats` (frequency, period, duty, pulse widths, edge counts for a channel and range), `edges` (edges of chosen channels in a range, capped and paged), `between` (time between two edges), `analog` (minimum, maximum, mean, RMS, peak to peak and point count of a virtual analog channel in a range, value at a time) |
 | `decoder` | read | `add` (protocol, roles, settings, layers, register map; or from a detection), `update` (returns how the problem counts changed), `remove` |
 | `get_decoded` | read | Packets or frames filtered by time range, kind, problem and text; paged. `explain: true` groups problems and explains likely causes from the symptom knowledge |
-| `search` | read | Query search over edges and decoded content (doc 06); hits with times |
+| `search` | read | Query search over edges, decoded content and virtual analog values (doc 06); hits with times |
 | `compare` | read | Two captures, or decoded data against expected bytes or text; differences with times |
-| `render` | read | PNG image of a time range with decoder rows and markers, for agents that can see images (rendered by the engine, works headless) |
+| `render` | read | PNG image of a time range with decoder rows, virtual analog channels and markers, for agents that can see images (rendered by the engine, works headless) |
 | `show_user` | read | Point the person at something: a marker or range note, optionally moving their view there and posting a short message in the activity feed; shown with an "agent" badge |
 | `set_output` | output | PWM or other outputs, if the device has them and the person allowed outputs |
 | `run_command` | per command | Any command of the command API by name (for example `history.undo`, `analysis.bytes`, `capture.close`), validated by its contract; the command's own safety class and lease rules apply. The list is the resource `logica://commands` |
@@ -82,7 +82,9 @@ indices, so follow-up calls are exact.
 Tools change only deliberately (schema snapshot tests); a new capability first goes through
 `run_command` and earns its own tool when agents need it often. `compare` joins with capture
 comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
-exist, the tools are not offered. A tool that has several actions (`device`, `capture`, `measure`,
+exist, the tools are not offered. Virtual analog channels (ADR 0010) are created and changed with
+`run_command` (`analog.create`, `analog.update`, `analog.remove`, `analog.values`); the tools above
+include them where they read data. A tool that has several actions (`device`, `capture`, `measure`,
 `decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
 `oneOf`.
 

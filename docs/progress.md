@@ -149,7 +149,8 @@ What is done, what is next, and decisions made on the way. Newest first.
 
 ### Next
 
-- Spike S3 (DLA-32 Plus feasibility), then M3.
+- M2a, virtual analog channels (ADR 0010, doc 11), decided by the owner after M2; then spike S3
+  (DLA-32 Plus feasibility) and M3.
 
 ## M1 Engine, CLI and MCP (November 2026)
 
