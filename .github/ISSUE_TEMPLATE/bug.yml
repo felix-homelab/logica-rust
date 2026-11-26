@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in Logica does not work as it should
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. **A security vulnerability never goes into a
+        public issue:** report it privately as [SECURITY.md](https://github.com/felix-homelab/logica-rust/blob/main/SECURITY.md) says.
+  - type: input
+    id: version
+    attributes:
+      label: Logica version
+      description: "`logica --version`, the version in the first line of the app's log file, or the commit you built."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it happens
+      multiple: true
+      options:
+        - Desktop app (window)
+        - Capture from a device
+        - Opening or saving a file
+        - Decoding or analysis
+        - MCP (an agent such as Claude Code)
+        - Command line (logica)
+        - Installation or update
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system
+      description: Also the analyser model if a device is involved.
+      placeholder: "Windows 11, DLA-32 Plus"
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you saw, including messages in the app or on the command line.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that shows the problem. A capture file helps if you can share it.
+      placeholder: |
+        1. Open capture.lacap
+        2. Add the I2C decoder on channels 0 and 1
+        3. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: |
+        The relevant lines of the app's log file. **Remove anything you do not want public before
+        you submit.**
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: This is not a security vulnerability (those go to SECURITY.md, privately).
+          required: true

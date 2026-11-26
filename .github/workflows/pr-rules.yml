@@ -1,0 +1,62 @@
+# Repository rules for pull requests (CONTRIBUTING.md). Separate from ci.yml because it must re-run
+# when the title or the labels change, without re-running the slower checks.
+name: pr-rules
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# No concurrency group: adding labels fires several runs within one second, and cancelling all but
+# one could leave a cancelled run as the newest, which blocks the merge. The changelog step reads the
+# labels when it runs, not from the event, so every run of a pull request reaches the same result.
+
+jobs:
+  pr-rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: PR title
+        if: ${{ !cancelled() }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          bot=()
+          if [[ $HEAD_REF == dependabot/* ]]; then
+            bot=(--bot)
+          fi
+          .github/scripts/check-pr-title.sh "${bot[@]}" "$TITLE"
+      - name: Branch names
+        if: ${{ !cancelled() }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: .github/scripts/check-branch-name.sh "$HEAD_REF" "$BASE_REF"
+      - name: Commit headers
+        if: ${{ !cancelled() }}
+        run: .github/scripts/check-commits.sh "$BASE_SHA" "$HEAD_SHA"
+      - name: Labels, read now rather than from the event
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(" ")')
+          echo "LABELS=$labels" >>"$GITHUB_ENV"
+      - name: Changelog
+        if: ${{ !cancelled() }}
+        run: .github/scripts/check-changelog.sh "$BASE_SHA" "$HEAD_SHA" "$LABELS"
+      - name: Size of the change (warns only)
+        if: ${{ !cancelled() }}
+        run: .github/scripts/check-size.sh "$BASE_SHA" "$HEAD_SHA" "$LABELS"

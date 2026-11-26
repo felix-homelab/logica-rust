@@ -18,6 +18,10 @@ talking to the DLA-32 Plus at all, is tested right after M2, before any driver w
 
 ## Milestones
 
+Each finished milestone is released ([RELEASING.md](../RELEASING.md), decision D15): M0 to M2 as
+v0.1.0, M3 as v0.2.0, M4 as v0.3.0, M5 as v0.4.0 and M6 as v1.0.0, each after a release
+candidate. The GitHub milestones carry the version numbers.
+
 ### M0 Foundations
 - Cargo workspace and npm workspace (doc 03), lint and format, CI on GitHub Actions, `LICENSE`,
   `.gitignore` excluding `fixtures/captures/local/`.
@@ -91,8 +95,8 @@ talking to the DLA-32 Plus at all, is tested right after M2, before any driver w
 
 ### M6 Release 1.0
 - Install guides with screenshots (SmartScreen, macOS quarantine, udev, Zadig), user documentation,
-  the Claude Code setup guide; the standalone `logica` binary for headless use; first public release
-  on GitHub.
+  the Claude Code setup guide; the standalone `logica` binary for headless use (published with
+  every release since v0.1.0, RELEASING.md); release 1.0.0 on GitHub.
 
 ### After version 1
 Learn tab, Saleae automation driver, sigrok bridge, Pico analysers, WebAssembly decoder plugins, a
