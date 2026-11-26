@@ -2,6 +2,31 @@
 
 What is done, what is next, and decisions made on the way. Newest first.
 
+## M2a Virtual analog channels (November 2026, in progress)
+
+ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
+
+### Done
+
+- The plan: ADR 0010 and docs 01, 03, 04, 06 to 12.
+- `core::analog`: scaling (unsigned and two's complement codes, range and linear) and the value
+  series with envelopes for any zoom.
+- `protocols::analog`: the `Source` trait and the PWM level (duty, frequency, period, pulse width;
+  a stopped PWM reads 0 % or 100 % with a reason).
+- Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
+  live following, saving in `.lacap`.
+- Window: a row per channel with a value axis, steps or a line, problems outlined; the channel
+  list's "Virtual analog" section and the add and settings dialog.
+
+### Not done yet
+
+- Rows have a fixed height (72 px); resizing them (doc 08) comes later.
+- The value, raw code and step at the cursor (doc 08) come with the measurements step.
+- The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
+  and says which to use.
+- Serial ADC with presets, parallel bus, PDM, measurements, CSV export, search and math channels
+  (doc 11, M2a).
+
 ## M2 Desktop app and viewer (November 2026)
 
 ### Done

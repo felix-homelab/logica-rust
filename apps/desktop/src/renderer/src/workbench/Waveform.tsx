@@ -12,8 +12,9 @@ import { Button } from '@logica/ui';
 import { bridge, client } from '../bridge';
 import { at, tick, tickStep, time } from '../format';
 import { useEventCount, type CaptureInfo } from '../store';
-import { waveformNeeds } from '../relevance';
+import { analogNeeds, waveformNeeds } from '../relevance';
 import { joinRun, layoutRows, runs, type Row } from '../lanes';
+import { formatValue, valueLines, valueRange, valueTicks, valueY } from '../analogplot';
 import { clampRange, pan, sampleToX, snap, xToSample, zoomAt, type Range } from '../viewmath';
 
 export interface ViewState extends Range {
@@ -23,6 +24,7 @@ export interface ViewState extends Range {
 }
 
 type Wave = Output<'waveform.get'>;
+type Values = Output<'analog.values'>;
 
 const AXIS = 22;
 const MARKERS = 16;
@@ -97,6 +99,8 @@ export function Waveform({
   follow?: boolean;
 }) {
   const changes = useEventCount((e) => waveformNeeds(e, capture.id));
+  const analogChanges = useEventCount((e) => analogNeeds(e, capture.id));
+  const [values, setValues] = useState<Map<string, Values>>(new Map());
   const [failed, setFailed] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const host = useRef<HTMLDivElement>(null);
@@ -110,7 +114,10 @@ export function Waveform({
   const rate = capture.sampleRateHz;
   const plotW = Math.max(1, width - LABEL_W);
 
-  const rows = useMemo<Row[]>(() => layoutRows(capture.channels, capture.decoders, AXIS + MARKERS), [capture.channels, capture.decoders]);
+  const rows = useMemo<Row[]>(
+    () => layoutRows(capture.channels, capture.decoders, AXIS + MARKERS, capture.analog),
+    [capture.channels, capture.decoders, capture.analog],
+  );
   const height = (rows.at(-1)?.y ?? AXIS + MARKERS) + (rows.at(-1)?.h ?? 0) + 8;
 
   useEffect(() => {
@@ -150,6 +157,32 @@ export function Waveform({
     }, 16);
     return () => window.clearTimeout(t);
   }, [capture.id, view.from, view.to, plotW, changes, retry]);
+
+  // the values of the virtual analog channels in view, in their units (ADR 0010); a scaling or
+  // style change arrives as a new session, so the channel list is part of what is asked for
+  const analogKey = capture.analog.map((a) => `${a.id}:${JSON.stringify(a.config)}`).join('|');
+  useEffect(() => {
+    const id = capture.id;
+    const ids = capture.analog.map((a) => a.id);
+    if (!ids.length) {
+      setValues(new Map());
+      return;
+    }
+    let stale = false;
+    const t = window.setTimeout(() => {
+      const buckets = Math.min(8192, Math.max(1, plotW));
+      Promise.all(ids.map((analog) => client.run('analog.values', { capture: id, analog, from: view.from, to: view.to, buckets }).then((v) => [analog, v] as const)))
+        .then((all) => {
+          if (!stale) setValues(new Map(all));
+        })
+        .catch((e: unknown) => bridge().log('warn', `analog.values failed: ${e instanceof CommandError ? e.message : String(e)}`));
+    }, 16);
+    return () => {
+      stale = true;
+      window.clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- analogKey stands for capture.analog
+  }, [capture.id, view.from, view.to, plotW, analogChanges, analogKey]);
 
   const draw = useCallback(() => {
     // a live view draws the range its data is for: following moves the view on before each
@@ -223,6 +256,53 @@ export function Waveform({
         // a hairline above each group
         g.fillStyle = k.grid!;
         g.fillRect(0, r.y, width, 1);
+        continue;
+      }
+      if (r.kind === 'analog') {
+        const a = capture.analog.find((v) => v.id === r.analog);
+        const v = r.analog ? values.get(r.analog) : undefined;
+        g.fillStyle = k.grid!;
+        g.fillRect(LABEL_W, r.y, width - LABEL_W, 1);
+        if (!a || !v) continue;
+        const [lo, hi] = valueRange(a.min, a.max);
+        const top = r.y + 8;
+        const h = r.h - 14;
+        const vy = (val: number) => valueY(val, lo, hi, top, h);
+        for (const t of valueTicks(lo, hi, 3)) g.fillRect(LABEL_W, Math.round(vy(t)) + 0.5, width - LABEL_W, 1);
+        g.strokeStyle = traceColour(r);
+        g.fillStyle = traceColour(r);
+        g.lineWidth = 1.5;
+        if (v.points) {
+          for (const line of valueLines(v.points, v.held, v.from, v.to, a.config.style ?? 'step')) {
+            g.beginPath();
+            line.forEach(([s, val], i) => (i ? g.lineTo(x(s), vy(val)) : g.moveTo(x(s), vy(val))));
+            g.stroke();
+          }
+          // the points themselves when they are far enough apart to tell
+          if (v.points.length && plotW / v.points.length > 10) {
+            for (const p of v.points) if (p.value !== null && p.value !== undefined) g.fillRect(x(p.sample) - 1.5, vy(p.value) - 1.5, 3, 3);
+          }
+        } else {
+          (v.buckets ?? []).forEach((b, i) => {
+            const vals = [b.held, b.min, b.max].filter((n): n is number => n !== null && n !== undefined);
+            if (!vals.length) return;
+            const s0 = v.from + i * v.bucket;
+            const x0 = x(s0);
+            const x1 = Math.max(x0 + 1, x(Math.min(v.to, s0 + v.bucket)));
+            const y0 = vy(Math.max(...vals));
+            g.fillRect(x0, y0, x1 - x0, Math.max(1.5, vy(Math.min(...vals)) - y0));
+          });
+        }
+        // problems: outlined and marked, never by colour alone
+        g.strokeStyle = k.problem!;
+        g.lineWidth = 1;
+        for (const p of v.problems) {
+          const x0 = Math.max(LABEL_W, x(p.start));
+          const x1 = Math.max(x0 + 3, Math.min(width, x(p.end)));
+          g.strokeRect(x0 + 0.5, r.y + 2.5, x1 - x0 - 1, r.h - 5);
+          g.fillStyle = k.problem!;
+          g.fillText('!', x0 + 3, r.y + 9);
+        }
         continue;
       }
       if (r.kind === 'channel' && r.channel !== undefined) {
@@ -381,13 +461,34 @@ export function Waveform({
         g.font = `11px ${k.font}`;
         continue;
       }
+      if (r.kind === 'analog') {
+        // the name on top, the value axis below it, in the channel's unit
+        const a = capture.analog.find((v) => v.id === r.analog);
+        g.fillStyle = traceColour(r);
+        g.fillText(fit(g, r.label, LABEL_W - 14), 8, r.y + 9);
+        if (!a) continue;
+        const [lo, hi] = valueRange(a.min, a.max);
+        g.fillStyle = k.axis!;
+        g.font = `10px ${k.mono}`;
+        g.textAlign = 'right';
+        const ticks = valueTicks(lo, hi, 3);
+        // as many decimals as the ticks are apart
+        const apart = ticks.length > 1 ? ticks[1]! - ticks[0]! : null;
+        for (const t of ticks) {
+          const ty = valueY(t, lo, hi, r.y + 8, r.h - 14);
+          if (ty > r.y + 18) g.fillText(fit(g, formatValue(t, a.config.unit ?? '', apart), LABEL_W - 16), LABEL_W - 8, ty);
+        }
+        g.textAlign = 'left';
+        g.font = `11px ${k.font}`;
+        continue;
+      }
       g.fillStyle = r.kind === 'channel' ? traceColour(r) : k.axis!;
       g.fillText(fit(g, r.label, LABEL_W - 14), r.kind === 'channel' ? 8 : 14, r.y + r.h / 2);
     }
     // a bracket down the side of each group
     g.fillStyle = k.axis!;
     for (const [top, bottom] of extent.values()) g.fillRect(2, top + 4, 2, bottom - top - 6);
-  }, [width, height, view, rows, data, capture.markers, plotW, rate, follow]);
+  }, [width, height, view, rows, data, capture.markers, capture.analog, values, plotW, rate, follow]);
 
   useEffect(() => {
     const id = requestAnimationFrame(draw);
@@ -409,9 +510,18 @@ export function Waveform({
       const names = rows.filter((r) => r.kind === 'channel').map((r) => r.label);
       const decoders = capture.decoders.map((d) => `${d.config.name} (${d.frames} frames, data shown as ${d.config.dataFormat ?? 'ascii'})`);
       const marks = capture.markers.filter((m) => m.at >= view.from && m.at < view.to).length;
+      const analog = capture.analog.map((a) => {
+        const unit = a.config.unit ?? '';
+        const span =
+          a.min === null || a.min === undefined || a.max === null || a.max === undefined
+            ? 'no values'
+            : `${formatValue(a.min, unit, a.step)} to ${formatValue(a.max, unit, a.step)}`;
+        return `${a.config.name} (${span})`;
+      });
       setDescription(
         `${capture.title}: ${time(view.from / rate)} to ${time(view.to / rate)}. Channels ${names.join(', ') || 'none'}. ` +
-          `${decoders.length ? `Decoders ${decoders.join(', ')}. ` : ''}${marks} marker${marks === 1 ? '' : 's'} in view.` +
+          `${decoders.length ? `Decoders ${decoders.join(', ')}. ` : ''}` +
+          `${analog.length ? `Virtual analog channels ${analog.join(', ')}. ` : ''}${marks} marker${marks === 1 ? '' : 's'} in view.` +
           (view.cursorA !== null ? ` Cursor A at ${at(view.cursorA, rate)}.` : '') +
           (view.cursorB !== null ? ` Cursor B at ${at(view.cursorB, rate)}.` : ''),
       );

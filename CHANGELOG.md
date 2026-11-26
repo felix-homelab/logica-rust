@@ -48,5 +48,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   in your own unit and range, computed from the capture, followed live while capturing and saved
   with the `.lacap`. A PWM that stops toggling reads 0 % or 100 % and says why. Agents create and
   read them through `run_command` (`analog.sources`, `analog.add`, `analog.values`). (#19)
+- App: virtual analog channels in the window: a row of their own with a value axis, drawn as steps
+  or a line, and "Add virtual analog channel" in the channel list, with a dialog for the source,
+  its channel and settings, the scaling, name and unit. (#20)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

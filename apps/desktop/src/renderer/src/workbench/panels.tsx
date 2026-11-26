@@ -8,6 +8,7 @@ import { at, hz, int } from '../format';
 import { isAgent, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
 import type { ViewState } from './Waveform';
+import { AnalogChannels } from './AnalogPanel';
 
 type Analysis = Output<'analysis.detect'>;
 type Protocols = Output<'protocol.list'>['protocols'];
@@ -124,6 +125,7 @@ export function ChannelList({ capture }: { capture: CaptureInfo }) {
           )}
         </>
       )}
+      <AnalogChannels capture={capture} />
       <Dialog
         open={open !== undefined}
         onOpenChange={(o) => !o && setSettingsOf(null)}
@@ -294,12 +296,12 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
   );
 }
 
-function SettingField({
+export function SettingField({
   spec,
   value,
   onChange,
 }: {
-  spec: Protocols[number]['settings'][number];
+  spec: Protocols[number]['settings'][number] | Output<'analog.sources'>['sources'][number]['settings'][number];
   value: unknown;
   onChange: (v: string | number | boolean) => void;
 }) {

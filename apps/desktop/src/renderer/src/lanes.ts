@@ -78,7 +78,7 @@ export function groupChannels<C extends LaneChannel, D extends LaneDecoder>(chan
   return { groups, other: channels.filter((c) => !owner.has(c.index)), loose };
 }
 
-export type RowKind = 'group' | 'channel' | 'data' | 'text';
+export type RowKind = 'group' | 'channel' | 'data' | 'text' | 'analog';
 
 export interface Row {
   kind: RowKind;
@@ -97,18 +97,26 @@ export interface Row {
   lane?: number | null;
   /** Text rows: how the data is written. */
   format?: DataFormat;
+  /** Analog rows: the virtual analog channel. */
+  analog?: string;
   /** Which group the row belongs to (-1 for none), to draw the group's bracket. */
   group: number;
 }
 
-export const ROW_HEIGHT: Record<RowKind, number> = { group: 18, channel: 34, data: 22, text: 18 };
+export const ROW_HEIGHT: Record<RowKind, number> = { group: 18, channel: 34, data: 22, text: 18, analog: 72 };
+
+/** A virtual analog channel, as far as the rows need it (ADR 0010). */
+export interface LaneAnalog {
+  id: string;
+  config: { name: string };
+}
 
 export const FORMAT_LABEL: Record<DataFormat, string> = { ascii: 'ASCII', hex: 'Hex', decimal: 'Decimal', binary: 'Binary' };
 
 const isDefaultName = (c: LaneChannel) => !c.name || c.name === `CH${c.index}` || c.name === `channel ${c.index}`;
 
-/** The rows of the waveform, from `top` down. */
-export function layoutRows<C extends LaneChannel, D extends LaneDecoder>(channels: C[], decoders: D[], top: number): Row[] {
+/** The rows of the waveform, from `top` down; virtual analog channels come last. */
+export function layoutRows<C extends LaneChannel, D extends LaneDecoder>(channels: C[], decoders: D[], top: number, analog: LaneAnalog[] = []): Row[] {
   const { groups, other } = groupChannels(channels, decoders);
   const visible = channels.filter((c) => !c.hidden);
   const colourIndex = new Map(visible.map((c, i) => [c.index, i]));
@@ -155,6 +163,7 @@ export function layoutRows<C extends LaneChannel, D extends LaneDecoder>(channel
   for (const c of other.filter((c) => !c.hidden)) channelRow(c, null, null, -1);
   // decoders on no channel of this capture (`loose`) have no channel to sit under either
   for (const d of atEnd.get(null) ?? []) decoderRows(d, null, null, -1);
+  analog.forEach((a, i) => push({ kind: 'analog', key: `a${a.id}`, label: a.config.name, analog: a.id, colourIndex: i, group: -1 }));
   return rows;
 }
 
