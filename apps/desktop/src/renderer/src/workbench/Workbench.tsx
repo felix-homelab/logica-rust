@@ -402,17 +402,18 @@ export function Workbench() {
                     <span className="tabs__label">{c.title}</span>
                     {c.unsaved && c.state !== 'capturing' && (
                       <span className="tabs__unsaved" title="Unsaved changes">
-                        <span aria-hidden="true">●</span>
+                        <span className="tabs__dot" aria-hidden="true" />
                         <span className="lg-visually-hidden">, unsaved changes</span>
                       </span>
                     )}
+                    {/* capturing: a red dot that pulses, the word for screen readers and the tooltip */}
                     {c.state === 'capturing' && (
-                      <Status tone="danger" pulse>
-                        capturing
+                      <Status tone="danger" pulse title="Capturing">
+                        <span className="lg-visually-hidden">capturing</span>
                       </Status>
                     )}
                   </button>
-                  <IconButton label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
+                  <IconButton className="tabs__close" label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
                 </li>
               ))}
             </ul>
