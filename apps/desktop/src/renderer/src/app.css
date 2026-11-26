@@ -59,6 +59,7 @@
   color: var(--text-secondary);
 }
 .card {
+  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -83,6 +84,7 @@
 }
 .query {
   margin: 0;
+  overflow-wrap: anywhere;
   padding: var(--space-2);
   max-height: 200px;
   overflow: auto;
@@ -97,6 +99,8 @@
   max-height: 320px;
 }
 .code-input {
+  width: 100%;
+  resize: vertical;
   height: auto;
   padding: var(--space-2);
   font-family: var(--font-mono);
@@ -113,9 +117,18 @@ details summary {
   margin-right: var(--space-2);
 }
 .channels-pick {
+  /* a fieldset is as wide as its content by default; these wrap in the dialog's width instead */
+  min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
+}
+legend {
+  padding: 0;
+}
+/* a card's title is spaced by the card's stack, not by its own margins */
+.card > .section-title {
+  margin: 0;
 }
 
 /* the "Capture live" dialog */
@@ -127,11 +140,18 @@ details summary {
 }
 .capture-pick__label {
   align-items: flex-start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.capture-pick > .row,
+.capture-pick > .lg-badge {
+  flex: none;
 }
 .capture-group {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
@@ -150,59 +170,105 @@ details summary {
 .head {
   flex: none;
 }
-.tabs__ul {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+/* The capture tabs: the same idiom as the panel tabs below them (text, muted until active, an ink
+   line on the bar's hairline under the active one), with a close button that shows when wanted. */
 .tabs {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   height: 38px;
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-2) 0 0;
   border-bottom: 1px solid var(--border);
   background: var(--bg-app);
 }
 .tabs__list {
   display: flex;
   align-items: center;
+  align-self: stretch;
   gap: var(--space-1);
   flex: 1;
   min-width: 0;
+}
+.tabs__list > .lg-button {
+  flex: none;
+}
+.tabs__ul {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* tabs shrink first, then scroll sideways (wheel or keyboard); no scroll bar inside the bar */
   overflow-x: auto;
+  scrollbar-width: none;
 }
 .tabs__tab {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
-  max-width: 260px;
-  padding-left: var(--space-1);
-  border-radius: var(--radius);
+  gap: 2px;
+  min-width: 112px;
+  max-width: 240px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  color: var(--text-muted);
+}
+.tabs__tab:hover {
+  color: var(--text);
 }
 .tabs__tab[data-active] {
-  background: var(--bg-surface);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--text);
 }
 .tabs__title {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
-  height: var(--control-md);
-  padding: 0 var(--space-2);
-  overflow: hidden;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
   border: 0;
   background: none;
-  color: var(--text);
+  color: inherit;
   font: inherit;
+  font-weight: var(--weight-medium);
   white-space: nowrap;
-  text-overflow: ellipsis;
   cursor: pointer;
+}
+.tabs__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* a small close button; on other tabs it shows on hover or keyboard focus */
+.tabs__close.lg-button {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+.tabs__close.lg-button svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.tabs__tab:not([data-active]):not(:hover):not(:focus-within) .tabs__close {
+  opacity: 0;
+}
+/* unsaved changes: the same dot as every other state */
+.tabs__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
 }
 .tabs__palette {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
   height: var(--control-md);
@@ -218,14 +284,32 @@ details summary {
   width: var(--icon-sm);
   height: var(--icon-sm);
 }
+.tabs__palette .lg-kbd {
+  margin-left: 0;
+}
+/* a narrow window keeps the palette's icon and shortcut, and leaves the room to the tabs */
+@media (max-width: 1100px) {
+  /* hidden from sight only: it stays the button's name */
+  .tabs__palette-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .agent-indicator {
   display: flex;
+  flex: none;
+  align-items: center;
   gap: var(--space-1);
 }
 
 /* toolbar */
 .toolbar {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-1);
   height: 36px;
@@ -234,6 +318,7 @@ details summary {
   background: var(--bg-surface);
 }
 .toolbar__sep {
+  flex: none;
   width: 1px;
   height: 18px;
   margin: 0 var(--space-1);
@@ -264,6 +349,11 @@ details summary {
   min-height: 0;
   overflow: auto;
 }
+/* one scroll bar per panel: the inspector's tab content scrolls, never the panel around it (a
+   row above the tabs, or a pixel of rounding at 125 % scaling, would add a second bar beside it) */
+.inspector__content {
+  overflow: hidden;
+}
 .inspector[data-drawer] {
   position: absolute;
   top: 0;
@@ -279,10 +369,18 @@ details summary {
   z-index: calc(var(--z-drawer) - 1);
   background: var(--scrim);
 }
+.inspector__content {
+  position: relative;
+}
+/* in a drawer, the close button sits at the end of the tab row instead of on a row of its own */
 .inspector__close {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-1) var(--space-1) 0;
+  position: absolute;
+  top: 2px;
+  right: var(--space-1);
+  z-index: 1;
+}
+.inspector[data-drawer] .lg-tabs__list {
+  padding-right: calc(var(--control-md) + var(--space-2));
 }
 .center {
   display: flex;
@@ -323,12 +421,19 @@ details summary {
   min-height: 0;
   overflow: auto;
 }
+/* a tab whose content scrolls itself (a virtual list, the activity list) does not scroll around it */
+.lg-tabs__content.fill--own {
+  overflow: hidden;
+}
 
 /* channels */
 .channels__list {
   margin: 0;
   padding: 0 var(--space-1);
   list-style: none;
+}
+.channels__row > .lg-button {
+  flex: none;
 }
 .channels__row {
   display: flex;
@@ -355,6 +460,7 @@ details summary {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  display: block;
   height: var(--control-md);
   border: 0;
   padding: 0 var(--space-1);
@@ -407,6 +513,71 @@ details summary {
   font-size: var(--text-xs);
 }
 
+/* inspector: flat sections divided by hairlines, not boxes in boxes */
+.sections {
+  display: flex;
+  flex-direction: column;
+}
+.section {
+  margin: 0;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.section--bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.section__head > .lg-button {
+  align-self: center;
+}
+.section__title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.section__meta {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.section__meta[data-tone='warning'] {
+  color: var(--warning);
+}
+.section__meta[data-tone='muted'] {
+  color: var(--text-muted);
+}
+.section__hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.query-details summary {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.query-details[open] summary {
+  margin-bottom: var(--space-1);
+}
+.sections > .lg-empty {
+  border-bottom: 1px solid var(--border);
+}
+
 /* analysis */
 .evidence {
   margin: 0;
@@ -420,6 +591,7 @@ details summary {
 .evidence li {
   display: flex;
   gap: var(--space-2);
+  overflow-wrap: anywhere;
 }
 .evidence__mark {
   flex: none;
@@ -447,6 +619,7 @@ details summary {
   color: var(--text);
   font: inherit;
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 .hits__item:hover,
@@ -490,11 +663,16 @@ details summary {
   background: var(--bg-selected);
 }
 .table__index {
+  flex: none;
   width: 56px;
   color: var(--text-muted);
 }
 .table__time {
+  flex: none;
   width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
 }
 .table__text {
@@ -510,12 +688,15 @@ details summary {
 /* measurements */
 .measure {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr);
-  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+  gap: var(--space-4) var(--space-5);
 }
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
+  /* rows keep their height; they do not spread over a taller neighbour */
+  align-content: start;
   gap: var(--space-1) var(--space-3);
   margin: 0;
 }
@@ -536,10 +717,17 @@ details summary {
   height: 100%;
 }
 .activity__bar {
+  flex: none;
   padding: 0 var(--space-3);
   border-bottom: 1px solid var(--border);
 }
+/* the switch at the end of the row, as in the device panel */
+.activity__bar > .lg-switch-row {
+  flex: 1;
+}
 .activity__list {
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: var(--space-1) var(--space-2);
   list-style: none;
@@ -550,11 +738,27 @@ details summary {
   align-items: center;
   gap: var(--space-2);
   min-height: var(--control-lg);
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-1) 0 var(--space-2);
   border-radius: var(--radius-sm);
 }
 .activity__item[data-agent] {
-  background: var(--agent-bg);
+  box-shadow: inset 2px 0 0 var(--agent);
+}
+.activity__actor {
+  flex: none;
+  width: 96px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.activity__item[data-agent] .activity__actor {
+  color: var(--agent);
+}
+.activity__item > .lg-button,
+.activity__never {
+  flex: none;
 }
 .activity__item[data-undone] .activity__text {
   text-decoration: line-through;
@@ -563,6 +767,7 @@ details summary {
 .activity__text {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .activity__never {
   font-size: var(--text-xs);
@@ -582,14 +787,23 @@ details summary {
   white-space: nowrap;
   overflow: hidden;
 }
+.status > * {
+  flex: none;
+}
+.status > .status__fit {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .status__grow {
-  flex: 1;
+  flex: 1 1 0;
 }
 .status__warn {
   color: var(--warning);
 }
 
-/* start screen */
+/* start screen: what to do first, then what was open and what is plugged in */
 .start {
   flex: 1;
   overflow: auto;
@@ -597,20 +811,110 @@ details summary {
 .start__inner {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 920px;
+  gap: var(--space-6);
+  max-width: 880px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-5);
+  padding: var(--space-8) var(--space-5) var(--space-5);
+}
+.start__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.start__head > .row {
+  margin-top: var(--space-2);
 }
 .start__title {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
 }
-.start__grid {
+.start__cols {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .start__cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.start__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.start__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.start__label {
+  margin: 0;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.start__empty {
+  font-size: var(--text-sm);
+}
+.start__list {
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 0;
+  list-style: none;
+}
+.start__item,
+.start__row {
+  display: flex;
+  align-items: baseline;
   gap: var(--space-3);
+  width: 100%;
+  min-height: var(--control-md);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.start__row {
+  align-items: center;
+  justify-content: space-between;
+}
+.start__section > .start__row {
+  margin: 0 calc(-1 * var(--space-2));
+  width: auto;
+}
+.start__item {
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.start__item:hover {
+  background: var(--bg-hover);
+}
+.start__name {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.start__row > .start__name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.start__where {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 /* notices */
@@ -622,7 +926,7 @@ details summary {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-width: 420px;
+  max-width: min(420px, calc(100vw - 2 * var(--space-4)));
 }
 .notice {
   display: flex;
@@ -645,8 +949,13 @@ details summary {
 .notice[data-tone='success'] {
   border-left-color: var(--success);
 }
-.notice span {
+.notice__text {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notice > .lg-button {
+  flex: none;
 }
 
 /* settings window */
@@ -678,8 +987,7 @@ details summary {
 
 /* reliability: unsaved marks, engine banners, failures, the busy status */
 .tabs__unsaved {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
+  display: inline-flex;
 }
 .banner {
   display: flex;
@@ -693,8 +1001,12 @@ details summary {
 .banner[data-tone='danger'] {
   background: var(--danger-bg);
 }
-.banner > span {
-  flex: 1;
+.banner {
+  flex-wrap: wrap;
+}
+.banner__text {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 .boundary {
   display: flex;
@@ -705,6 +1017,7 @@ details summary {
 }
 .boundary p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .wave {
   position: relative;
@@ -713,7 +1026,8 @@ details summary {
   position: absolute;
   top: var(--space-2);
   left: 50%;
-  transform: translateX(-50%);
+  translate: -50% 0;
+  max-width: calc(100% - 2 * var(--space-4));
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -722,6 +1036,14 @@ details summary {
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text);
+}
+.status__busy-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status__spinner {
+  flex: none;
 }
 .status__busy {
   display: inline-flex;
@@ -733,7 +1055,7 @@ details summary {
   width: 10px;
   height: 10px;
   border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
+  border-top-color: var(--text);
   border-radius: var(--radius-full);
   animation: status-spin 0.8s linear infinite;
 }
@@ -762,25 +1084,117 @@ details summary {
   background: var(--bg-surface);
   color: var(--text);
 }
-.live__grow {
-  flex: 1;
+.live__bar > * {
+  flex: none;
 }
-.live__dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 2px;
+.live__bar > .live__note {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.live__time {
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+/* "Capture live": a steady height, so the centred dialog does not jump from step to step */
+.capture-dialog {
+  height: min(640px, calc(100vh - 2 * var(--space-4)));
+}
+.capture-dialog .lg-dialog__body {
+  flex: 1 1 auto;
+}
+/* the step bar: where you are, what is done, and which step has a problem */
+.steps {
+  margin: 0 calc(-1 * var(--space-4)) var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.steps__list {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.steps__item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+.steps__item + .steps__item::before {
+  content: '';
+  flex: none;
+  width: var(--space-4);
+  height: 1px;
+  margin: 0 var(--space-1);
+  background: var(--border-strong);
+}
+.steps__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: var(--control-md);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.steps__button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.steps__button:disabled {
+  cursor: default;
+  color: var(--text-muted);
+}
+.steps__button[aria-current='step'] {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.steps__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
-  background: currentColor;
-  animation: live-pulse 1.2s ease-in-out infinite;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
 }
-@keyframes live-pulse {
-  50% {
-    opacity: 0.35;
-  }
+.steps__mark svg {
+  width: 12px;
+  height: 12px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .live__dot {
-    animation: none;
-  }
+.steps__item[data-state='current'] .steps__mark {
+  border-color: var(--primary-bg);
+  background: var(--primary-bg);
+  color: var(--on-primary);
+}
+.steps__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.steps__bad {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+}
+.review dt {
+  white-space: nowrap;
 }

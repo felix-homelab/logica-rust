@@ -4,13 +4,13 @@ import type { DragEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COMMANDS } from '@logica/api';
 import {
-  Badge,
   Button,
   CommandPalette,
   Dialog,
   IconButton,
   Kbd,
   Splitter,
+  Status,
   TabsContent,
   TabsList,
   TabsRoot,
@@ -39,6 +39,7 @@ import { bridge, client, mod } from '../bridge';
 import { at, elapsed, hz, int, time } from '../format';
 import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { centreOn, zoomAt } from '../viewmath';
+import { DEFAULTS, LIMITS, fitPanels } from '../panelsize';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
@@ -79,18 +80,27 @@ export function Workbench() {
   const [showSidebar, setShowSidebar] = useStored('logica.sidebar', true);
   const [showInspector, setShowInspector] = useStored('logica.inspector', true);
   const [showBottom, setShowBottom] = useStored('logica.bottom', true);
-  const [sidebarW, setSidebarW] = useStored('logica.sidebarW', 240);
-  const [inspectorW, setInspectorW] = useStored('logica.inspectorW', 340);
-  const [bottomH, setBottomH] = useStored('logica.bottomH', 240);
-  const [narrow, setNarrow] = useState(window.innerWidth < 1280);
+  const [sidebarW, setSidebarW] = useStored<unknown>('logica.sidebarW', DEFAULTS.sidebar);
+  const [inspectorW, setInspectorW] = useStored<unknown>('logica.inspectorW', DEFAULTS.inspector);
+  const [bottomH, setBottomH] = useStored<unknown>('logica.bottomH', DEFAULTS.bottom);
+  const [win, setWin] = useState({ width: window.innerWidth, height: window.innerHeight });
   // below 1280 px the inspector is a drawer over the workspace (doc 08): closed until asked for
+  const narrow = win.width < 1280;
   const [drawer, setDrawer] = useState(false);
   const inspectorOpen = narrow ? drawer : showInspector;
   const openInspector = useCallback(() => (narrow ? setDrawer(true) : setShowInspector(true)), [narrow, setShowInspector]);
   const expert = settings?.expert ?? false;
+  // remembered sizes, fitted to this window: the waveform always keeps room
+  const panels = fitPanels({ sidebar: sidebarW, inspector: inspectorW, bottom: bottomH }, win, { sidebar: showSidebar, dockedInspector: !narrow && showInspector });
+
+  // the active tab stays in sight when more tabs are open than fit
+  const tabStrip = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    tabStrip.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active?.id, session?.captures.length, win.width]);
 
   useEffect(() => {
-    const f = () => setNarrow(window.innerWidth < 1280);
+    const f = () => setWin({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', f);
     return () => window.removeEventListener('resize', f);
   }, []);
@@ -372,25 +382,38 @@ export function Workbench() {
         <h1 className="lg-visually-hidden">{active ? `Logica: ${active.title}` : 'Logica'}</h1>
         <div className="tabs">
           <nav className="tabs__list" aria-label="Open captures">
-            <ul className="tabs__ul">
+            <ul
+              className="tabs__ul"
+              ref={tabStrip}
+              onWheel={(e) => {
+                // more tabs than fit: the wheel scrolls them sideways
+                if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
+              }}
+            >
               {session.captures.map((c) => (
                 <li key={c.id} className="tabs__tab" data-active={c.id === active?.id || undefined}>
                   <button
                     type="button"
                     aria-current={c.id === active?.id ? 'page' : undefined}
                     className="tabs__title"
+                    title={c.title}
                     onClick={() => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {})}
                   >
-                    {c.title}
-                    {c.unsaved && (
+                    <span className="tabs__label">{c.title}</span>
+                    {c.unsaved && c.state !== 'capturing' && (
                       <span className="tabs__unsaved" title="Unsaved changes">
-                        <span aria-hidden="true">●</span>
+                        <span className="tabs__dot" aria-hidden="true" />
                         <span className="lg-visually-hidden">, unsaved changes</span>
                       </span>
                     )}
-                    {c.state === 'capturing' && <Badge tone="accent">capturing</Badge>}
+                    {/* capturing: a red dot that pulses, the word for screen readers and the tooltip */}
+                    {c.state === 'capturing' && (
+                      <Status tone="danger" pulse title="Capturing">
+                        <span className="lg-visually-hidden">capturing</span>
+                      </Status>
+                    )}
                   </button>
-                  <IconButton label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
+                  <IconButton className="tabs__close" label={`Close ${c.title}`} icon={<X />} onClick={() => closeCapture(c)} />
                 </li>
               ))}
             </ul>
@@ -398,7 +421,7 @@ export function Workbench() {
             <IconButton label="Capture live" icon={<Activity />} onClick={actions['capture.live']} />
           </nav>
           <button type="button" className="tabs__palette" onClick={() => setPalette(true)}>
-            <Command aria-hidden="true" /> Search commands… <Kbd keys={[mod(), 'K']} />
+            <Command aria-hidden="true" /> <span className="tabs__palette-label">Search commands…</span> <Kbd keys={[mod(), 'K']} />
           </button>
           <AgentIndicator />
         </div>
@@ -430,13 +453,20 @@ export function Workbench() {
           <div className="workspace">
             {showSidebar && (
               <aside className="sidebar" aria-label="Channels">
-                <div className="sidebar__content" style={{ width: sidebarW }}>
+                <div className="sidebar__content" style={{ width: panels.size.sidebar }}>
                   <h2 className="section-title pad-x">Channels</h2>
                   <Boundary name="channel list">
                     <ChannelList capture={active} />
                   </Boundary>
                 </div>
-                <Splitter orientation="vertical" label="Sidebar width" value={sidebarW} min={180} max={420} onChange={setSidebarW} />
+                <Splitter
+                  orientation="vertical"
+                  label="Sidebar width"
+                  value={panels.size.sidebar}
+                  min={LIMITS.sidebar[0]}
+                  max={panels.max.sidebar}
+                  onChange={setSidebarW}
+                />
               </aside>
             )}
             <main className="center">
@@ -451,8 +481,16 @@ export function Workbench() {
               </section>
               {showBottom && (
                 <>
-                  <Splitter orientation="horizontal" label="Bottom panel height" value={bottomH} min={120} max={600} onChange={setBottomH} invert />
-                  <section className="bottom" style={{ height: bottomH }} aria-label="Bottom panel">
+                  <Splitter
+                    orientation="horizontal"
+                    label="Bottom panel height"
+                    value={panels.size.bottom}
+                    min={LIMITS.bottom[0]}
+                    max={panels.max.bottom}
+                    onChange={setBottomH}
+                    invert
+                  />
+                  <section className="bottom" style={{ height: panels.size.bottom }} aria-label="Bottom panel">
                     <Boundary name="bottom panel">
                     <TabsRoot value={bottomTab} onValueChange={setBottomTab} className="tabs-fill">
                       <TabsList label="Bottom panel">
@@ -460,13 +498,13 @@ export function Workbench() {
                         <TabsTrigger value="measure">Measurements</TabsTrigger>
                         <TabsTrigger value="activity">Activity</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="decoded" className="fill">
+                      <TabsContent value="decoded" className="fill fill--own">
                         <DecodedTable capture={active} onJump={jump} />
                       </TabsContent>
                       <TabsContent value="measure" className="fill">
                         <Measurements capture={active} view={view} />
                       </TabsContent>
-                      <TabsContent value="activity" className="fill">
+                      <TabsContent value="activity" className="fill fill--own">
                         <ActivityFeed />
                       </TabsContent>
                     </TabsRoot>
@@ -488,8 +526,18 @@ export function Workbench() {
                   }
                 }}
               >
-                {!narrow && <Splitter orientation="vertical" label="Inspector width" value={inspectorW} min={260} max={560} onChange={setInspectorW} invert />}
-                <div className="inspector__content" style={{ width: inspectorW }}>
+                {!narrow && (
+                  <Splitter
+                    orientation="vertical"
+                    label="Inspector width"
+                    value={panels.size.inspector}
+                    min={LIMITS.inspector[0]}
+                    max={panels.max.inspector}
+                    onChange={setInspectorW}
+                    invert
+                  />
+                )}
+                <div className="inspector__content" style={{ width: panels.size.inspector }}>
                   {narrow && (
                     <div className="inspector__close">
                       <IconButton label="Close the inspector" shortcut={['Esc']} icon={<X />} onClick={() => setDrawer(false)} />
@@ -591,14 +639,14 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   if (engine.state === 'restarting') {
     return (
       <div className="banner" data-tone="warning" role="alert">
-        <span>{engine.reason ?? 'The engine stopped and is being restarted.'}</span>
+        <span className="banner__text">{engine.reason ?? 'The engine stopped and is being restarted.'}</span>
       </div>
     );
   }
   if (engine.state === 'failed') {
     return (
       <div className="banner" data-tone="danger" role="alert">
-        <span>{engine.reason}</span>
+        <span className="banner__text">{engine.reason}</span>
         <Button size="sm" variant="primary" onClick={() => bridge().restartEngine()}>
           Start the engine again
         </Button>
@@ -608,7 +656,7 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   if (engine.state === 'running' && lost) {
     return (
       <div className="banner" data-tone="warning" role="alert">
-        <span>
+        <span className="banner__text">
           The engine was restarted, so the open captures were closed.
           {lost.unsaved.length > 0 && ` Unsaved work in ${lost.unsaved.join(', ')} was lost.`}
         </span>
@@ -633,17 +681,26 @@ function EngineBanner({ onReopen }: { onReopen: (files: string[]) => void }) {
   return null;
 }
 
-function AgentIndicator() {
-  const { session, mcp, startedByAgent } = useStore();
+/** Who can work in this window besides the person: a dot and a word, in the agents' colour when one is. */
+function useAgentState(): { tone: 'agent' | 'neutral' | 'warning'; label: string; detail: string } {
+  const { session, mcp } = useStore();
   const agents = new Set((session?.recent ?? []).map((h) => h.actor).filter(isAgent));
-  const label = mcp.port ? `${agents.size ? `${agents.size} agent${agents.size === 1 ? '' : 's'} active` : 'Agents can connect'}` : 'MCP is off';
+  if (!mcp.port) return { tone: mcp.error ? 'warning' : 'neutral', label: mcp.error ? 'MCP not started' : 'MCP off', detail: mcp.error ?? 'Switch MCP on in the settings.' };
+  const detail = `MCP at http://127.0.0.1:${mcp.port}/mcp`;
+  if (agents.size) return { tone: 'agent', label: `${agents.size} agent${agents.size === 1 ? '' : 's'} active`, detail };
+  return { tone: 'neutral', label: 'Agents can connect', detail };
+}
+
+function AgentIndicator() {
+  const { session, startedByAgent } = useStore();
+  const state = useAgentState();
   return (
-    <div className="agent-indicator" title={mcp.error ?? (mcp.port ? `MCP at http://127.0.0.1:${mcp.port}/mcp` : 'Switch MCP on in the settings')}>
-      {startedByAgent && <Badge tone="agent">started by an agent</Badge>}
-      {session?.agentsPaused && <Badge tone="warning">agent actions stopped</Badge>}
-      <Badge tone={agents.size ? 'agent' : 'neutral'}>
-        <Bot aria-hidden="true" size={12} /> {label}
-      </Badge>
+    <div className="agent-indicator">
+      {startedByAgent && <Status tone="agent">Started by an agent</Status>}
+      {session?.agentsPaused && <Status tone="warning">Agent actions stopped</Status>}
+      <Status tone={state.tone} title={state.detail}>
+        {state.label}
+      </Status>
     </div>
   );
 }
@@ -656,7 +713,8 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   const loss = capture.notes.find((n) => n.level === 'warning' && /lost|overwrit|dropped/i.test(n.message));
   return (
     <footer className="status" aria-label="Status">
-      <span>
+      {/* what does not fit shortens with "…" (the whole text is in the tooltip); the rest keeps its size */}
+      <span className="status__fit">
         {capture.state === 'capturing'
           ? `Capturing: ${elapsed(capture.seconds)} so far`
           : running
@@ -665,20 +723,24 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
               ? `${device.info.model}: connected`
               : 'No device connected'}
       </span>
-      <span className="lg-num">{hz(rate)}</span>
-      <span className="lg-num">
+      <span className="lg-num status__keep">{hz(rate)}</span>
+      <span className="lg-num status__fit">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
       </span>
-      {view.cursorA !== null && view.cursorB !== null && <span className="lg-num">Δt {time((view.cursorB - view.cursorA) / rate)}</span>}
-      {loss && <span className="status__warn">{loss.message}</span>}
-      <span className="status__grow" />
-      {busy && (
-        <span className="status__busy" role="status">
-          <span className="status__spinner" aria-hidden="true" />
-          {busy}
+      {view.cursorA !== null && view.cursorB !== null && <span className="lg-num status__keep">Δt {time((view.cursorB - view.cursorA) / rate)}</span>}
+      {loss && (
+        <span className="status__warn status__fit" title={loss.message}>
+          {loss.message}
         </span>
       )}
-      <span>{mcp.port ? `MCP on 127.0.0.1:${mcp.port}` : mcp.error ? 'MCP not started' : 'MCP off'}</span>
+      <span className="status__grow" />
+      {busy && (
+        <span className="status__busy status__fit" role="status" title={busy}>
+          <span className="status__spinner" aria-hidden="true" />
+          <span className="status__busy-text">{busy}</span>
+        </span>
+      )}
+      <span className="status__keep">{mcp.port ? `MCP on 127.0.0.1:${mcp.port}` : mcp.error ? 'MCP not started' : 'MCP off'}</span>
     </footer>
   );
 }
@@ -689,60 +751,93 @@ function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () 
   // devices come and go (an analyser started, a device plugged in): look again while this shows
   useDeviceWatch(true);
   const devices = session?.devices ?? [];
+  const agents = useAgentState();
   return (
     <main className="start">
       <div className="start__inner">
-        <h2 className="start__title">Start</h2>
-        <p className="muted">Open a recording, or capture from a device. Drop a file anywhere on this window to open it.</p>
-        <div className="row">
-          <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
-            Open file…
-          </Button>
-          <Button icon={<Activity />} onClick={onCapture}>
-            Capture live…
-          </Button>
-        </div>
-        <div className="start__grid">
-          <section className="card">
-            <h2 className="section-title">Recent captures</h2>
-            {recent.length === 0 ? (
-              <p className="muted">Files you open appear here.</p>
-            ) : (
-              <ul className="plain">
-                {recent.map((f) => (
-                  <li key={f}>
-                    <button type="button" className="link" onClick={() => onOpenRecent(f)} title={f}>
-                      {f.split(/[\\/]/).pop()}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <section className="card">
-            <h2 className="section-title">Devices</h2>
-            {devices.length > 0 && (
-              <ul className="plain">
-                {devices.map((d) => (
-                  <li key={d.info.id}>
-                    {d.info.model} <span className="muted">{d.capturing ? '· capturing' : d.connected ? '· connected' : ''}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="muted">
-              {devices.length === 0
-                ? 'No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser (cargo run -p logica-vla).'
-                : '"Capture live…" captures from one or several of them at once.'}
-            </p>
-          </section>
-          <section className="card">
-            <h2 className="section-title">Work with an agent</h2>
-            <p className="muted">Claude Code and other MCP clients can open, decode and mark captures with you, in this window.</p>
-            <Button size="sm" icon={<Bot />} onClick={onAgent}>
-              How to connect
+        <header className="start__head">
+          <h2 className="start__title">Start</h2>
+          <p className="muted">Open a recording, or capture from a device. You can also drop a file anywhere on this window.</p>
+          <div className="row">
+            <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
+              Open file…
             </Button>
+            <Button icon={<Activity />} onClick={onCapture}>
+              Capture live…
+            </Button>
+          </div>
+        </header>
+        <div className="start__cols">
+          <section className="start__section" aria-labelledby="start-recent">
+            <h3 id="start-recent" className="start__label">
+              Recent
+            </h3>
+            {recent.length === 0 ? (
+              <p className="muted start__empty">Files you open are listed here.</p>
+            ) : (
+              <ul className="start__list">
+                {recent.map((f) => {
+                  const parts = f.split(/[\\/]/);
+                  const name = parts.pop() ?? f;
+                  return (
+                    <li key={f}>
+                      <button type="button" className="start__item" onClick={() => onOpenRecent(f)} title={f}>
+                        <span className="start__name">{name}</span>
+                        <span className="start__where">{parts.join('/')}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
+          <div className="start__side">
+            <section className="start__section" aria-labelledby="start-devices">
+              <h3 id="start-devices" className="start__label">
+                Devices
+              </h3>
+              {devices.length > 0 ? (
+                <ul className="start__list">
+                  {devices.map((d) => (
+                    <li key={d.info.id} className="start__row">
+                      <span className="start__name" title={d.info.id}>
+                        {d.info.model}
+                      </span>
+                      {d.capturing ? (
+                        <Status tone="danger" pulse>
+                          capturing
+                        </Status>
+                      ) : d.connected ? (
+                        <Status tone="success">connected</Status>
+                      ) : (
+                        <Status>available</Status>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted start__empty">
+                  No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser with <code>cargo run -p logica-vla</code>.
+                </p>
+              )}
+            </section>
+            <section className="start__section" aria-labelledby="start-agents">
+              <h3 id="start-agents" className="start__label">
+                Agents
+              </h3>
+              <div className="start__row">
+                <Status tone={agents.tone} title={agents.detail}>
+                  {agents.label}
+                </Status>
+              </div>
+              <p className="muted start__empty">Claude Code and other MCP clients can open, decode and mark captures with you, in this window.</p>
+              <div className="row">
+                <Button size="sm" icon={<Bot />} onClick={onAgent}>
+                  How to connect
+                </Button>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </main>
@@ -755,7 +850,7 @@ function Notices() {
     <div className="notices" role="status" aria-live="polite">
       {notices.map((n) => (
         <div key={n.id} className="notice" data-tone={n.tone}>
-          <span>{n.text}</span>
+          <span className="notice__text">{n.text}</span>
           <IconButton label="Dismiss" icon={<X />} onClick={() => dismiss(n.id)} />
         </div>
       ))}

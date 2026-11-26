@@ -2,8 +2,8 @@
 // change goes through a command (ADR 0001); the panels redraw from the session the store re-reads.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
-import { Badge, Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Switch, TextField } from '@logica/ui';
-import { Activity, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
+import { Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Status, Switch, TextField } from '@logica/ui';
+import { Activity, Check, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
 import { at, hz, int } from '../format';
 import { isAgent, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
@@ -182,28 +182,37 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
   const has = (protocol: string, roles: Record<string, number | null>) =>
     capture.decoders.some((d) => d.config.protocol === protocol && JSON.stringify(d.config.roles) === JSON.stringify(roles));
   return (
-    <div className="pad stack">
-      <div className="row">
-        <Button size="sm" icon={<WandSparkles />} onClick={() => void detect()} disabled={busy}>
-          Detect in the whole capture
-        </Button>
-        {view && (
-          <Button size="sm" variant="ghost" onClick={() => void detect({ from: view.from, to: view.to })} disabled={busy}>
-            In the view
+    <div className="sections">
+      <div className="section section--bar">
+        <span className="section__hint">Detect protocols</span>
+        <div className="row">
+          <Button size="sm" icon={<WandSparkles />} onClick={() => void detect()} disabled={busy}>
+            Whole capture
           </Button>
-        )}
+          {view && (
+            <Button size="sm" onClick={() => void detect({ from: view.from, to: view.to })} disabled={busy}>
+              In the view
+            </Button>
+          )}
+        </div>
       </div>
-      {busy && <p className="muted" role="status">Looking at the signals…</p>}
+      {busy && (
+        <p className="section muted" role="status">
+          Looking at the signals…
+        </p>
+      )}
       {a && a.buses.every((b) => b.chosen.length === 0) && (
         <EmptyState title="No protocol was recognised">The channels are listed below with what was measured on them.</EmptyState>
       )}
       {a?.buses.map((b) => (
-        <section key={b.bus.id} className="card" aria-label={`Bus ${b.bus.channels.map((c) => `CH${c}`).join(', ')}`}>
+        <section key={b.bus.id} className="section stack-sm" aria-label={`Bus ${b.bus.channels.map((c) => `CH${c}`).join(', ')}`}>
           {b.chosen.map((d) => (
             <div key={`${d.protocolId}${rolesText(d.roles)}`} className="stack-sm">
-              <div className="row between">
-                <strong>{d.protocolId.toUpperCase()}</strong>
-                <Badge tone={d.confidence >= 0.8 ? 'success' : d.confidence >= 0.5 ? 'warning' : 'neutral'}>{pct(d.confidence)} sure</Badge>
+              <div className="section__head">
+                <h3 className="section__title">{d.protocolId.toUpperCase()}</h3>
+                <span className="section__meta lg-num" data-tone={d.confidence >= 0.8 ? undefined : d.confidence >= 0.5 ? 'warning' : 'muted'}>
+                  {pct(d.confidence)} sure
+                </span>
               </div>
               <p className="muted">{rolesText(d.roles)}</p>
               {!expert && (
@@ -224,15 +233,17 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
                   {w}
                 </p>
               ))}
-              <Button
-                size="sm"
-                variant="primary"
-                icon={<Plus />}
-                disabled={has(d.protocolId, d.roles)}
-                onClick={() => void run('decoder.add', { capture: capture.id, protocol: d.protocolId, roles: d.roles, settings: d.settings })}
-              >
-                {has(d.protocolId, d.roles) ? 'Decoder added' : 'Add decoder'}
-              </Button>
+              <div className="row">
+                <Button
+                  size="sm"
+                  variant={has(d.protocolId, d.roles) ? 'ghost' : 'primary'}
+                  icon={has(d.protocolId, d.roles) ? <Check /> : <Plus />}
+                  disabled={has(d.protocolId, d.roles)}
+                  onClick={() => void run('decoder.add', { capture: capture.id, protocol: d.protocolId, roles: d.roles, settings: d.settings })}
+                >
+                  {has(d.protocolId, d.roles) ? 'Decoder added' : 'Add decoder'}
+                </Button>
+              </div>
             </div>
           ))}
           {b.chosen.length === 0 && <p className="muted">{b.bus.reason}</p>}
@@ -264,8 +275,10 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
         </section>
       ))}
       {a && (
-        <section className="card">
-          <h3 className="section-title">Channels</h3>
+        <section className="section stack-sm" aria-labelledby="analysis-channels">
+          <h3 id="analysis-channels" className="section__title">
+            Channels
+          </h3>
           <ul className="plain">
             {a.measurements.map((m) => (
               <li key={m.channel}>
@@ -313,6 +326,8 @@ function SettingField({
   }
   return (
     <TextField
+      // a new value from elsewhere (an agent, undo) replaces what the field shows
+      key={String(value ?? k.default)}
       label={`${spec.label}${k.unit ? ` (${k.unit})` : ''}`}
       type="number"
       defaultValue={String(value ?? k.default)}
@@ -353,7 +368,7 @@ function DecoderSettings({ capture, decoder: d, protocol: p }: { capture: Captur
     <>
       <p className="muted">
         {rolesText(d.config.roles)} · {int(d.packets)} packets · {int(d.frames)} frames ·{' '}
-        {problems ? <Badge tone="danger">{int(problems)} problems</Badge> : <Badge tone="success">no problems</Badge>}
+        {problems ? <Status tone="danger">{int(problems)} problems</Status> : <Status tone="success">no problems</Status>}
       </p>
       {d.notes.map((n) => (
         <p key={n} className="muted">
@@ -390,19 +405,19 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
   const byId = useMemo(() => new Map(protocols.map((p) => [p.id, p])), [protocols]);
   const chosen = byId.get(adding);
   return (
-    <div className="pad stack">
+    <div className="sections">
       {capture.decoders.length === 0 && <EmptyState title="No decoders yet">Add one from the analysis, or choose a protocol below.</EmptyState>}
       {capture.decoders.map((d) => (
-        <section key={d.id} className="card stack-sm" aria-label={`Decoder ${d.config.name}`}>
-          <div className="row between">
-            <strong>{d.config.name}</strong>
+        <section key={d.id} className="section stack-sm" aria-label={`Decoder ${d.config.name}`}>
+          <div className="section__head">
+            <h3 className="section__title">{d.config.name}</h3>
             <IconButton label={`Remove ${d.config.name}`} icon={<Trash2 />} onClick={() => void run('decoder.remove', { capture: capture.id, decoder: d.id })} />
           </div>
           <DecoderSettings capture={capture} decoder={d} protocol={byId.get(d.config.protocol)} />
         </section>
       ))}
-      <section className="card stack-sm" aria-label="Add a decoder">
-        <h3 className="section-title">Add a decoder</h3>
+      <section className="section stack-sm" aria-label="Add a decoder">
+        <h3 className="section__title">Add a decoder</h3>
         <label className="lg-field">
           <span className="lg-field__label">Protocol</span>
           <select
@@ -444,15 +459,17 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
           </label>
         ))}
         {chosen && (
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<Plus />}
-            disabled={chosen.roles.some((r) => !r.optional && (roles[r.key] ?? null) === null)}
-            onClick={() => void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles })}
-          >
-            Add {chosen.name}
-          </Button>
+          <div className="row">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus />}
+              disabled={chosen.roles.some((r) => !r.optional && (roles[r.key] ?? null) === null)}
+              onClick={() => void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles })}
+            >
+              Add {chosen.name}
+            </Button>
+          </div>
         )}
       </section>
     </div>
@@ -495,9 +512,9 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
   };
   const rate = capture.sampleRateHz;
   return (
-    <div className="pad stack">
+    <div className="sections">
       <form
-        className="stack-sm"
+        className="section stack-sm"
         onSubmit={(e) => {
           e.preventDefault();
           void search();
@@ -563,13 +580,20 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
             <TextField label="Longer than (seconds)" type="number" value={longer} placeholder="such as 0.000005" onChange={(e) => setLonger(e.target.value)} />
           </>
         )}
-        <Button type="submit" variant="primary" size="sm" icon={<SearchIcon />}>
-          Search
-        </Button>
-        {!expert && <pre className="query">{JSON.stringify(query, null, 1)}</pre>}
+        <div className="row">
+          <Button type="submit" variant="primary" size="sm" icon={<SearchIcon />}>
+            Search
+          </Button>
+        </div>
+        {!expert && (
+          <details className="query-details">
+            <summary>The query this builds</summary>
+            <pre className="query">{JSON.stringify(query, null, 1)}</pre>
+          </details>
+        )}
       </form>
       {hits && (
-        <section aria-label="Search hits" className="stack-sm">
+        <section aria-label="Search hits" className="section stack-sm">
           <div className="row between">
             <span role="status">
               {hits.hits.length === 0 ? 'No hits.' : `${int(hits.hits.length)} hits${hits.truncated ? ' (more exist)' : ''}`}
@@ -612,8 +636,8 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
   useDeviceWatch(true);
   if (!session) return null;
   return (
-    <div className="pad stack">
-      <div className="row between">
+    <div className="sections">
+      <div className="section section--bar">
         <Button size="sm" variant="primary" icon={<Activity />} onClick={onCapture}>
           Capture live…
         </Button>
@@ -622,30 +646,26 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
         </Button>
       </div>
       {session.devices.length === 0 && (
-        <p className="muted">
+        <p className="section muted">
           No devices found. To try live capture without hardware, run <code>cargo run -p logica-vla</code> in the repository, then look again.
         </p>
       )}
-      <Switch
-        label="Stop agent actions"
-        description="Agents cannot capture or drive outputs while this is on; running agent captures stop."
-        checked={session.agentsPaused}
-        onCheckedChange={(paused) => void run('session.pauseAgents', { paused })}
-      />
       {session.devices.map((d) => {
         const id = d.info.id;
         const caps = d.capabilities;
         const holder = d.holder;
         return (
-          <section key={id} className="card stack-sm" aria-label={d.info.model}>
-            <div className="row between">
-              <strong>{d.info.model}</strong>
+          <section key={id} className="section stack-sm" aria-label={d.info.model}>
+            <div className="section__head">
+              <h3 className="section__title">{d.info.model}</h3>
               {d.capturing ? (
-                <Badge tone="accent">capturing</Badge>
+                <Status tone="danger" pulse>
+                  capturing
+                </Status>
               ) : holder ? (
-                <Badge tone={isAgent(holder) ? 'agent' : 'accent'}>lease: {who(holder)}</Badge>
+                <Status tone={isAgent(holder) ? 'agent' : 'neutral'}>held by {who(holder)}</Status>
               ) : (
-                <Badge>{d.connected ? 'connected' : 'not connected'}</Badge>
+                <Status tone={d.connected ? 'success' : 'neutral'}>{d.connected ? 'connected' : 'not connected'}</Status>
               )}
             </div>
             <p className="muted">
@@ -677,6 +697,14 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
           </section>
         );
       })}
+      <div className="section">
+        <Switch
+          label="Stop agent actions"
+          description="Agents cannot capture or drive outputs while this is on; running agent captures stop."
+          checked={session.agentsPaused}
+          onCheckedChange={(paused) => void run('session.pauseAgents', { paused })}
+        />
+      </div>
     </div>
   );
 }

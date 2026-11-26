@@ -2,7 +2,7 @@
 // "stop agent actions".
 import { useEffect, useRef, useState } from 'react';
 import type { Output } from '@logica/api';
-import { Badge, Button, EmptyState, Switch, TextField, VirtualList } from '@logica/ui';
+import { Button, EmptyState, Switch, TextField, VirtualList } from '@logica/ui';
 import { Undo2, Redo2 } from 'lucide-react';
 import { client } from '../bridge';
 import { at, hz, int, time } from '../format';
@@ -205,7 +205,9 @@ export function ActivityFeed() {
         <ol className="activity__list" aria-label="Activity">
           {entries.map((e) => (
             <li key={e.id} className="activity__item" data-agent={isAgent(e.actor) || undefined} data-undone={e.undone || undefined}>
-              <Badge tone={isAgent(e.actor) ? 'agent' : 'neutral'}>{who(e.actor)}</Badge>
+              <span className="activity__actor" title={who(e.actor)}>
+                {who(e.actor)}
+              </span>
               <span className="activity__text">
                 {e.summary}
                 {e.undone && <span className="muted"> (undone)</span>}

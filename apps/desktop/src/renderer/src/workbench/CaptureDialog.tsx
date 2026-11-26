@@ -1,14 +1,36 @@
-// "Capture live" (doc 08): one dialog for every device. First the devices to capture from (one or
-// several), then the settings: channels, rate (the same for all devices or one per device), length,
-// and per device its mode, threshold and the name of its tab. Several devices capture each into its
-// own tab, or all into one capture (one rate), lined up at their starts or by a signal they share.
-// All are configured first and then started together.
+// "Capture live" (doc 08): one dialog for every device, in steps that follow what is chosen. First
+// the devices (one or several); then how and how long to capture (several devices: each into its own
+// tab, or all into one capture with one rate, lined up at their starts or by a signal they share; the
+// same rate for all or one per device); then one step per device (channels, rate, mode, threshold,
+// tab name); then a check of everything and the start. A step with a problem says why and holds
+// "Next" back. All devices are configured first and then started together.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Dialog, TextField } from '@logica/ui';
-import { Activity, RefreshCw } from 'lucide-react';
+import { Button, Dialog, Status, TextField } from '@logica/ui';
+import { Activity, Check, RefreshCw } from 'lucide-react';
 import { hz, int } from '../format';
 import { isAgent, useDeviceWatch, useStore, who } from '../store';
-import { channelLabel, commonRates, configFor, defaultChoice, guessShared, problems, samplesFor, togetherProblems, togetherTitle, type Caps, type Choice, type Length } from '../captureplan';
+import {
+  captureSteps,
+  channelLabel,
+  commonRates,
+  configFor,
+  currentStep,
+  defaultChoice,
+  guessShared,
+  problems,
+  samplesFor,
+  shortModel,
+  togetherIssues,
+  togetherTitle,
+  type Caps,
+  type Choice,
+  type Length,
+  type Step,
+  type StepId,
+} from '../captureplan';
+
+const NO_LENGTH = 'Choose a length above zero seconds.';
+const NO_NAME = 'Give the capture a name.';
 
 type Device = NonNullable<ReturnType<typeof useStore>['session']>['devices'][number];
 
@@ -43,7 +65,7 @@ function unavailable(d: Device): string | null {
 export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session, run, refresh } = useStore();
   const devices = session?.devices ?? [];
-  const [step, setStep] = useState<'devices' | 'settings'>('devices');
+  const [wanted, setWanted] = useState<StepId>('devices');
   const [picked, setPicked] = useState<string[]>([]);
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [length, setLength] = useState<Length>(remembered.length);
@@ -57,7 +79,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [looking, setLooking] = useState(false);
   const [starting, setStarting] = useState(false);
   // devices that appear or go while choosing show up here
-  useDeviceWatch(open && step === 'devices');
+  useDeviceWatch(open && wanted === 'devices');
 
   const look = useCallback(async () => {
     setLooking(true);
@@ -70,7 +92,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   // every time it opens: look for devices (analysers come and go) and start from the last choices
   useEffect(() => {
     if (!open) return;
-    setStep('devices');
+    setWanted('devices');
     setPicked(remembered.picked);
     setChoices(remembered.choices);
     setLength(remembered.length);
@@ -111,13 +133,38 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const plans = selected.map((d) => ({ d, caps: d.capabilities as Caps, choice: choiceOf(d) }));
   // in one capture the devices' own tab names do not apply
   const own = (p: (typeof plans)[number]) => problems(p.caps, asOne ? { ...p.choice, title } : p.choice, length, hz);
-  const groupIssues = asOne
-    ? [
-        ...togetherProblems(plans.map((p) => ({ model: p.d.info.model, caps: p.caps, choice: p.choice })), alignList, channelLabel),
-        ...(title.trim() === '' ? ['Give the capture a name.'] : []),
-      ]
-    : [];
-  const issues = [...plans.flatMap(own), ...groupIssues];
+  const joint = asOne ? togetherIssues(plans.map((p) => ({ model: p.d.info.model, caps: p.caps, choice: p.choice })), alignList, channelLabel) : [];
+  const groupIssues = asOne ? [...joint.map((t) => t.text), ...(title.trim() === '' ? [NO_NAME] : [])] : [];
+  const issues = [...new Set([...plans.flatMap(own), ...groupIssues])];
+
+  // the steps follow the devices chosen; a step whose device was unpicked falls back to the first
+  const steps = captureSteps(
+    selected.map((d) => ({ id: d.info.id, model: d.info.model })),
+    { lineUp: asOne },
+  );
+  const at = currentStep(steps, wanted);
+  const step = steps[at]!;
+  const deviceOf = (s: Step) => (s.id.startsWith('device:') ? plans.findIndex((p) => `device:${p.d.info.id}` === s.id) : -1);
+  /** What is wrong in a step, each problem where it can be fixed. */
+  const issuesOf = (s: Step): string[] => {
+    if (s.id === 'devices') return [];
+    if (s.id === 'review') return issues;
+    if (s.id === 'capture') {
+      const length_ = !length.untilStopped && !(length.seconds > 0) ? [NO_LENGTH] : [];
+      return [...length_, ...joint.filter((t) => t.topic === 'rate').map((t) => t.text), ...(asOne && title.trim() === '' ? [NO_NAME] : [])];
+    }
+    if (s.id === 'lineup') {
+      return joint.filter((t) => t.topic === 'signal' && t.device === null).map((t) => t.text);
+    }
+    const k = deviceOf(s);
+    const p = plans[k];
+    if (!p) return [];
+    // the length and the name of one capture are fixed in the capture step
+    return [...own(p).filter((x) => x !== NO_LENGTH && !(asOne && x === NO_NAME)), ...joint.filter((t) => t.device === k).map((t) => t.text)];
+  };
+  const here = issuesOf(step);
+  const next = steps[at + 1];
+  const prev = steps[at - 1];
 
   const start = async () => {
     setStarting(true);
@@ -158,44 +205,85 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     if (started > 0) onClose();
   };
 
-  const footer =
-    step === 'devices' ? (
-      <>
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" disabled={selected.length === 0} onClick={() => setStep('settings')}>
-          Next: settings
-        </Button>
-      </>
-    ) : (
-      <>
-        <Button variant="ghost" onClick={() => setStep('devices')}>
+  const startLabel = starting ? 'Starting…' : many && !asOne ? `Start ${selected.length} captures` : 'Start capture';
+  const footer = (
+    <>
+      <Button variant="ghost" onClick={onClose}>
+        Cancel
+      </Button>
+      {prev && (
+        <Button variant="secondary" onClick={() => setWanted(prev.id)}>
           Back
         </Button>
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
+      )}
+      {next ? (
+        <Button variant="primary" disabled={selected.length === 0 || here.length > 0} onClick={() => setWanted(next.id)}>
+          Next: {next.label}
         </Button>
+      ) : step.id === 'review' ? (
         <Button variant="primary" icon={<Activity />} disabled={starting || selected.length === 0 || issues.length > 0} onClick={() => void start()}>
-          {starting ? 'Starting…' : many && !asOne ? `Start ${selected.length} captures` : 'Start capture'}
+          {startLabel}
         </Button>
-      </>
-    );
+      ) : (
+        // nothing chosen yet: the way on is there, and waits for a device
+        <Button variant="primary" disabled title="Choose a device first.">
+          Next: Capture
+        </Button>
+      )}
+    </>
+  );
+
+  const descriptions: Record<string, string> = {
+    devices: 'Choose the devices to capture from. Several start together.',
+    capture: many ? 'How long to capture, and how the devices go together.' : 'How long to capture.',
+    lineup: 'How the devices are lined up in time in the one capture.',
+    review: 'Check what will be captured. You can stop at any time and keep what arrived.',
+  };
+  const description = descriptions[step.id] ?? 'What this device captures.';
+  // the problems of the steps before this one hold the later ones back: they can be visited, not left forwards
+  const reachable = (k: number) => selected.length > 0 && steps.slice(0, k).every((s) => s.id === 'review' || issuesOf(s).length === 0);
+
+  const stepBar = (
+    <nav className="steps" aria-label="Steps">
+      <ol className="steps__list">
+        {steps.map((s, k) => {
+          const bad = s.id !== 'review' && k !== at && issuesOf(s).length > 0;
+          return (
+            <li key={s.id} className="steps__item" data-state={k === at ? 'current' : k < at ? 'done' : 'todo'}>
+              <button
+                type="button"
+                className="steps__button"
+                aria-current={k === at ? 'step' : undefined}
+                disabled={k !== at && !reachable(k)}
+                title={bad ? `${s.label}: ${issuesOf(s).join(' ')}` : s.label}
+                onClick={() => setWanted(s.id)}
+              >
+                <span className="steps__mark" aria-hidden="true">
+                  {k < at && !bad ? <Check /> : k + 1}
+                </span>
+                <span className="steps__label">{s.label}</span>
+                {bad && <span className="lg-visually-hidden">, has a problem</span>}
+                {bad && <span className="steps__bad" aria-hidden="true" />}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => !o && onClose()}
       title="Capture live"
-      description={
-        step === 'devices'
-          ? 'Choose the devices to capture from. Each captures into its own tab; they start together.'
-          : 'Choose what each device captures. You can stop at any time and keep what arrived.'
-      }
+      description={description}
+      header={stepBar}
       wide
+      className="capture-dialog"
       footer={footer}
     >
-      {step === 'devices' ? (
+      {step.id === 'devices' && (
         <div className="stack">
           <div className="row between">
             <span className="muted">{devices.length === 0 ? 'No devices found.' : `${devices.length} found`}</span>
@@ -233,7 +321,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   </label>
                   {why ? (
                     <span className="row">
-                      <Badge tone={d.holder && isAgent(d.holder) ? 'agent' : 'neutral'}>{why}</Badge>
+                      <Status tone={d.holder && isAgent(d.holder) ? 'agent' : 'neutral'}>{why}</Status>
                       {d.holder && d.holder !== 'user' && (
                         <Button size="sm" variant="secondary" onClick={() => void run('lease.take', { device: d.info.id }).then(() => refresh())}>
                           Take over
@@ -241,14 +329,16 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                       )}
                     </span>
                   ) : (
-                    d.connected && <Badge>connected</Badge>
+                    d.connected && <Status tone="success">connected</Status>
                   )}
                 </li>
               );
             })}
           </ul>
         </div>
-      ) : (
+      )}
+
+      {step.id === 'capture' && (
         <div className="stack">
           <fieldset className="capture-group">
             <legend className="lg-field__label">Length</legend>
@@ -296,62 +386,6 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
             </fieldset>
           )}
 
-          {asOne && (
-            <fieldset className="capture-group">
-              <legend className="lg-field__label">Line the devices up</legend>
-              <label className="check">
-                <input type="radio" name="align" checked={!alignOn} onChange={() => setAlignOn(false)} />
-                At their starts
-              </label>
-              <label className="check">
-                <input type="radio" name="align" checked={alignOn} onChange={() => setAlignOn(true)} />
-                By a signal they all see
-              </label>
-              {alignOn ? (
-                <>
-                  <div className="row capture-fields">
-                    {selected.map((d, k) => {
-                      const caps = d.capabilities as Caps;
-                      return (
-                        <label key={d.info.id} className="lg-field">
-                          <span className="lg-field__label">{d.info.model}</span>
-                          <select
-                            className="lg-input"
-                            aria-label={`Shared signal on ${d.info.model}`}
-                            value={alignList?.[k] ?? -1}
-                            onChange={(e) => setAlignChannels((all) => ({ ...all, [d.info.id]: Number(e.target.value) }))}
-                          >
-                            <option value={-1} disabled>
-                              Choose its channel
-                            </option>
-                            {caps.channels.map((ch) => (
-                              <option key={ch} value={ch}>
-                                {channelLabel(caps, ch)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="lg-field__hint">
-                    Wire one signal to every device: a shared clock, or any line they all see. Its rising edges line the devices up to the sample, and each device's
-                    clock drift is corrected while capturing. With a steady clock the devices must start within half its period of each other; a slow clock (the virtual
-                    analyser's SYNC is 100 Hz) or an irregular signal is safest.
-                  </p>
-                </>
-              ) : (
-                <p className="lg-field__hint">Close, but not to the sample: devices start a moment apart, and their clocks drift apart while capturing.</p>
-              )}
-              {groupIssues.length > 0 && (
-                <ul className="capture-problems" aria-label="Problems with one capture">
-                  {groupIssues.map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              )}
-            </fieldset>
-          )}
 
           {many && (
             <fieldset className="capture-group">
@@ -390,89 +424,206 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               )}
             </fieldset>
           )}
+          <Problems list={here} label={asOne ? 'Problems with one capture' : 'Problems'} />
+        </div>
+      )}
 
-          {plans.map(({ d, caps, choice }) => {
-            const mine = own({ d, caps, choice });
-            const samples = samplesFor(caps, choice.rateHz, length);
-            return (
-              <section key={d.info.id} className="card stack-sm" aria-label={`Settings for ${d.info.model}`}>
-                <strong>{d.info.model}</strong>
-                {!asOne && <TextField label="Tab name" value={choice.title} onChange={(e) => setChoice(d, { title: e.target.value })} />}
-                <fieldset className="channels-pick">
-                  <legend className="lg-field__label">
-                    Channels{' '}
-                    <button type="button" className="link" onClick={() => setChoice(d, { channels: [...caps.channels] })}>
-                      all
-                    </button>{' '}
-                    <button type="button" className="link" onClick={() => setChoice(d, { channels: [] })}>
-                      none
-                    </button>
-                  </legend>
-                  {caps.channels.map((ch) => (
-                    <label key={ch} className="check">
-                      <input
-                        type="checkbox"
-                        checked={choice.channels.includes(ch)}
-                        onChange={(e) =>
-                          setChoice(d, { channels: e.target.checked ? [...choice.channels, ch].sort((a, b) => a - b) : choice.channels.filter((x) => x !== ch) })
-                        }
-                      />
-                      {channelLabel(caps as Caps, ch)}
-                    </label>
-                  ))}
-                </fieldset>
+      {step.id === 'lineup' && (
+        <div className="stack">
+          <fieldset className="capture-group">
+            <legend className="lg-field__label">Line the devices up</legend>
+            <label className="check">
+              <input type="radio" name="align" checked={!alignOn} onChange={() => setAlignOn(false)} />
+              At their starts
+            </label>
+            <label className="check">
+              <input type="radio" name="align" checked={alignOn} onChange={() => setAlignOn(true)} />
+              By a signal they all see
+            </label>
+            {alignOn ? (
+              <>
                 <div className="row capture-fields">
-                  {rateShared === null && (
-                    <label className="lg-field">
-                      <span className="lg-field__label">Sample rate</span>
-                      <select className="lg-input" value={choice.rateHz} onChange={(e) => setChoice(d, { rateHz: Number(e.target.value) })}>
-                        {caps.ratesHz.map((r) => (
-                          <option key={r} value={r}>
-                            {hz(r)}
+                  {selected.map((d, k) => {
+                    const caps = d.capabilities as Caps;
+                    return (
+                      <label key={d.info.id} className="lg-field">
+                        <span className="lg-field__label">{d.info.model}</span>
+                        <select
+                          className="lg-input"
+                          aria-label={`Shared signal on ${d.info.model}`}
+                          value={alignList?.[k] ?? -1}
+                          onChange={(e) => setAlignChannels((all) => ({ ...all, [d.info.id]: Number(e.target.value) }))}
+                        >
+                          <option value={-1} disabled>
+                            Choose its channel
                           </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {caps.modes.length > 1 && (
-                    <label className="lg-field">
-                      <span className="lg-field__label">Mode</span>
-                      <select className="lg-input" value={choice.mode} onChange={(e) => setChoice(d, { mode: e.target.value === 'buffer' ? 'buffer' : 'stream' })}>
-                        {caps.modes.map((m) => (
-                          <option key={m} value={m}>
-                            {m === 'stream' ? 'Stream (data arrives while capturing)' : 'Buffer (fill the device, then download)'}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {caps.threshold && (
-                    <TextField
-                      label="Threshold in volts"
-                      hint={`Between ${caps.threshold[0]} V and ${caps.threshold[1]} V; empty keeps the device's.`}
-                      type="number"
-                      step={caps.threshold[2]}
-                      value={choice.thresholdVolts === null ? '' : String(choice.thresholdVolts)}
-                      onChange={(e) => setChoice(d, { thresholdVolts: e.target.value === '' ? null : Number(e.target.value) })}
-                    />
-                  )}
+                          {caps.channels.map((ch) => (
+                            <option key={ch} value={ch}>
+                              {channelLabel(caps, ch)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
                 </div>
-                <p className="muted">
-                  {choice.channels.length} of {caps.channels.length} channels at {hz(choice.rateHz)}
-                  {length.untilStopped ? `, up to ${int(samples)} samples per channel` : `, ${int(samples)} samples per channel`}.
+                <p className="lg-field__hint">
+                  Wire one signal to every device: a shared clock, or any line they all see. Its rising edges line the devices up to the sample, and each device's
+                  clock drift is corrected while capturing. With a steady clock the devices must start within half its period of each other; a slow clock (the virtual
+                  analyser's SYNC is 100 Hz) or an irregular signal is safest.
                 </p>
-                {mine.length > 0 && (
-                  <ul className="capture-problems" aria-label={`Problems with ${d.info.model}`}>
-                    {mine.map((p) => (
-                      <li key={p}>{p}</li>
-                    ))}
-                  </ul>
+              </>
+            ) : (
+              <p className="lg-field__hint">Close, but not to the sample: devices start a moment apart, and their clocks drift apart while capturing.</p>
+            )}
+          </fieldset>
+          <Problems list={here} label="Problems with lining up" />
+        </div>
+      )}
+
+      {plans
+        .filter((p) => `device:${p.d.info.id}` === step.id)
+        .map(({ d, caps, choice }) => {
+          const samples = samplesFor(caps, choice.rateHz, length);
+          return (
+            <section key={d.info.id} className="stack" aria-label={`Settings for ${d.info.model}`}>
+              <p className="muted">
+                {d.info.model} · {d.info.id}
+              </p>
+              {!asOne && <TextField label="Tab name" value={choice.title} onChange={(e) => setChoice(d, { title: e.target.value })} />}
+              <fieldset className="channels-pick">
+                <legend className="lg-field__label">
+                  Channels{' '}
+                  <button type="button" className="link" onClick={() => setChoice(d, { channels: [...caps.channels] })}>
+                    all
+                  </button>{' '}
+                  <button type="button" className="link" onClick={() => setChoice(d, { channels: [] })}>
+                    none
+                  </button>
+                </legend>
+                {caps.channels.map((ch) => (
+                  <label key={ch} className="check">
+                    <input
+                      type="checkbox"
+                      checked={choice.channels.includes(ch)}
+                      onChange={(e) =>
+                        setChoice(d, { channels: e.target.checked ? [...choice.channels, ch].sort((a, b) => a - b) : choice.channels.filter((x) => x !== ch) })
+                      }
+                    />
+                    {channelLabel(caps as Caps, ch)}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="row capture-fields">
+                {rateShared === null && (
+                  <label className="lg-field">
+                    <span className="lg-field__label">Sample rate</span>
+                    <select className="lg-input" value={choice.rateHz} onChange={(e) => setChoice(d, { rateHz: Number(e.target.value) })}>
+                      {caps.ratesHz.map((r) => (
+                        <option key={r} value={r}>
+                          {hz(r)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
-              </section>
-            );
-          })}
+                {caps.modes.length > 1 && (
+                  <label className="lg-field">
+                    <span className="lg-field__label">Mode</span>
+                    <select className="lg-input" value={choice.mode} onChange={(e) => setChoice(d, { mode: e.target.value === 'buffer' ? 'buffer' : 'stream' })}>
+                      {caps.modes.map((m) => (
+                        <option key={m} value={m}>
+                          {m === 'stream' ? 'Stream (data arrives while capturing)' : 'Buffer (fill the device, then download)'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {caps.threshold && (
+                  <TextField
+                    label="Threshold in volts"
+                    hint={`Between ${caps.threshold[0]} V and ${caps.threshold[1]} V; empty keeps the device's.`}
+                    type="number"
+                    step={caps.threshold[2]}
+                    value={choice.thresholdVolts === null ? '' : String(choice.thresholdVolts)}
+                    onChange={(e) => setChoice(d, { thresholdVolts: e.target.value === '' ? null : Number(e.target.value) })}
+                  />
+                )}
+              </div>
+              <p className="muted">
+                {choice.channels.length} of {caps.channels.length} channels at {hz(choice.rateHz)}
+                {length.untilStopped ? `, up to ${int(samples)} samples per channel` : `, ${int(samples)} samples per channel`}.
+              </p>
+              <Problems list={here} label={`Problems with ${d.info.model}`} />
+            </section>
+          );
+        })}
+
+      {step.id === 'review' && (
+        <div className="stack">
+          <dl className="facts review">
+            <dt>Length</dt>
+            <dd>{length.untilStopped ? 'Until you stop it' : `${length.seconds} s`}</dd>
+            {many && (
+              <>
+                <dt>Captures</dt>
+                <dd>{asOne ? `All into one: ${title}` : 'Each device into its own tab'}</dd>
+              </>
+            )}
+            {asOne && (
+              <>
+                <dt>Lined up</dt>
+                <dd>
+                  {alignList
+                    ? `By ${plans.map((p, k) => `${shortModel(p.d.info.model)} ${alignList[k] !== undefined && alignList[k] >= 0 ? channelLabel(p.caps, alignList[k]) : '?'}`).join(', ')}`
+                    : 'At their starts'}
+                </dd>
+              </>
+            )}
+            {plans.map((p) => (
+              <div key={p.d.info.id} className="facts__row">
+                <dt>{shortModel(p.d.info.model)}</dt>
+                <dd>
+                  {asOne ? '' : `"${p.choice.title}": `}
+                  {p.choice.channels.length} of {p.caps.channels.length} channels at {hz(p.choice.rateHz)}
+                  {p.caps.modes.length > 1 ? `, ${p.choice.mode === 'stream' ? 'streamed' : 'into the device first'}` : ''}
+                  {', '}
+                  {length.untilStopped ? `up to ${int(samplesFor(p.caps, p.choice.rateHz, length))}` : int(samplesFor(p.caps, p.choice.rateHz, length))} samples per channel
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {issues.length > 0 && (
+            <div className="stack-sm">
+              <p className="warning">Fix these before starting:</p>
+              <ul className="capture-problems" aria-label="Problems">
+                {steps
+                  .filter((st) => st.id !== 'review')
+                  .flatMap((st) => issuesOf(st).map((text) => ({ st, text })))
+                  .map(({ st, text }) => (
+                    <li key={`${st.id}${text}`}>
+                      {text}{' '}
+                      <button type="button" className="link" onClick={() => setWanted(st.id)}>
+                        Change in {st.label}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </Dialog>
+  );
+}
+
+function Problems({ list, label }: { list: string[]; label: string }) {
+  if (list.length === 0) return null;
+  return (
+    <ul className="capture-problems" aria-label={label}>
+      {list.map((p) => (
+        <li key={p}>{p}</li>
+      ))}
+    </ul>
   );
 }
