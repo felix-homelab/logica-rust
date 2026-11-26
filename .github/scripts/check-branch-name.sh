@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Checks the head and base branch of a pull request against CONTRIBUTING.md, "Branches".
-# Dependency-bot branches are exempt. tmp/ branches are never merged, so a PR from one fails.
+# Dependency-bot branches are exempt. tmp/ branches are never merged, so a PR from one fails. A
+# stacked PR may target the feature/, bugfix/ or improvement/ branch it builds on.
 #
 # Usage: check-branch-name.sh <head-branch> [<base-branch>]
 set -euo pipefail
@@ -19,7 +20,16 @@ case $base in
       fail "the base branch '$base' is not a release/<major>.<minor> branch"
     fi
     ;;
-  *) fail "pull requests target main or a release/<major>.<minor> branch, not '$base'" ;;
+  # a stacked PR (CONTRIBUTING.md, "Size of changes") targets the open branch it builds on
+  feature/* | bugfix/* | improvement/*)
+    if [[ ! $base =~ ^(feature|bugfix)/[0-9]+-${word}$ && ! $base =~ ^improvement/${word}$ ]]; then
+      fail "the base branch '$base' is not a valid feature/, bugfix/ or improvement/ branch"
+    fi
+    ;;
+  *)
+    fail "pull requests target main, a release/<major>.<minor> branch, or (stacked) the" \
+      "feature/, bugfix/ or improvement/ branch they build on; not '$base'"
+    ;;
 esac
 
 if [[ $head == dependabot/* ]]; then

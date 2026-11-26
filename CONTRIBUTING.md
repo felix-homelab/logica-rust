@@ -169,8 +169,8 @@ How to split:
   or behind a setting that defaults to off. `main` must stay releasable at every merge. An inert
   slice carries `no-changelog`; the PR that makes the feature reachable writes its CHANGELOG
   entry.
-- Stacked PRs (a branch based on another open branch) are allowed; retarget them to `main` after
-  the base merges.
+- Stacked PRs (a branch based on another open `feature/`, `bugfix/` or `improvement/` branch, and
+  targeting it) are allowed; retarget them to `main` after the base merges.
 
 ## Pull requests
 

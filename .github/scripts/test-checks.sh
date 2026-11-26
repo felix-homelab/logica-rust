@@ -103,6 +103,10 @@ expect fail 'unknown prefix' "$branch" fix/crash main
 expect fail 'double slash' "$branch" improvement/a/b main
 expect fail 'longer than 60' "$branch" "improvement/$(printf 'a%.0s' {1..50})" main
 expect fail 'base is not main' "$branch" improvement/x develop
+expect ok 'stacked on an improvement branch' "$branch" improvement/readme improvement/release-rules
+expect ok 'stacked on a feature branch' "$branch" feature/43-dla-capture feature/42-dla-usb
+expect fail 'stacked on a tmp branch' "$branch" improvement/x tmp/spike
+expect fail 'stacked on an invalid feature branch' "$branch" improvement/x feature/no-issue
 expect fail 'base release branch without minor' "$branch" improvement/x release/1
 
 # --- commit headers of a branch ---
