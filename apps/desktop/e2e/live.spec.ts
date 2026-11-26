@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { repo, start } from './helpers';
+import { Agent, repo, start } from './helpers';
 
 async function shot(page: Page, name: string): Promise<void> {
   if (process.env.LOGICA_SHOTS) await page.screenshot({ path: `${process.env.LOGICA_SHOTS}/${name}.png` });
@@ -247,7 +247,7 @@ test('two analysers go into one capture, lined up by the clock they share', asyn
 test('the start screen shows an analyser that starts or stops while it is open', async () => {
   test.setTimeout(300_000);
   const at = `127.0.0.1:${await freePort()}`;
-  const { app, page } = await start([], { env: { LOGICA_VLA: at } });
+  const { app, page, dataDir } = await start([], { env: { LOGICA_VLA: at } });
   await expect(page.getByText(/No analyser found/)).toBeVisible();
   const vla = await analyser(['--listen', at]);
   try {
@@ -267,6 +267,12 @@ test('the start screen shows an analyser that starts or stops while it is open',
   console.log(`analyser ${exited}; ${at} after it stopped: ${await greetOnce(at)}`);
   await page.waitForTimeout(5_000);
   console.log(`start screen 5 s later: ${(await page.locator('.start').innerText()).replace(/\s+/g, ' ')}; ${at}: ${await greetOnce(at)}`);
+  // the engine's own answer, asked as an agent would
+  const agent = await Agent.connect(dataDir, 'diagnosis');
+  for (const command of ['device.list', 'session.get']) {
+    const said = await agent.tool('run_command', { command, input: {} }).catch((e: unknown) => String(e));
+    console.log(`engine ${command}: ${said.includes('vla/') ? 'lists the analyser' : 'lists no analyser'}: ${said.slice(0, 200).replace(/\s+/g, ' ')}`);
+  }
   await expect(page.getByText('Virtual analyser: Bench')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByText(/No analyser found/)).toBeVisible();
   await app.close();

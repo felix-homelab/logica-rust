@@ -131,10 +131,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone === 'danger' ? 8000 : 5000);
   }, []);
 
+  // reads can overlap and their answers arrive in any order: only the newest asked for counts
+  const asked = useRef(0);
+  const applied = useRef(0);
   const refresh = useCallback(() => {
+    const n = ++asked.current;
     client
       .run('session.get', {})
       .then((s) => {
+        if (n < applied.current) return;
+        applied.current = n;
         setSession(s);
         setFailure(null);
         if (first.current) {
@@ -286,26 +292,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 /** How often the window looks for devices while devices are on screen. */
 export const DEVICE_WATCH_MS = 2000;
 
+type Listed = { info: { id: string }; connected: boolean; capturing: boolean; holder?: string | null };
+const listed = (devices: Listed[]) => JSON.stringify(devices.map((d) => [d.info.id, d.connected, d.capturing, d.holder ?? null]));
+
 /**
  * While `on`, looks for devices every two seconds (a virtual analyser or a plugged-in device can
- * appear or go at any time; the engine only looks when asked) and reads the session again when what
- * was found changed. Quiet: no busy label, and a failure is left to the next look.
+ * appear or go at any time; the engine only looks when asked) and reads the session again while
+ * what was found differs from what the session on screen shows. Comparing with the screen, not with
+ * the last look, means a session read that was lost or overtaken is made good at the next look.
+ * Quiet: no busy label, and a failure is left to the next look.
  */
 export function useDeviceWatch(on: boolean): void {
-  const { refresh } = useStore();
+  const { refresh, session } = useStore();
+  const shown = useRef('');
+  shown.current = listed(session?.devices ?? []);
   useEffect(() => {
     if (!on) return;
-    let last = '';
     let alive = true;
     const look = () =>
       client
         .run('device.list', {})
         .then((r) => {
-          const now = JSON.stringify(r.devices.map((d) => [d.info.id, d.connected, d.capturing, d.holder]));
-          if (alive && now !== last) {
-            last = now;
-            refresh();
-          }
+          if (alive && listed(r.devices) !== shown.current) refresh();
         })
         .catch(() => {});
     void look();
