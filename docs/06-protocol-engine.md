@@ -101,8 +101,11 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 
 - **Points.** A sample index and either a fraction of full scale (with the raw code where there is
   one) or a measured quantity with a unit (`Hz`, `s`). A source never scales.
-- **Sources are streaming decoders** with the lifecycle above; instead of frames they drain points,
-  problems and notes. The batching and snapshot rules apply to them unchanged.
+- **Sources are streaming decoders** with the lifecycle above (`protocols::analog`): a `Source`
+  describes the roles, settings and what its points mean, and creates a `StreamDecoder` whose
+  output carries points, plus frames only for problems, and notes. The batching and snapshot rules
+  apply to them unchanged. A new source implements `Source` and joins the list; nothing else
+  changes.
 - **Scaling.** Fraction: `low + fraction × (high − low) + offset`. Measured quantity:
   `quantity × gain + offset`. A fraction runs from 0 to just under 1. A code of N bits is a
   fraction of 2^N: unsigned, or two's complement, where the most negative code is 0 and the code 0
@@ -113,7 +116,7 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 |---|---|---|---|
 | Serial ADC | packets of an SPI or I2C decoder (a layer, see "Stacking") | stream (MOSI, MISO, or the I2C data read), bits to skip, bit count N, bit order, encoding; I2C address and register; an optional match filter (for example "MOSI bits 6..4 = 2" or the mux field of a config register) | the start of the transfer |
 | Parallel bus | edges of up to 32 channels, one per bit, bit 0 first | N follows the channels; latch on a clock or strobe edge (rising, falling, both) with an optional enable line, or without a clock once the word has been stable for a settle time (default 3 samples) | the latch edge, or the start of the stable word |
-| PWM | edges of one channel | measure: duty, frequency, period, high or low pulse width; polarity; expected period (learned from the first periods when not given) | the start of each period |
+| PWM | edges of one channel | value: duty, frequency, period, or the width of the active pulse; active level; expected period (when not given, the last period measured) | the start of each period (an edge into the active level) |
 | PDM / sigma-delta | a data and a clock channel | clock edge; sinc³ CIC decimation ratio R (default 64); the effective resolution is shown | the end of each output word |
 
 - **Presets.** ADCs are described as data files beside the register maps
@@ -128,15 +131,17 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 
   First presets: MCP3201, MCP3008/3208 (multiplexed), ADS1115 (I2C), and the 8-bit parallel
   ADC0804.
-- **PWM at the ends.** A line that stops toggling for more than two expected periods reads 0 %
-  (low) or 100 % (high), with a note saying the PWM stopped toggling; frequency, period and pulse
-  width leave a gap instead, since they have no value without edges.
-- **Problems.** A point that cannot be made is left out and a problem is recorded at its time, with
-  a code and a message that says why: `adc-short-frame` ("The SPI transfer has 8 bits; the sample
-  needs bits 3 to 14"), `adc-nack`, `parallel-unstable` ("The word changed before it was stable
-  for 3 samples"), `pdm-settling` (the first 3 × R bits fill the filter), `pwm-irregular` (a
-  period more than twice the expected one). Problems are searchable and counted like decoder
-  problems.
+- **PWM at the ends.** A line without an edge for more than two periods (the expected one, or the
+  last measured) reads 0 % (low) or 100 % (high) from its last edge; frequency, period and pulse
+  width leave a gap instead, since they have no value without edges. Exactly two periods still
+  count as toggling. A period across the quiet stretch is not measured.
+- **Problems.** A point that cannot be made is left out and a problem frame covers the stretch,
+  with the decoders' problem codes and a message that says why: `incomplete` for a short transfer
+  ("The SPI transfer has 8 bits; the sample needs bits 3 to 14"), `protocol` for a NACK, `glitch`
+  for a parallel word that does not settle ("The word changed before it was stable for 3
+  samples"), `incomplete` while a PDM filter fills (the first 3 × R bits), `timing` for a PWM that
+  stopped ("The line stayed high for longer than two periods (200 µs), so it reads 100 %.").
+  Problems are searchable and counted like decoder problems.
 - **Math channels** take other virtual channels and a typed JSON expression (`add`, `sub`, `mul`,
   `div`, `scale`, `abs`, `min`, `max`, constants), with the unit given by the person. Inputs are
   combined by sample and hold: a point whenever any input has a new one, using the latest value of

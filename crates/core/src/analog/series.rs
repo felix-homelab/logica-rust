@@ -18,7 +18,7 @@ pub const LOD_SHIFT: u32 = COARSE_SHIFT;
 
 /// One entry of a series: a value from `sample` on, or `None` when the source has no value from
 /// `sample` on (a gap). A value holds until the next entry.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Point {
     pub sample: Sample,
     pub x: Option<f64>,

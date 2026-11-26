@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use logica_core::analog::Point;
 use logica_core::store::edges::EdgeBatch;
 use logica_core::{Level, Sample};
 
@@ -258,6 +259,9 @@ fn level_after_count(start: Level, n: u64) -> Level {
 #[serde(rename_all = "camelCase")]
 pub struct Output {
     pub frames: Vec<Frame>,
+    /// Points of a virtual analog source (doc 06), in time order; empty for protocol decoders.
+    #[serde(default)]
+    pub points: Vec<Point>,
     /// Packets that are complete (a later packet has started, or the stream ended).
     pub packets: Vec<Packet>,
     pub notes: Vec<String>,
@@ -324,6 +328,8 @@ pub struct Out {
     /// Packets opened so far.
     opened: u64,
     notes: Vec<String>,
+    #[serde(default)]
+    points: Vec<Point>,
 }
 
 impl Out {
@@ -397,6 +403,20 @@ impl Out {
         });
     }
 
+    /// A value of a virtual analog source from `sample` on.
+    pub fn point(&mut self, sample: Sample, x: f64) {
+        if self.keep {
+            self.points.push(Point { sample, x: Some(x) });
+        }
+    }
+
+    /// No value of a virtual analog source from `sample` on.
+    pub fn gap(&mut self, sample: Sample) {
+        if self.keep {
+            self.points.push(Point { sample, x: None });
+        }
+    }
+
     pub fn note(&mut self, text: impl Into<String>) {
         if self.keep {
             self.notes.push(text.into());
@@ -415,6 +435,7 @@ impl Out {
             frames: std::mem::take(&mut self.frames),
             packets: std::mem::take(&mut self.done),
             notes: std::mem::take(&mut self.notes),
+            points: std::mem::take(&mut self.points),
         }
     }
 }
