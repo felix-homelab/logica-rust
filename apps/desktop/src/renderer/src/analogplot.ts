@@ -12,12 +12,23 @@ export function valueRange(min: number | null | undefined, max: number | null | 
   return [min - pad, max + pad];
 }
 
-/** Round tick values inside `[lo, hi]`, at most `count` of them. */
-export function valueTicks(lo: number, hi: number, count: number): number[] {
-  if (!(hi > lo) || count < 1) return [];
+/** How many ticks a plot `h` pixels high has room for: one every 28 pixels, at least two. */
+export function tickCount(h: number): number {
+  return Math.max(2, Math.floor(h / 28));
+}
+
+/** The round distance between ticks for at most `count` of them in `[lo, hi]`; 0 when none fit. */
+export function valueTickStep(lo: number, hi: number, count: number): number {
+  if (!(hi > lo) || count < 1) return 0;
   const raw = (hi - lo) / count;
   const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+  return [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+}
+
+/** Round tick values inside `[lo, hi]`, at most `count` of them. */
+export function valueTicks(lo: number, hi: number, count: number): number[] {
+  const step = valueTickStep(lo, hi, count);
+  if (!step) return [];
   const out: number[] = [];
   for (let i = Math.ceil(lo / step); i * step <= hi + step * 1e-9; i++) out.push(i === 0 ? 0 : i * step);
   return out;

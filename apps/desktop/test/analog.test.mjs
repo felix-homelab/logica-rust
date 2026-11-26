@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatValue, valueLines, valueRange, valueTicks, valueY } from '../src/renderer/src/analogplot.ts';
+import { formatValue, tickCount, valueTickStep, valueLines, valueRange, valueTicks, valueY } from '../src/renderer/src/analogplot.ts';
 import { layoutRows, ROW_HEIGHT } from '../src/renderer/src/lanes.ts';
 import { analogNeeds, sessionLiveNeeds, waveformNeeds } from '../src/renderer/src/relevance.ts';
 
@@ -18,6 +18,17 @@ test('ticks are round numbers inside the range', () => {
   assert.deepEqual(valueTicks(-0.25, 0.25, 2), [0]);
   assert.deepEqual(valueTicks(1, 1, 4), []);
   assert.deepEqual(valueTicks(0, 1, 0), []);
+});
+
+test('a taller row gets more ticks, and the tick distance sets the decimals', () => {
+  assert.equal(tickCount(146), 5);
+  assert.equal(tickCount(30), 2);
+  // the sine of the virtual analyser: 10 % to 90 % in a 160-pixel row
+  const [lo, hi] = valueRange(10, 90);
+  assert.deepEqual(valueTicks(lo, hi, tickCount(146)), [20, 40, 60, 80]);
+  assert.equal(formatValue(40, '%', valueTickStep(lo, hi, 5)), '40 %');
+  assert.equal(valueTickStep(0.1, 0.2, 2), 0.05);
+  assert.equal(valueTickStep(1, 1, 3), 0);
 });
 
 test('values map to rows with the highest at the top', () => {

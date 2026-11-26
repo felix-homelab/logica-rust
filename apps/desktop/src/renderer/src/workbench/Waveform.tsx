@@ -14,7 +14,7 @@ import { at, tick, tickStep, time } from '../format';
 import { useEventCount, type CaptureInfo } from '../store';
 import { analogNeeds, waveformNeeds } from '../relevance';
 import { joinRun, layoutRows, runs, type Row } from '../lanes';
-import { formatValue, valueLines, valueRange, valueTicks, valueY } from '../analogplot';
+import { formatValue, tickCount, valueTickStep, valueLines, valueRange, valueTicks, valueY } from '../analogplot';
 import { clampRange, pan, sampleToX, snap, xToSample, zoomAt, type Range } from '../viewmath';
 
 export interface ViewState extends Range {
@@ -271,7 +271,7 @@ export function Waveform({
         const top = r.y + 8;
         const h = r.h - 14;
         const vy = (val: number) => valueY(val, lo, hi, top, h);
-        for (const t of valueTicks(lo, hi, 3)) g.fillRect(LABEL_W, Math.round(vy(t)) + 0.5, width - LABEL_W, 1);
+        for (const t of valueTicks(lo, hi, tickCount(h))) g.fillRect(LABEL_W, Math.round(vy(t)) + 0.5, width - LABEL_W, 1);
         g.strokeStyle = traceColour(r);
         g.fillStyle = traceColour(r);
         g.lineWidth = 1.5;
@@ -474,10 +474,10 @@ export function Waveform({
         g.fillStyle = k.axis!;
         g.font = `10px ${k.mono}`;
         g.textAlign = 'right';
-        const ticks = valueTicks(lo, hi, 3);
+        const count = tickCount(r.h - 14);
         // as many decimals as the ticks are apart
-        const apart = ticks.length > 1 ? ticks[1]! - ticks[0]! : null;
-        for (const t of ticks) {
+        const apart = valueTickStep(lo, hi, count);
+        for (const t of valueTicks(lo, hi, count)) {
           const ty = valueY(t, lo, hi, r.y + 8, r.h - 14);
           if (ty > r.y + 18) g.fillText(fit(g, formatValue(t, a.config.unit ?? '', apart), LABEL_W - 16), LABEL_W - 8, ty);
         }
