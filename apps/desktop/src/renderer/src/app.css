@@ -118,6 +118,34 @@ details summary {
   padding: 0;
 }
 
+/* the "Capture live" dialog */
+.capture-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.capture-pick__label {
+  align-items: flex-start;
+}
+.capture-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.capture-fields {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.capture-problems {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--danger);
+}
+
 /* header: tabs and toolbar */
 .head {
   flex: none;
@@ -716,6 +744,43 @@ details summary {
 }
 @media (prefers-reduced-motion: reduce) {
   .status__spinner {
+    animation: none;
+  }
+}
+
+/* live capture (doc 08): a bar above the waveform while it follows the newest data */
+.live__bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text);
+}
+.live__grow {
+  flex: 1;
+}
+.live__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 2px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  animation: live-pulse 1.2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live__dot {
     animation: none;
   }
 }

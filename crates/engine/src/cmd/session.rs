@@ -35,7 +35,7 @@ pub struct SessionOut {
 }
 
 pub(crate) fn get(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
-    let devices = super::devices::entries(e);
+    let devices = super::devices::known_entries(e);
     let s = SessionOut {
         api_version: crate::contract::api_version(),
         revision: e.revision(),
@@ -45,7 +45,9 @@ pub(crate) fn get(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandEr
         running: e
             .running
             .iter()
-            .map(|r| RunningEntry { device: r.device.clone(), capture: r.capture.clone() })
+            .flat_map(|r| {
+                r.devices.iter().map(|d| RunningEntry { device: d.clone(), capture: r.capture.clone() })
+            })
             .collect(),
         recent: e.history.iter().rev().take(20).cloned().collect(),
         agents_paused: e.agents_paused,
@@ -115,7 +117,10 @@ pub(crate) fn pause_agents(e: &mut Engine, ctx: &Ctx, i: PauseAgentsIn) -> Resul
     let mut stopped = Vec::new();
     if i.paused {
         for r in &e.running {
-            if e.leases.get(&r.device).is_some_and(|a| matches!(a, crate::contract::Actor::Agent(_))) {
+            if r.devices
+                .iter()
+                .any(|d| e.leases.get(d).is_some_and(|a| matches!(a, crate::contract::Actor::Agent(_))))
+            {
                 r.stop.stop();
                 stopped.push(r.capture.clone());
             }

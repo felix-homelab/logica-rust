@@ -2,12 +2,16 @@
 //! events are fanned out to async listeners.
 
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 use serde_json::Value;
 use tokio::sync::broadcast;
 
 use logica_engine::contract::Safety;
 use logica_engine::{Actor, CommandError, Engine, ErrorCode, Event, Invocation};
+
+/// How often a running capture's data is taken in: 20 updates a second.
+const PUMP_EVERY: Duration = Duration::from_millis(50);
 
 /// Engine plus the event fan-out. Cheap to clone through `Arc`.
 pub struct Shared {
@@ -28,7 +32,21 @@ impl Shared {
                 let _ = tx.send(e);
             }
         });
-        Arc::new(Shared { engine: Mutex::new(engine), events, allow_outputs })
+        let shared = Arc::new(Shared { engine: Mutex::new(engine), events, allow_outputs });
+        // while a capture runs, take in its data regularly so the live view and live decoders
+        // keep up without any client asking; ends when the engine is dropped
+        let weak = Arc::downgrade(&shared);
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(PUMP_EVERY);
+                let Some(s) = weak.upgrade() else { break };
+                let mut e = s.engine();
+                if e.is_capturing() {
+                    e.poll();
+                }
+            }
+        });
+        shared
     }
 
     pub fn engine(&self) -> MutexGuard<'_, Engine> {

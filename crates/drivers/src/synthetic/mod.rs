@@ -146,6 +146,7 @@ impl SyntheticDevice {
     pub fn new(program: Program) -> Self {
         let caps = Capabilities {
             channels: program.tile.channels.iter().map(|c| c.0).collect(),
+            channel_names: Vec::new(),
             rates_hz: vec![program.tile.rate],
             limits: Vec::new(),
             max_samples: None,

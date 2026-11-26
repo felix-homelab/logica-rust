@@ -15,7 +15,7 @@ use logica_core::{Level, Sample};
 use crate::buses::{Bus, group_buses};
 use crate::format;
 use crate::protocol::{DetectContext, Protocol, Registry};
-use crate::stream::{BoundChannel, Collected, DecoderSetup, StreamDecoder};
+use crate::stream::{BoundChannel, Collected, DecoderSetup, StreamDecoder, collect_into};
 use crate::types::{DecodeResult, Detection, Rejection, Roles, SettingSpec, SettingValue, Settings};
 use crate::window::Window;
 
@@ -283,6 +283,78 @@ pub fn decode_store(
         count,
         batching,
     )
+}
+
+/// A decode that follows a capture while it grows (live capture, doc 06): every
+/// [`LiveDecode::advance`] pushes the edges that arrived since the last one into the same
+/// streaming decoder, so the work per update follows the new data, not the capture's length.
+pub struct LiveDecode {
+    decoder: Box<dyn StreamDecoder>,
+    slots: Vec<usize>,
+    /// Every edge before this sample has been pushed.
+    pos: Sample,
+}
+
+impl LiveDecode {
+    /// Starts a decode of `store` as it is now; nothing is decoded until the first `advance`.
+    pub fn new(
+        registry: &Registry,
+        store: &CaptureStore,
+        meta: &CaptureMeta,
+        protocol_id: &str,
+        roles: &Roles,
+        settings: &Settings,
+    ) -> Result<Self, String> {
+        let protocol = decoding_protocol(registry, protocol_id)?;
+        let bound = bind_roles(protocol, meta, roles)?;
+        let slots: Vec<usize> = bound.iter().map(|(_, s)| *s).collect();
+        let start = analysis_start(meta).min(store.sample_count());
+        let start_levels = slots
+            .iter()
+            .map(|&s| if start == 0 { store.initial_level(s) } else { store.level_at(s, start - 1) })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let setup = DecoderSetup {
+            sample_rate_hz: meta.sample_rate_hz,
+            start,
+            start_levels,
+            channels: bound.into_iter().map(|(b, _)| b).collect(),
+            settings: SettingSpec::with_defaults(protocol.settings(), settings),
+        };
+        Ok(LiveDecode { decoder: protocol.decoder(&setup, None)?, slots, pos: start })
+    }
+
+    /// Pushes the edges up to the store's current end and appends what the decoder emitted to
+    /// `into`. Returns whether anything was appended.
+    pub fn advance(&mut self, store: &CaptureStore, into: &mut DecodeResult) -> Result<bool, String> {
+        let count = store.sample_count();
+        if count <= self.pos {
+            return Ok(false);
+        }
+        // the merger delivers edges after its start sample: from `pos` on
+        let mut merger =
+            store.merger(&self.slots, self.pos.saturating_sub(1), count).map_err(|e| e.to_string())?;
+        let before = (into.frames.len(), into.packets.len(), into.notes.len());
+        while let Some(b) = merger.next_batch(1 << 16, Sample::MAX).map_err(|e| e.to_string())? {
+            self.decoder.push(&b);
+            collect_into(into, self.decoder.drain());
+        }
+        self.pos = count;
+        Ok((into.frames.len(), into.packets.len(), into.notes.len()) != before)
+    }
+
+    /// The capture ended at `end`: pushes the rest and lets the decoder emit what is pending.
+    pub fn finish(
+        mut self,
+        store: &CaptureStore,
+        end: Sample,
+        into: &mut DecodeResult,
+    ) -> Result<(), String> {
+        self.advance(store, into)?;
+        self.decoder.finish(end);
+        collect_into(into, self.decoder.drain());
+        Ok(())
+    }
 }
 
 /// Decodes the edges of a detection window in one batch (detectors' full decodes).

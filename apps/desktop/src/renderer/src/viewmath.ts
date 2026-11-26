@@ -57,3 +57,35 @@ export function snap(sample: number, edges: readonly number[], r: Range, width: 
 export function centreOn(sample: number, span: number, count: number): Range {
   return clampRange({ from: sample - span / 2, to: sample + span / 2 }, count);
 }
+
+/**
+ * Signal time a live view shows at first, in seconds: following moves the view by its own width
+ * every that long, so half a second keeps the bursts readable; zoom in or "Stay here" for detail.
+ */
+export const LIVE_SECONDS = 0.5;
+
+/** Whether a view of a growing capture still reaches its newest data (within 2 % of the view). */
+export function atEnd(r: Range, count: number): boolean {
+  return r.to >= count - Math.max(1, (r.to - r.from) * 0.02);
+}
+
+/** The newest `span` samples of a capture of `count` samples. */
+export function following(span: number, count: number): Range {
+  return clampRange({ from: count - span, to: count }, count);
+}
+
+/**
+ * The person changed a live view from `prev` to `next` (doc 08: the view follows the newest data
+ * unless the person scrolls away). `span` is the width followed, or null when not following.
+ * Zooming while following keeps following at the new width; panning away stops it; coming back to
+ * the end follows again.
+ */
+export function liveView(prev: Range, next: Range, count: number, span: number | null): { span: number | null; range: Range } {
+  const width = next.to - next.from;
+  if (span !== null) {
+    if (next.from === prev.from && next.to === prev.to) return { span, range: following(span, count) };
+    if (width !== prev.to - prev.from) return { span: width, range: following(width, count) };
+    return atEnd(next, count) ? { span, range: following(span, count) } : { span: null, range: clampRange(next, count) };
+  }
+  return atEnd(next, count) ? { span: width, range: following(width, count) } : { span: null, range: clampRange(next, count) };
+}

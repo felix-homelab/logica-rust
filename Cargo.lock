@@ -504,6 +504,7 @@ dependencies = [
  "logica-core",
  "logica-fileio",
  "logica-protocols",
+ "serde",
  "serde_json",
 ]
 
@@ -516,6 +517,7 @@ dependencies = [
  "logica-drivers",
  "logica-fileio",
  "logica-protocols",
+ "logica-vla",
  "miniz_oxide",
  "schemars",
  "serde",
@@ -568,6 +570,17 @@ version = "0.1.0"
 dependencies = [
  "logica-core",
  "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "logica-vla"
+version = "0.1.0"
+dependencies = [
+ "logica-core",
+ "logica-drivers",
+ "logica-protocols",
  "serde",
  "serde_json",
 ]

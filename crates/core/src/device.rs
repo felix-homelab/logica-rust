@@ -17,9 +17,9 @@ use crate::store::{CaptureStore, Level, Sample};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceInfo {
-    /// Stable id, such as "synthetic/mix" or a USB serial.
+    /// Stable id, such as "vla/127.0.0.1:7171" or a USB serial.
     pub id: String,
-    /// Driver id: "synthetic", "fnirsi-dla", "fx2lafw".
+    /// Driver id: "vla", "fnirsi-dla", "fx2lafw" ("synthetic" in tests).
     pub driver: String,
     pub model: String,
     pub serial: Option<String>,
@@ -49,6 +49,9 @@ pub struct RateLimit {
 pub struct Capabilities {
     /// Physical channel numbers.
     pub channels: Vec<u32>,
+    /// The names the device gives its channels, in the order of `channels`; empty when it names
+    /// none (then they are CH0, CH1, …).
+    pub channel_names: Vec<String>,
     /// Rates offered.
     pub rates_hz: Vec<f64>,
     /// Rate limits by number of enabled channels, fewest channels first.
@@ -217,6 +220,11 @@ pub trait Device: Send {
 pub trait VirtualDriver: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
+    /// Whether its devices come and go (a separate program that may or may not be running), so
+    /// the engine lists them again on every `device.list` instead of once.
+    fn hotplug(&self) -> bool {
+        false
+    }
     fn enumerate(&self) -> Vec<DeviceInfo>;
     fn open(&self, id: &str) -> Result<Box<dyn Device>, DeviceError>;
 }
@@ -378,6 +386,7 @@ mod tests {
     fn caps() -> Capabilities {
         Capabilities {
             channels: (0..32).collect(),
+            channel_names: Vec::new(),
             rates_hz: vec![100e6, 250e6, 500e6, 1e9],
             limits: vec![
                 RateLimit { max_channels: 8, max_rate_hz: 1e9 },

@@ -22,7 +22,6 @@ import {
   Activity,
   Bot,
   Command,
-  FlaskConical,
   FolderOpen,
   PanelBottom,
   PanelLeft,
@@ -37,12 +36,14 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { bridge, client, mod } from '../bridge';
-import { at, hz, int, time } from '../format';
-import { isAgent, useActive, useStore, who, type CaptureInfo } from '../store';
+import { at, elapsed, hz, int, time } from '../format';
+import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { centreOn, zoomAt } from '../viewmath';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
 import { Waveform, type ViewState } from './Waveform';
+import { LiveWaveform } from './Live';
+import { CaptureDialog } from './CaptureDialog';
 import { Boundary } from '../Boundary';
 
 const AGENT_SETUP = 'claude mcp add logica -- logica mcp';
@@ -71,6 +72,7 @@ export function Workbench() {
   const timers = useRef<Record<string, number>>({});
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState<'keys' | 'agent' | null>(null);
+  const [liveOpen, setLiveOpen] = useState(false);
   const [runCommand, setRunCommand] = useState<string | null>(null);
   const [inspector, setInspector] = useState('analysis');
   const [bottomTab, setBottomTab] = useState('decoded');
@@ -101,6 +103,11 @@ export function Workbench() {
       for (const c of session.captures) {
         const engine = fromEngine(c);
         const mine = old[c.id];
+        // the person steers a live view (it follows the newest data); the engine's grows behind it
+        if (mine && c.state === 'capturing') {
+          next[c.id] = mine;
+          continue;
+        }
         next[c.id] = !mine || (sent.current[c.id] !== key(engine) && key(mine) !== key(engine)) ? engine : mine;
       }
       return next;
@@ -131,6 +138,8 @@ export function Workbench() {
   );
 
   const view = active ? views[active.id] : undefined;
+  const activeId = active?.id;
+  const onActiveView = useCallback((v: ViewState) => activeId && setView(activeId, v), [activeId, setView]);
 
   const jump = useCallback(
     (from: number, to: number) => {
@@ -200,15 +209,6 @@ export function Workbench() {
     [run],
   );
 
-  const demo = useCallback(async () => {
-    const device = 'synthetic/mix';
-    const dev = session?.devices.find((d) => d.info.id === device);
-    if (!dev?.connected && !(await run('device.connect', { device }))) return;
-    if (!(await run('device.configure', { device, config: { channels: [0, 1, 2, 6], sampleRateHz: 1e8, samples: 3_000_000, mode: 'stream' } }))) return;
-    const r = await run('capture.start', { device, title: 'Demo capture', wait: true });
-    if (r) void client.run('view.set', { capture: r.id, activate: true }).catch(() => {});
-  }, [run, session]);
-
   const zoom = useCallback(
     (factor: number | 'all') => {
       if (!active || !view) return;
@@ -238,13 +238,13 @@ export function Workbench() {
       'zoom.all': () => zoom('all'),
       'help.keys': () => setHelp('keys'),
       'help.agent': () => setHelp('agent'),
+      'capture.live': () => setLiveOpen(true),
       gallery: () => {
         window.location.hash = 'gallery';
       },
-      demo: () => void demo(),
       settings: () => bridge().openSettings(),
     }),
-    [openDialog, save, active, run, closeCapture, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, demo, narrow, drawer, openInspector],
+    [openDialog, save, active, run, closeCapture, showSidebar, showInspector, showBottom, setShowSidebar, setShowInspector, setShowBottom, zoom, narrow, drawer, openInspector],
   );
 
   useEffect(() => bridge().onMenu((id) => actions[id]?.()), [actions]);
@@ -302,7 +302,7 @@ export function Workbench() {
     const k = mod();
     const app: PaletteItem[] = [
       { id: 'a-open', group: 'Actions', title: 'Open file…', shortcut: [k, 'O'], icon: <FolderOpen />, run: actions['file.open']! },
-      { id: 'a-demo', group: 'Actions', title: 'Try a demo capture', hint: 'synthetic device', icon: <FlaskConical />, run: actions.demo! },
+      { id: 'a-live', group: 'Actions', title: 'Capture live…', hint: 'from one or several devices', icon: <Activity />, run: actions['capture.live']! },
       { id: 'a-save', group: 'Actions', title: 'Save', shortcut: [k, 'S'], icon: <Save />, disabled: !active, disabledReason: 'No capture is open', run: actions['file.save']! },
       { id: 'a-undo', group: 'Actions', title: 'Undo', shortcut: [k, 'Z'], icon: <Undo2 />, run: actions['history.undo']! },
       { id: 'a-redo', group: 'Actions', title: 'Redo', icon: <Redo2 />, run: actions['history.redo']! },
@@ -395,6 +395,7 @@ export function Workbench() {
               ))}
             </ul>
             <IconButton label="Open a capture" shortcut={[mod(), 'O']} icon={<Plus />} onClick={actions['file.open']} />
+            <IconButton label="Capture live" icon={<Activity />} onClick={actions['capture.live']} />
           </nav>
           <button type="button" className="tabs__palette" onClick={() => setPalette(true)}>
             <Command aria-hidden="true" /> Search commands… <Kbd keys={[mod(), 'K']} />
@@ -441,7 +442,11 @@ export function Workbench() {
             <main className="center">
               <section className="wave-area" aria-label="Waveform">
                 <Boundary name="waveform">
-                  <Waveform capture={active} view={view} onView={(v) => setView(active.id, v)} expert={expert} />
+                  {active.state === 'capturing' ? (
+                    <LiveWaveform key={active.id} capture={active} view={view} onView={onActiveView} expert={expert} />
+                  ) : (
+                    <Waveform capture={active} view={view} onView={onActiveView} expert={expert} />
+                  )}
                 </Boundary>
               </section>
               {showBottom && (
@@ -508,7 +513,7 @@ export function Workbench() {
                       <SearchPanel key={active.id} capture={active} onJump={jump} expert={expert} />
                     </TabsContent>
                     <TabsContent value="device" className="fill">
-                      <DevicePanel />
+                      <DevicePanel onCapture={actions['capture.live']!} />
                     </TabsContent>
                   </TabsRoot>
                   </Boundary>
@@ -519,10 +524,11 @@ export function Workbench() {
           <StatusBar capture={active} view={view} />
         </>
       ) : (
-        <StartScreen onOpen={actions['file.open']!} onDemo={actions.demo!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
+        <StartScreen onOpen={actions['file.open']!} onCapture={actions['capture.live']!} onOpenRecent={(f) => void openFiles([f])} onAgent={actions['help.agent']!} />
       )}
 
       <CommandPalette open={palette} onOpenChange={setPalette} items={items} />
+      <CaptureDialog open={liveOpen} onClose={() => setLiveOpen(false)} />
       <Dialog
         open={closing !== null}
         onOpenChange={(o) => !o && setClosing(null)}
@@ -650,7 +656,15 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   const loss = capture.notes.find((n) => n.level === 'warning' && /lost|overwrit|dropped/i.test(n.message));
   return (
     <footer className="status" aria-label="Status">
-      <span>{running ? `Capturing (${running})` : device ? `${device.info.model}: connected` : 'No device connected'}</span>
+      <span>
+        {capture.state === 'capturing'
+          ? `Capturing: ${elapsed(capture.seconds)} so far`
+          : running
+            ? `Capturing (${running})`
+            : device
+              ? `${device.info.model}: connected`
+              : 'No device connected'}
+      </span>
       <span className="lg-num">{hz(rate)}</span>
       <span className="lg-num">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
@@ -669,9 +683,12 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
   );
 }
 
-function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => void; onDemo: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
+function StartScreen({ onOpen, onCapture, onOpenRecent, onAgent }: { onOpen: () => void; onCapture: () => void; onOpenRecent: (f: string) => void; onAgent: () => void }) {
   const { settings, session } = useStore();
   const recent = settings?.recent ?? [];
+  // devices come and go (an analyser started, a device plugged in): look again while this shows
+  useDeviceWatch(true);
+  const devices = session?.devices ?? [];
   return (
     <main className="start">
       <div className="start__inner">
@@ -681,8 +698,8 @@ function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => 
           <Button variant="primary" icon={<FolderOpen />} onClick={onOpen}>
             Open file…
           </Button>
-          <Button icon={<FlaskConical />} onClick={onDemo}>
-            Try a demo capture
+          <Button icon={<Activity />} onClick={onCapture}>
+            Capture live…
           </Button>
         </div>
         <div className="start__grid">
@@ -704,14 +721,20 @@ function StartScreen({ onOpen, onDemo, onOpenRecent, onAgent }: { onOpen: () => 
           </section>
           <section className="card">
             <h2 className="section-title">Devices</h2>
-            <ul className="plain">
-              {(session?.devices ?? []).slice(0, 6).map((d) => (
-                <li key={d.info.id}>
-                  {d.info.model} <span className="muted">{d.connected ? '· connected' : ''}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="muted">Real analysers come with milestone M3; these synthetic devices produce known signals.</p>
+            {devices.length > 0 && (
+              <ul className="plain">
+                {devices.map((d) => (
+                  <li key={d.info.id}>
+                    {d.info.model} <span className="muted">{d.capturing ? '· capturing' : d.connected ? '· connected' : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="muted">
+              {devices.length === 0
+                ? 'No analyser found. Real analysers come with milestone M3; to try live capture now, start the virtual analyser (cargo run -p logica-vla).'
+                : '"Capture live…" captures from one or several of them at once.'}
+            </p>
           </section>
           <section className="card">
             <h2 className="section-title">Work with an agent</h2>

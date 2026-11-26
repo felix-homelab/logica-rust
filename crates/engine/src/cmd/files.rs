@@ -190,6 +190,12 @@ pub struct FileSaveOut {
 
 pub(crate) fn save(e: &mut Engine, _: &Ctx, i: FileSaveIn) -> Result<Done, CommandError> {
     let c = e.capture(&i.capture)?;
+    if c.meta.state == logica_core::capture::CaptureState::Capturing {
+        return Err(err(
+            ErrorCode::Busy,
+            "This capture is still running; stop it with capture.stop, then save it.",
+        ));
+    }
     let target = match (&i.path, c.backed_by_path, &c.path) {
         (Some(p), _, _) => PathBuf::from(p),
         (None, true, Some(p)) => p.clone(),
@@ -243,8 +249,24 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-pub(crate) fn close(e: &mut Engine, _: &Ctx, i: CaptureRef) -> Result<Done, CommandError> {
+pub(crate) fn close(e: &mut Engine, ctx: &Ctx, i: CaptureRef) -> Result<Done, CommandError> {
     let title = e.capture(&i.capture)?.meta.title.clone();
+    // closing a running capture stops it, which needs the device's lease
+    if let Some(r) = e.running.iter().find(|r| r.capture == i.capture) {
+        let held = r.devices.iter().find(|d| e.leases.get(*d).is_some_and(|h| *h != ctx.actor));
+        let device = held.cloned().unwrap_or_default();
+        match held.and(e.leases.get(&device)) {
+            Some(h) if *h != ctx.actor && ctx.actor != crate::contract::Actor::User => {
+                return Err(err(
+                    ErrorCode::Busy,
+                    format!(
+                        "{title} is still being captured from {device}, which someone else holds; ask the person to stop it."
+                    ),
+                ));
+            }
+            _ => e.stop_capture_of(&i.capture),
+        }
+    }
     e.captures.remove(&i.capture);
     if e.active.as_deref() == Some(&i.capture) {
         e.active = e.captures.keys().next().cloned();

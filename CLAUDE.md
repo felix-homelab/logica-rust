@@ -47,7 +47,8 @@ Electron), `npm run package` (installers for this OS), `npm run package:dir -w a
 `npm run smoke -w apps/desktop` (the packaged app starts and reaches the engine; prints the cold
 start); `npm run test:e2e` (Playwright against the built app; `LOGICA_PERF=1` adds the doc 08
 budget measurements, `LOGICA_SHOTS=<dir>` keeps screenshots); `logica mcp` (MCP over stdio:
-relays to the running engine, starts the app, or becomes a windowless engine); `logica open`. After
+relays to the running engine, starts the app, or becomes a windowless engine); `logica open`; `cargo run -p logica-vla` (a virtual analyser for
+live capture without hardware, `tools/virtual-analyser/README.md`). After
 changing a command's input or output types:
 `LOGICA_UPDATE_CONTRACT=1 cargo test -p logica-engine --test contract`, then
 `npm run generate -w packages/api`, and commit both generated files. The toolchain is pinned in

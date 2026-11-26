@@ -82,7 +82,8 @@ async fn connect_as(
 }
 
 async fn connect(mode: ClientLifecycleMode) -> (Client, TestClient, Arc<Shared>) {
-    let shared = Shared::new(Engine::new(EngineConfig::default()), false);
+    // the synthetic device gives the session devices to summarise
+    let shared = Shared::new(Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() }), false);
     let (c, h) = connect_to(shared.clone(), mode).await;
     (c, h, shared)
 }
@@ -351,7 +352,7 @@ async fn prompts_describe_the_recipes() {
 
 #[tokio::test]
 async fn a_device_capture_waits_and_two_agents_meet_the_lease() {
-    let shared = Shared::new(Engine::new(EngineConfig::default()), false);
+    let shared = Shared::new(Engine::new(EngineConfig { synthetic: true, ..EngineConfig::default() }), false);
     let (a, _) = connect_to(shared.clone(), legacy()).await;
     let (b, _) = connect_as("other-agent", shared.clone(), stateless()).await;
     let (t, _) = ok(&a, "list_devices", json!({})).await;

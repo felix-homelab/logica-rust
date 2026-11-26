@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { CommandError, type CommandName, type Input, type Output } from '@logica/api';
 import { bridge, client, type EngineState, type McpStatus, type Settings } from './bridge';
-import { sessionNeeds, type EngineEvent } from './relevance';
+import { sessionLiveNeeds, sessionNeeds, type EngineEvent } from './relevance';
 
 export type Session = Output<'session.get'>;
 export type CaptureInfo = Session['captures'][number];
@@ -120,6 +120,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState<string[]>([]);
   const listeners = useRef(new Set<(e: EngineEvent) => void>());
   const pending = useRef<number | null>(null);
+  const livePending = useRef<number | null>(null);
   const first = useRef(true);
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
@@ -130,10 +131,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone === 'danger' ? 8000 : 5000);
   }, []);
 
+  // reads can overlap and their answers arrive in any order: only the newest asked for counts
+  const asked = useRef(0);
+  const applied = useRef(0);
   const refresh = useCallback(() => {
+    const n = ++asked.current;
     client
       .run('session.get', {})
       .then((s) => {
+        if (n < applied.current) return;
+        applied.current = n;
         setSession(s);
         setFailure(null);
         if (first.current) {
@@ -156,6 +163,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pending.current = null;
       refresh();
     }, 30);
+  }, [refresh]);
+
+  // a live capture's progress: at most four reads a second
+  const refreshLive = useCallback(() => {
+    if (livePending.current !== null) return;
+    livePending.current = window.setTimeout(() => {
+      livePending.current = null;
+      refresh();
+    }, 250);
   }, [refresh]);
 
   const run = useCallback(
@@ -203,6 +219,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const e = raw as EngineEvent;
       listeners.current.forEach((l) => l(e));
       if (sessionNeeds(e)) refreshSoon();
+      else if (sessionLiveNeeds(e)) refreshLive();
       if (e.event === 'view.changed' && e.actor?.startsWith('agent:')) {
         notify('agent', `${e.actor.slice(6)} moved your view.`);
       }
@@ -243,7 +260,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       offAgent();
       offUpdate();
     };
-  }, [refresh, refreshSoon, notify]);
+  }, [refresh, refreshSoon, refreshLive, notify]);
 
   const dismiss = useCallback((id: number) => setNotices((n) => n.filter((x) => x.id !== id)), []);
   const dismissLost = useCallback(() => setLost(null), []);
@@ -272,6 +289,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 }
 
 /** "agent:claude-code" → "claude-code"; the person → "you". */
+/** How often the window looks for devices while devices are on screen. */
+export const DEVICE_WATCH_MS = 2000;
+
+type Listed = { info: { id: string }; connected: boolean; capturing: boolean; holder?: string | null };
+const listed = (devices: Listed[]) => JSON.stringify(devices.map((d) => [d.info.id, d.connected, d.capturing, d.holder ?? null]));
+
+/**
+ * While `on`, looks for devices every two seconds (a virtual analyser or a plugged-in device can
+ * appear or go at any time; the engine only looks when asked) and reads the session again while
+ * what was found differs from what the session on screen shows. Comparing with the screen, not with
+ * the last look, means a session read that was lost or overtaken is made good at the next look.
+ * Quiet: no busy label, and a failure is left to the next look.
+ */
+export function useDeviceWatch(on: boolean): void {
+  const { refresh, session } = useStore();
+  const shown = useRef('');
+  shown.current = listed(session?.devices ?? []);
+  useEffect(() => {
+    if (!on) return;
+    let alive = true;
+    const look = () =>
+      client
+        .run('device.list', {})
+        .then((r) => {
+          if (alive && listed(r.devices) !== shown.current) refresh();
+        })
+        .catch(() => {});
+    void look();
+    const t = window.setInterval(() => void look(), DEVICE_WATCH_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
+  }, [on, refresh]);
+}
+
 export function who(actor: string): string {
   if (actor === 'user') return 'you';
   if (actor === 'cli') return 'the command line';

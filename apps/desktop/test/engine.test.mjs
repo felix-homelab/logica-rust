@@ -25,7 +25,9 @@ test('commands answer with the command API', async () => {
   const r = await run('session.get');
   assert.equal(r.ok, true);
   assert.equal(r.output.apiVersion, '1.0');
-  assert.ok(r.output.devices.length > 0);
+  // the app offers no synthetic device; virtual analysers appear only when one runs
+  assert.ok(Array.isArray(r.output.devices));
+  assert.ok(r.output.devices.every((d) => d.info.driver !== 'synthetic'));
 });
 
 test('errors come back as envelopes, not exceptions', async () => {

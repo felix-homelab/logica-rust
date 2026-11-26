@@ -87,11 +87,14 @@ export function Waveform({
   view,
   onView,
   expert,
+  follow = false,
 }: {
   capture: CaptureInfo;
   view: ViewState;
   onView: (v: ViewState) => void;
   expert: boolean;
+  /** A live view following the newest data (Live.tsx). */
+  follow?: boolean;
 }) {
   const changes = useEventCount((e) => waveformNeeds(e, capture.id));
   const [failed, setFailed] = useState<string | null>(null);
@@ -118,15 +121,22 @@ export function Waveform({
     return () => ro.disconnect();
   }, []);
 
-  // ask the engine for the visible range; the latest request wins
+  // ask the engine for the visible range; a newer answer replaces an older one, never the reverse.
+  // Answers to requests overtaken by newer ones are still shown: a live view moves before each
+  // answer arrives, and waiting for "the latest" would leave it empty.
   const seq = useRef(0);
+  const shownSeq = useRef(0);
+  const captureId = useRef(capture.id);
+  captureId.current = capture.id;
   useEffect(() => {
     const n = ++seq.current;
+    const id = capture.id;
     const t = window.setTimeout(() => {
       client
-        .run('waveform.get', { capture: capture.id, from: view.from, to: view.to, buckets: Math.min(8192, Math.max(1, plotW)) })
+        .run('waveform.get', { capture: id, from: view.from, to: view.to, buckets: Math.min(8192, Math.max(1, plotW)) })
         .then((w) => {
-          if (n !== seq.current) return;
+          if (n < shownSeq.current || id !== captureId.current) return;
+          shownSeq.current = n;
           setData(w);
           setFailed(null);
         })
@@ -142,6 +152,9 @@ export function Waveform({
   }, [capture.id, view.from, view.to, plotW, changes, retry]);
 
   const draw = useCallback(() => {
+    // a live view draws the range its data is for: following moves the view on before each
+    // answer arrives, and the newest data would otherwise always be just off the edge
+    const dv: ViewState = follow && data ? { ...view, from: data.from, to: data.to } : view;
     const c = canvas.current;
     if (!c) return;
     const dpr = window.devicePixelRatio || 1;
@@ -160,13 +173,13 @@ export function Waveform({
     g.fillRect(0, 0, width, height);
     g.font = `11px ${k.font}`;
     g.textBaseline = 'middle';
-    const x = (s: number) => LABEL_W + sampleToX(s, view, plotW);
+    const x = (s: number) => LABEL_W + sampleToX(s, dv, plotW);
 
     // grid and time axis
-    const span = (view.to - view.from) / rate;
+    const span = (dv.to - dv.from) / rate;
     const step = tickStep(span, Math.max(2, Math.floor(plotW / 110)));
-    const t0 = view.from / rate;
-    for (let t = Math.ceil(t0 / step) * step; t <= view.to / rate; t += step) {
+    const t0 = dv.from / rate;
+    for (let t = Math.ceil(t0 / step) * step; t <= dv.to / rate; t += step) {
       const px = Math.round(x(t * rate)) + 0.5;
       g.fillStyle = k.grid!;
       g.fillRect(px, AXIS - 4, 1, height);
@@ -177,8 +190,8 @@ export function Waveform({
     g.fillRect(0, AXIS - 1, width, 1);
 
     // selection, under everything else
-    if (view.selection) {
-      const [a, b] = view.selection;
+    if (dv.selection) {
+      const [a, b] = dv.selection;
       g.fillStyle = k.selection!;
       g.fillRect(x(Math.min(a, b)), AXIS, Math.abs(x(b) - x(a)), height);
     }
@@ -338,8 +351,8 @@ export function Waveform({
 
     // cursors on top
     for (const [s, name] of [
-      [view.cursorA, 'A'],
-      [view.cursorB, 'B'],
+      [dv.cursorA, 'A'],
+      [dv.cursorB, 'B'],
     ] as const) {
       if (s === null) continue;
       const cx = Math.round(x(s)) + 0.5;
@@ -374,7 +387,7 @@ export function Waveform({
     // a bracket down the side of each group
     g.fillStyle = k.axis!;
     for (const [top, bottom] of extent.values()) g.fillRect(2, top + 4, 2, bottom - top - 6);
-  }, [width, height, view, rows, data, capture.markers, plotW, rate]);
+  }, [width, height, view, rows, data, capture.markers, plotW, rate, follow]);
 
   useEffect(() => {
     const id = requestAnimationFrame(draw);

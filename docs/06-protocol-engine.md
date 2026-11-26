@@ -26,7 +26,10 @@ one stream, and there is no separate batch decoder.
 - **Snapshot**: the whole state as serialisable data, so a decode can resume later.
 
 The engine merges the decoder's channels into one time-ordered edge stream and pushes batches as
-chunks arrive.
+chunks arrive. While a capture runs, each decoder on it keeps one streaming decoder that is pushed
+the edges that arrived since the last poll (`LiveDecode`); when the capture ends it is finished at
+the end sample. A live decode gives exactly the frames and packets of a decode of the finished
+capture (tested for every example, in uneven steps).
 
 Design guidance: a decoder buffers its channels' edges and runs a resumable loop that reads edges
 by absolute index and levels at any sample it has data for. When it needs data that has not

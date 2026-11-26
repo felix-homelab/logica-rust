@@ -4,6 +4,41 @@ Checks a person runs by hand because they need a real agent client, a display or
 says what to do and what should happen; note the date, the versions and anything that differed in
 the pull request that touched the area.
 
+## Live capture from the virtual analyser (M2)
+
+Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Listening on
+127.0.0.1:7171`), then `npm start`.
+
+1. **Found.** The start screen lists "Virtual analyser: Bench". (Started the other way round:
+   "Capture live…" looks again, or "Look again" in its dialog.)
+2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its eleven
+   channels by name (CH0 TX, …), its lowest rate and 60 seconds. "Start capture" opens a tab
+   "Live: Bench" with a "capturing" badge; the bar above the waveform counts the seconds; the
+   waveform moves smoothly with the newest data on the right.
+3. **Decode while it runs.** Add a UART decoder on CH0 (Decoders tab). Messages such as "status
+   OK\r\n" appear under CH0 and in the decoded table, which keeps growing.
+4. **Look back.** Drag the waveform to the right: the bar says you are looking back and the view
+   stays put while data keeps arriving. "Follow" (or the End key) goes back to the newest data.
+   Zooming with the wheel while following keeps following.
+5. **Stop.** "Stop capture": the bar goes, the tab loses its badge, the capture keeps what arrived
+   and says it was stopped (its notes), and it can be saved.
+6. **Gone.** Stop `logica-vla` with Ctrl+C during a capture: the capture ends with a warning that
+   the analyser closed the connection, keeping what arrived.
+
+7. **Several.** Start a second analyser with `cargo run -p logica-vla -- --listen 127.0.0.1:7172
+   --name Second`. "Capture live…" lists both, picks neither. Pick both: one rate for all is
+   offered from the rates they share; "One per device" gives each its own. Untick every channel of
+   one: the problem shows under it and "Start 2 captures" is disabled. With channels back,
+   "Until I stop it" and start: two tabs, both capturing; "Stop capture" in each (or the device
+   panel) ends them.
+
+8. **One capture.** With both analysers, pick both, "All into one capture": the name is "Live:
+   Bench + Second", one rate for both, "By a signal they all see" with CH10 SYNC chosen on both.
+   Untick SYNC on one: the problem shows and Start is disabled. Tick it again and start: one tab
+   with both devices' channels ("Bench: TX", …, "Second: SYNC"); the two SYNC rows rise together
+   wherever you zoom. Stop it: its notes say where Second's sample 0 fell and how far its clock ran.
+   For drift, start the second analyser with a config file that sets `"clockPpm": 300`.
+
 ## Claude Code through `logica mcp` (M1)
 
 Setup: build with `cargo build -p logica-cli`, then register the binary once:
@@ -27,9 +62,9 @@ Use a fresh data folder for a clean run: `LOGICA_DATA_DIR=/tmp/logica-manual cla
    name and the rename as undone.
 6. **A picture.** Ask: "Show me the EEPROM read." Claude calls render and can describe the picture
    (rows from the top: time axis, the marker, CH4, CH5, the decoder).
-7. **A device.** Ask: "Capture 3 million samples at 100 MHz from the synthetic mix device on
-   channels 0, 1, 2 and 6 and summarize it." Claude connects, captures (progress may show) and
-   finds UART, I2C, SPI and PWM.
+7. **A device.** With `cargo run -p logica-vla` running, ask: "Capture one second from the
+   virtual analyser on channels 0 to 7 and summarize it." Claude connects, captures (progress may
+   show) and finds UART, I2C, SPI and PWM.
 8. **Errors read as instructions.** Ask Claude to open a file that does not exist; the tool error
    says the file could not be opened and why.
 9. **Two agents, one engine.** With the first session still open, start a second Claude Code (or
@@ -60,7 +95,7 @@ palette, undo and axe (`npm run test:e2e`). These need a person:
    `mystery_C.demo` and mark the EEPROM read: the app starts minimised with "started by an
    agent", the marker appears live, and the activity feed lists Claude's actions with undo.
 8. **Stop agent actions.** With an agent connected, switch "Stop agent actions" on and ask the
-   agent to capture from the synthetic device: it is refused with the reason.
+   agent to capture from the virtual analyser: it is refused with the reason.
 9. **Something goes wrong.** End the engine process with the task manager: the window says the
    engine was restarted and offers to open the files again; Help > Open the log folder shows
    `logica.log` with the reason. Close a tab or quit with unsaved changes: Logica asks first.

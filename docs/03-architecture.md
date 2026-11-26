@@ -74,7 +74,8 @@ crates/
                protocols, queries, byte analyser, protocol knowledge, signal generators. No I/O.
   fileio/      the random-access file interface of `core` on real files (`std::fs`), for the
                engine, the CLI, tests and benchmarks
-  drivers/     synthetic, fnirsi-dla, fx2lafw (each with a PROVENANCE.md)
+  drivers/     synthetic, vla (the virtual analyser), fnirsi-dla, fx2lafw (each with a
+               PROVENANCE.md)
   engine/      sessions, device manager, capture pipeline, decoder orchestration, command API,
                events, actors, undo history, leases, files and USB, PNG rendering for `render`
   mcp/         the curated MCP tools, resources and prompts, and `run_command` (ADR 0006)
@@ -88,7 +89,8 @@ apps/
   desktop/     Electron main, preload, engine host and renderer entry; electron-vite and
                electron-builder configuration
 fixtures/      capture files, format fixtures, USB replay transcripts
-tools/         the known-signal rig (doc 10)
+tools/         the known-signal rig (doc 10); virtual-analyser/, the `logica-vla` program that
+               streams configurable signals over TCP for live capture without hardware
 ```
 
 Rust crates form one Cargo workspace; `packages/` and `apps/` form one npm workspace.

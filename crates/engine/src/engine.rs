@@ -7,28 +7,53 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use logica_core::capture::CaptureMeta;
-use logica_core::device::{Device, RunOutcome, StopSignal, StoreSink, VirtualDriver};
+use logica_core::capture::{CaptureMeta, CaptureState, ChannelInfo, Note, NoteLevel, Source, whole};
+use logica_core::device::{Device, RunOutcome, StopSignal, VirtualDriver};
+use logica_core::import::StoreTarget;
 use logica_core::store::{CaptureStore, DEFAULT_CACHE_BUDGET};
+use logica_core::{Level, Sample};
 use logica_protocols::Registry;
 use logica_protocols::protocol::Protocol;
 
 use crate::commands::spec;
 use crate::contract::{Actor, CommandError, ErrorCode, Event, HistoryEntry, Invocation, Undo};
+use crate::live::Delivery;
 use crate::state::Capture;
+
+/// Longest a poll spends taking in device data, so commands stay responsive while capturing.
+const POLL_BUDGET: Duration = Duration::from_millis(25);
 
 pub struct EngineConfig {
     /// Where working `.lacap` files of new captures and imports go; memory when `None`.
     pub data_dir: Option<PathBuf>,
     pub cache_budget: usize,
+    /// Where to look for virtual analysers (`logica-vla`); none unless given, so tests do not
+    /// depend on what runs on the machine. The app passes [`EngineConfig::vla_from_env`].
+    pub vla_addresses: Vec<String>,
+    /// Offer the synthetic device (programs of known signals, in-process). Off in the app, where
+    /// the virtual analyser is the way to capture without hardware; tests turn it on.
+    pub synthetic: bool,
+}
+
+impl EngineConfig {
+    /// `LOGICA_VLA` (comma-separated `host:port`), else the analyser's default address.
+    pub fn vla_from_env() -> Vec<String> {
+        logica_drivers::vla::addresses_from_env()
+    }
 }
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        EngineConfig { data_dir: None, cache_budget: DEFAULT_CACHE_BUDGET }
+        EngineConfig {
+            data_dir: None,
+            cache_budget: DEFAULT_CACHE_BUDGET,
+            vla_addresses: Vec::new(),
+            synthetic: false,
+        }
     }
 }
 
@@ -93,18 +118,38 @@ impl Done {
 pub struct OpenDevice {
     pub device: Option<Box<dyn Device>>,
     pub configured: bool,
+    /// Samples per channel of the last configuration.
+    pub samples: Sample,
+    /// Rate and channels of the last configuration (several devices in one capture must agree).
+    pub rate_hz: f64,
+    pub channels: Vec<u32>,
 }
 
-/// A capture running on a worker thread.
+/// A capture running on a worker thread. Its data arrives on `feed` (see [`crate::live`]); the
+/// capture joins the session with the first block, in the state `capturing`.
 pub struct Running {
-    pub device: String,
+    /// The devices it captures from: one, or several into one capture ([`crate::group`]).
+    pub devices: Vec<String>,
     pub capture: String,
     pub title: String,
+    pub source: Source,
     pub stop: StopSignal,
     pub handle: JoinHandle<RunResult>,
+    pub feed: mpsc::Receiver<Delivery>,
+    /// Where the store goes, until the device begins.
+    pub target: Option<StoreTarget>,
+    /// Samples asked for, for the progress fraction.
+    pub samples: Sample,
+    /// Whether the device began, so the capture is in the session.
+    pub begun: bool,
+    /// Why the data could not be taken in; the capture is stopped and keeps what arrived.
+    pub failed: Option<String>,
+    /// Samples in the last progress event.
+    pub reported: Sample,
 }
 
-pub type RunResult = (Box<dyn Device>, Result<(RunOutcome, StoreSink), String>);
+/// The devices back, by id, and how the capture went.
+pub type RunResult = (Vec<(String, Box<dyn Device>)>, Result<RunOutcome, String>);
 
 pub struct Engine {
     pub(crate) cfg: EngineConfig,
@@ -133,6 +178,13 @@ pub(crate) fn err(code: ErrorCode, message: impl Into<String>) -> CommandError {
 
 impl Engine {
     pub fn new(cfg: EngineConfig) -> Self {
+        let mut drivers: Vec<Box<dyn VirtualDriver>> = Vec::new();
+        if cfg.synthetic {
+            drivers.push(Box::new(logica_drivers::synthetic::SyntheticDriver));
+        }
+        if !cfg.vla_addresses.is_empty() {
+            drivers.push(Box::new(logica_drivers::vla::VlaDriver::new(cfg.vla_addresses.clone())));
+        }
         Engine {
             cfg,
             registry: logica_protocols::registry(),
@@ -140,7 +192,7 @@ impl Engine {
             captures: BTreeMap::new(),
             active: None,
             history: Vec::new(),
-            drivers: vec![Box::new(logica_drivers::synthetic::SyntheticDriver)],
+            drivers,
             devices: BTreeMap::new(),
             leases: BTreeMap::new(),
             running: Vec::new(),
@@ -422,55 +474,215 @@ impl Engine {
         Ok(serde_json::json!({ "entry": entry }))
     }
 
-    /// Collects finished captures from worker threads; called before every command.
+    /// Takes in what running captures delivered and collects finished ones; called before every
+    /// command and, while capturing, regularly by the host.
     pub fn poll(&mut self) {
         let mut i = 0;
         while i < self.running.len() {
-            if self.running[i].handle.is_finished() {
-                let r = self.running.remove(i);
+            let mut r = self.running.remove(i);
+            self.pump(&mut r, Some(Instant::now() + POLL_BUDGET));
+            if r.handle.is_finished() {
                 self.finish_running(r);
             } else {
+                self.running.insert(i, r);
                 i += 1;
             }
         }
     }
 
-    pub(crate) fn finish_running(&mut self, r: Running) {
-        let Ok((device, result)) = r.handle.join() else {
-            self.emit(Event::CaptureDone { capture: r.capture, samples: 0, stopped: true });
-            return;
-        };
-        if let Some(d) = self.devices.get_mut(&r.device) {
-            d.device = Some(device);
+    /// Whether a capture is running (the host polls more often then).
+    pub fn is_capturing(&self) -> bool {
+        !self.running.is_empty()
+    }
+
+    /// Applies the deliveries waiting on `r`'s feed, until `until` if given, then brings its live
+    /// decoders up to date and reports progress.
+    fn pump(&mut self, r: &mut Running, until: Option<Instant>) {
+        let mut any = false;
+        while until.is_none_or(|t| Instant::now() < t) {
+            let Ok(d) = r.feed.try_recv() else { break };
+            self.deliver(r, d);
+            any = true;
         }
-        match result {
-            Ok((outcome, sink)) => {
-                let info_source = self
-                    .devices
-                    .get(&r.device)
-                    .and_then(|d| d.device.as_ref())
-                    .map(|d| logica_core::device::device_source(d.info()));
-                let source = info_source.unwrap_or(logica_core::capture::Source {
-                    kind: logica_core::capture::SourceKind::Device,
-                    detail: r.device.clone(),
-                });
-                match sink.finish(&outcome, source, &r.title) {
-                    Ok((store, mut meta)) => {
-                        meta.id = r.capture.clone();
-                        let samples = store.sample_count();
-                        self.add_capture(r.capture.clone(), meta, store, None, false);
-                        self.emit(Event::CaptureDone {
-                            capture: r.capture,
-                            samples,
-                            stopped: outcome.stopped,
-                        });
-                    }
-                    Err(e) => self.capture_failed(&r.capture, &e.to_string()),
+        if any {
+            self.live_update(r);
+        }
+    }
+
+    fn deliver(&mut self, r: &mut Running, d: Delivery) {
+        match d {
+            Delivery::Begin { channels, initial, sample_rate_hz } => {
+                self.live_begin(r, channels, &initial, sample_rate_hz)
+            }
+            Delivery::Note(n) => {
+                if let Some(c) = self.captures.get_mut(&r.capture) {
+                    c.meta.notes.push(n);
                 }
             }
-            Err(e) => self.capture_failed(&r.capture, &e),
+            data => {
+                if r.failed.is_some() {
+                    return;
+                }
+                let Some(c) = self.captures.get_mut(&r.capture) else {
+                    r.failed = Some("The device sent data before it began the capture.".into());
+                    r.stop.stop();
+                    return;
+                };
+                if let Err(e) = data.apply(&mut c.store) {
+                    r.failed = Some(e.to_string());
+                    r.stop.stop();
+                }
+            }
         }
+    }
+
+    /// The device began: the capture joins the session and becomes the active tab.
+    fn live_begin(&mut self, r: &mut Running, channels: Vec<ChannelInfo>, initial: &[Level], rate: f64) {
+        let Some(target) = r.target.take() else {
+            r.failed = Some("The device began the capture twice.".into());
+            r.stop.stop();
+            return;
+        };
+        let store = match target.create(initial) {
+            Ok(s) => s,
+            Err(e) => {
+                r.failed = Some(e.to_string());
+                r.stop.stop();
+                return;
+            }
+        };
+        let meta = CaptureMeta {
+            id: r.capture.clone(),
+            title: r.title.clone(),
+            source: r.source.clone(),
+            sample_rate_hz: rate,
+            trigger: None,
+            channels,
+            segments: whole(0),
+            notes: Vec::new(),
+            state: CaptureState::Capturing,
+            artefact: None,
+            saved_decoders: Vec::new(),
+        };
+        self.add_capture(r.capture.clone(), meta, store, None, false);
+        r.begun = true;
         self.changed();
+    }
+
+    /// Advances the live decoders of `r`'s capture and reports its progress.
+    fn live_update(&mut self, r: &mut Running) {
+        let Some(c) = self.captures.get_mut(&r.capture) else { return };
+        let samples = c.store.sample_count();
+        let mut updated = Vec::new();
+        for (id, d) in &mut c.decoders {
+            if d.advance_live(&c.store) {
+                updated.push(id.clone());
+            }
+        }
+        if samples != r.reported {
+            r.reported = samples;
+            let fraction = (r.samples > 0).then(|| (samples as f64 / r.samples as f64).min(1.0));
+            self.emit(Event::CaptureProgress { capture: r.capture.clone(), samples, fraction });
+        }
+        for decoder in updated {
+            self.emit(Event::DecoderUpdated { capture: r.capture.clone(), decoder });
+        }
+    }
+
+    /// Waits for a capture's device to finish, taking in everything it still delivers, and ends
+    /// the capture: complete, or aborted with the reason, keeping what arrived.
+    pub(crate) fn finish_running(&mut self, mut r: Running) {
+        loop {
+            self.pump(&mut r, None);
+            match r.feed.recv_timeout(Duration::from_millis(5)) {
+                Ok(d) => self.deliver(&mut r, d),
+                // the device thread dropped its sink: it is done
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+        }
+        self.pump(&mut r, None);
+        let Ok((devices, result)) = r.handle.join() else {
+            if r.begun {
+                self.end_live(&r.capture, None, true, Some("The device driver stopped unexpectedly.".into()));
+            } else {
+                self.capture_failed(&r.capture, "the device driver stopped unexpectedly");
+            }
+            return;
+        };
+        for (id, device) in devices {
+            if let Some(d) = self.devices.get_mut(&id) {
+                d.device = Some(device);
+            }
+        }
+        if !r.begun {
+            let why =
+                r.failed.clone().or(result.err()).unwrap_or_else(|| "The device delivered no data.".into());
+            self.capture_failed(&r.capture, &why);
+            return;
+        }
+        match result {
+            Ok(outcome) => {
+                let failed = r.failed.clone();
+                self.end_live(&r.capture, Some(outcome.samples), outcome.stopped, failed);
+            }
+            Err(e) => self.end_live(&r.capture, None, true, Some(r.failed.clone().unwrap_or(e))),
+        }
+    }
+
+    /// Ends a capture that began: the store is finished at its end, live decoders emit what is
+    /// pending, and the state says whether it is complete.
+    fn end_live(&mut self, capture: &str, samples: Option<Sample>, stopped: bool, failed: Option<String>) {
+        let Some(c) = self.captures.get_mut(capture) else {
+            // closed while capturing
+            self.emit(Event::CaptureDone { capture: capture.into(), samples: 0, stopped: true });
+            self.changed();
+            return;
+        };
+        let have = c.store.sample_count();
+        let end = if failed.is_some() { have } else { samples.unwrap_or(have).max(have) };
+        if let Err(e) = c.store.finish(end) {
+            c.meta.notes.push(Note {
+                level: NoteLevel::Warning,
+                message: format!("The capture could not be finished: {e}."),
+            });
+        }
+        if let Some(why) = &failed {
+            c.meta.notes.push(Note {
+                level: NoteLevel::Warning,
+                message: format!(
+                    "The capture failed after {end} samples: {why} What arrived until then is kept."
+                ),
+            });
+        } else if stopped {
+            c.meta.notes.push(Note {
+                level: NoteLevel::Info,
+                message: format!("The capture was stopped after {end} samples."),
+            });
+        }
+        let stopped = stopped || failed.is_some();
+        c.meta.state = if stopped { CaptureState::Aborted } else { CaptureState::Complete };
+        c.meta.segments = whole(end);
+        let mut updated = Vec::new();
+        for (id, d) in &mut c.decoders {
+            if d.finish_live(&c.store, end) {
+                updated.push(id.clone());
+            }
+        }
+        for decoder in updated {
+            self.emit(Event::DecoderUpdated { capture: capture.into(), decoder });
+        }
+        self.emit(Event::CaptureDone { capture: capture.into(), samples: end, stopped });
+        self.changed();
+    }
+
+    /// Stops the capture running into `capture`, if one is, and ends it.
+    pub(crate) fn stop_capture_of(&mut self, capture: &str) {
+        if let Some(k) = self.running.iter().position(|r| r.capture == capture) {
+            let r = self.running.remove(k);
+            r.stop.stop();
+            self.finish_running(r);
+        }
     }
 
     fn capture_failed(&mut self, capture: &str, why: &str) {

@@ -1,8 +1,8 @@
 // The waveform's view arithmetic and the number formats the window shows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN } from '../src/renderer/src/viewmath.ts';
-import { time, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
+import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN, atEnd, following, liveView } from '../src/renderer/src/viewmath.ts';
+import { time, elapsed, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
 
 test('ranges stay inside the capture and never get too small', () => {
   assert.deepEqual(clampRange({ from: -50, to: 50 }, 1000), { from: 0, to: 100 });
@@ -64,7 +64,7 @@ test('numbers read as the engine writes them', () => {
   assert.equal(tickStep(0.0004, 8), 0.00005);
 });
 
-import { activityNeeds, sessionNeeds, tableNeeds, waveformNeeds } from '../src/renderer/src/relevance.ts';
+import { activityNeeds, sessionLiveNeeds, sessionNeeds, tableNeeds, waveformNeeds } from '../src/renderer/src/relevance.ts';
 
 test("the person's own panning refreshes nothing but their view", () => {
   const pan = { event: 'view.changed', capture: 'c1', actor: 'user' };
@@ -88,4 +88,51 @@ test('each part reads again only for its own capture and decoder', () => {
   assert.equal(activityNeeds(dec), false);
   assert.equal(sessionNeeds({ event: 'state.changed' }), true);
   assert.equal(sessionNeeds({ event: 'capture.progress', capture: 'c1' }), false);
+});
+
+test('a live capture refreshes the session a few times a second, not on every update', () => {
+  const progress = { event: 'capture.progress', capture: 'c1', samples: 400 };
+  const dec = { event: 'decoder.updated', capture: 'c1', decoder: 'd1' };
+  // both come about 20 times a second while capturing, so they wait for the slower refresh
+  assert.equal(sessionNeeds(progress), false);
+  assert.equal(sessionNeeds(dec), false);
+  assert.equal(sessionLiveNeeds(progress), true);
+  assert.equal(sessionLiveNeeds(dec), true);
+  assert.equal(sessionLiveNeeds({ event: 'state.changed' }), false);
+  // the end of a capture is read at once
+  assert.equal(sessionNeeds({ event: 'capture.done', capture: 'c1' }), true);
+});
+
+test('a live view follows the newest data until the person scrolls away', () => {
+  assert.deepEqual(following(100, 1000), { from: 900, to: 1000 });
+  assert.deepEqual(following(100, 40), { from: 0, to: 40 }, 'a young capture shows whole');
+  assert.equal(atEnd({ from: 900, to: 999 }, 1000), true, 'within 2 % of the view');
+  assert.equal(atEnd({ from: 800, to: 900 }, 1000), false);
+  const shown = following(100, 1000);
+  // a cursor or selection change keeps following
+  assert.deepEqual(liveView(shown, shown, 1200, 100), { span: 100, range: { from: 1100, to: 1200 } });
+  // zooming keeps following, at the new width
+  assert.deepEqual(liveView(shown, zoomAt(shown, 0.5, 0.5, 1000), 1000, 100), { span: 50, range: { from: 950, to: 1000 } });
+  // panning back stops following and keeps the place the person chose
+  assert.deepEqual(liveView(shown, pan(shown, -0.5, 1000), 1000, 100), { span: null, range: { from: 850, to: 950 } });
+  // a small nudge that still shows the end keeps following
+  assert.deepEqual(liveView(shown, { from: 899, to: 999 }, 1000, 100), { span: 100, range: { from: 900, to: 1000 } });
+  // not following: moving around stays put; coming back to the end follows again
+  assert.deepEqual(liveView({ from: 0, to: 100 }, { from: 10, to: 110 }, 5000, null), { span: null, range: { from: 10, to: 110 } });
+  assert.deepEqual(liveView({ from: 0, to: 100 }, { from: 4900, to: 5000 }, 5000, null), { span: 100, range: { from: 4900, to: 5000 } });
+});
+
+test('a running time keeps two decimals, so it does not jump while it counts', () => {
+  assert.equal(elapsed(0), '0.00 s');
+  assert.equal(elapsed(12.3), '12.30 s');
+  assert.equal(elapsed(12.349), '12.34 s', 'cut, not rounded');
+  assert.equal(elapsed(59.999), '59.99 s', 'never shows a minute before it is reached');
+  assert.equal(elapsed(60), '1 min 00.00 s');
+  assert.equal(elapsed(65.25), '1 min 05.25 s');
+  assert.equal(elapsed(7385.25), '2 h 03 min 05.25 s');
+  assert.equal(elapsed(-1), '–');
+  assert.equal(elapsed(Number.NaN), '–');
+  // the same width from 10 s to 59.99 s
+  const widths = new Set([10, 10.1, 11.11, 25.5, 59.99].map((t) => elapsed(t).length));
+  assert.equal(widths.size, 1);
 });

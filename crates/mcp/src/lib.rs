@@ -88,6 +88,7 @@ pub async fn stdio_entry(o: Options) -> std::io::Result<()> {
     }
     let engine = logica_engine::Engine::new(logica_engine::EngineConfig {
         data_dir: Some(o.work_dir.clone()),
+        vla_addresses: logica_engine::EngineConfig::vla_from_env(),
         ..logica_engine::EngineConfig::default()
     });
     let shared = Shared::new(engine, o.allow_outputs);

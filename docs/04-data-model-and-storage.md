@@ -124,6 +124,14 @@ The window never holds capture data, only what it is drawing.
   the channels that changed. Runs of unchanged words are skipped in bulk (SIMD compares).
 - Runs on engine threads: one per group of channels for per-channel blocks; ordered hand-off for
   packed blocks.
+- Live capture: the device runs on its own thread and hands its blocks, as owned copies, over a
+  bounded queue to the engine, which writes them into the capture's store whenever it polls (before
+  every command, and every 50 ms while a capture runs). The capture is in the session from its
+  first block, in the state `capturing`, so it can be drawn, measured and decoded while it grows;
+  the store keeps a single owner, and the bound holds memory steady (a faster device waits). Each
+  poll takes in data for at most 25 ms so commands stay responsive. Not yet measured at DLA stream
+  rates: packed blocks are converted on the engine side, which may need to move to the ingest
+  threads above for 200 MB/s (spike S2).
 - Throughput is measured in spike S2 and recorded in `docs/benchmarks.md`. Target: DLA stream mode
   at full rate (up to 200 MB/s of packed input) without loss.
 

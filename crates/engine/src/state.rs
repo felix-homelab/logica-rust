@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use logica_core::Sample;
 use logica_core::capture::{CaptureMeta, CaptureState, Note, SavedDecoder, Source};
 use logica_core::store::CaptureStore;
+use logica_protocols::analyse::LiveDecode;
 use logica_protocols::types::{DataFormat, DecodeResult, FrameKind, ProblemCode, Roles, Settings};
 
 use crate::contract::Actor;
@@ -29,12 +30,15 @@ pub struct DecoderConfig {
 
 pub struct Decoder {
     pub config: DecoderConfig,
-    /// The whole-capture decode (paged by `decoder.frames`).
+    /// The whole-capture decode (paged by `decoder.frames`); while capturing, what is decoded so
+    /// far.
     pub result: DecodeResult,
     /// Channels its data frames are drawn under, in order.
     pub lanes: Vec<u32>,
     /// Its channels in the protocol's role order (SPI: CLK, CS, MOSI, MISO).
     pub channels: Vec<u32>,
+    /// The decode following the capture while it is captured.
+    pub live: Option<LiveDecode>,
 }
 
 /// Frames that carry data (bytes, words, samples): what the waveform's text row writes out.
@@ -56,7 +60,46 @@ impl Decoder {
                 channels.push(c);
             }
         }
-        Decoder { config, result, lanes: lanes.into_iter().collect(), channels }
+        Decoder { config, result, lanes: lanes.into_iter().collect(), channels, live: None }
+    }
+
+    /// Adds the lanes of frames from index `from` on.
+    fn absorb(&mut self, from: usize) {
+        for f in &self.result.frames[from.min(self.result.frames.len())..] {
+            if f.row == 0 && is_data(f.kind) && !self.lanes.contains(&f.lane) {
+                let at = self.lanes.partition_point(|&l| l < f.lane);
+                self.lanes.insert(at, f.lane);
+            }
+        }
+    }
+
+    /// Decodes what arrived since the last call; returns whether anything new was decoded. A
+    /// failing live decode ends with a note and keeps what it decoded.
+    pub fn advance_live(&mut self, store: &CaptureStore) -> bool {
+        let Some(live) = self.live.as_mut() else { return false };
+        let from = self.result.frames.len();
+        match live.advance(store, &mut self.result) {
+            Ok(changed) => {
+                self.absorb(from);
+                changed
+            }
+            Err(e) => {
+                self.live = None;
+                self.result.notes.push(format!("Live decoding stopped: {e}"));
+                true
+            }
+        }
+    }
+
+    /// The capture ended at `end`: the decoder emits what is pending and stops following.
+    pub fn finish_live(&mut self, store: &CaptureStore, end: Sample) -> bool {
+        let Some(live) = self.live.take() else { return false };
+        let from = self.result.frames.len();
+        if let Err(e) = live.finish(store, end, &mut self.result) {
+            self.result.notes.push(format!("Live decoding stopped: {e}"));
+        }
+        self.absorb(from);
+        true
     }
 }
 
