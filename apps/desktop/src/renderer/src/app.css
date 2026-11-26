@@ -1061,3 +1061,103 @@ legend {
   font-weight: var(--weight-medium);
   white-space: nowrap;
 }
+
+/* "Capture live": a steady height, so the centred dialog does not jump from step to step */
+.capture-dialog {
+  height: min(640px, calc(100vh - 2 * var(--space-4)));
+}
+.capture-dialog .lg-dialog__body {
+  flex: 1 1 auto;
+}
+/* the step bar: where you are, what is done, and which step has a problem */
+.steps {
+  margin: 0 calc(-1 * var(--space-4)) var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.steps__list {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.steps__item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+.steps__item + .steps__item::before {
+  content: '';
+  flex: none;
+  width: var(--space-4);
+  height: 1px;
+  margin: 0 var(--space-1);
+  background: var(--border-strong);
+}
+.steps__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: var(--control-md);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.steps__button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.steps__button:disabled {
+  cursor: default;
+  color: var(--text-muted);
+}
+.steps__button[aria-current='step'] {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.steps__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.steps__mark svg {
+  width: 12px;
+  height: 12px;
+}
+.steps__item[data-state='current'] .steps__mark {
+  border-color: var(--primary-bg);
+  background: var(--primary-bg);
+  color: var(--on-primary);
+}
+.steps__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.steps__bad {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+}
+.review dt {
+  white-space: nowrap;
+}

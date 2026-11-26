@@ -91,8 +91,15 @@ test('a live capture follows the newest data, decodes while it runs and stops', 
     await page.getByRole('button', { name: 'Capture live…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Capture live' });
     await expect(dialog.getByRole('checkbox', { name: /Virtual analyser: Bench/ })).toBeChecked();
-    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+    // one step per thing to decide: devices, how long, the device's channels, then the start
+    const steps = dialog.getByRole('navigation', { name: 'Steps' }).getByRole('button');
+    await expect(steps).toHaveText(['1Devices', '2Capture', '3Bench', '4Check and start']);
+    await dialog.getByRole('button', { name: 'Next: Capture' }).click();
+    await expect(dialog.getByRole('radio', { name: 'For a time' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Next: Bench' }).click();
     await expect(dialog.getByRole('checkbox', { name: 'CH0 TX' })).toBeChecked();
+    await dialog.getByRole('button', { name: 'Next: Check and start' }).click();
+    await expect(dialog).toContainText('11 of 11 channels');
     await dialog.getByRole('button', { name: 'Start capture' }).click();
     await expect(dialog).toHaveCount(0);
     const bar = page.getByRole('group', { name: 'Live capture' });
@@ -148,36 +155,48 @@ test('several analysers capture together, each into its own tab, with settings c
     const second = dialog.getByRole('checkbox', { name: /Virtual analyser: Second/ });
     // with two free devices, none is picked for the person
     await expect(bench).not.toBeChecked();
-    await expect(dialog.getByRole('button', { name: 'Next: settings' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Next: Capture' })).toBeDisabled();
     await bench.check();
     await second.check();
-    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+    // a step for each device
+    const bar = dialog.getByRole('navigation', { name: 'Steps' });
+    await expect(bar.getByRole('button')).toHaveText(['1Devices', '2Capture', '3Bench', '4Second', '5Check and start']);
+    await dialog.getByRole('button', { name: 'Next: Capture' }).click();
 
-    // one rate for both by default; each device has its channels and tab name
+    // one rate for both by default; one rate per device, and until stopped
     await expect(dialog.getByRole('radio', { name: 'The same for all devices' })).toBeChecked();
     await expect(dialog.getByLabel('Rate for all')).toBeVisible();
+    await dialog.getByRole('radio', { name: 'One per device' }).check();
+    await dialog.getByRole('radio', { name: 'Until I stop it' }).check();
+
+    await dialog.getByRole('button', { name: 'Next: Bench' }).click();
     const benchSettings = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Bench' });
-    const secondSettings = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Second' });
     await expect(benchSettings.getByLabel('Tab name')).toHaveValue('Live: Bench');
+    await expect(benchSettings.getByLabel('Sample rate')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Next: Second' }).click();
+    const secondSettings = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Second' });
     await expect(secondSettings.getByLabel('Tab name')).toHaveValue('Live: Second');
 
-    // a problem is explained and holds the start back
+    // a problem is explained and holds the next steps back
     await secondSettings.getByRole('button', { name: 'none' }).click();
     await expect(secondSettings.getByRole('list', { name: /Problems/ })).toContainText('Choose at least one channel.');
-    const go = dialog.getByRole('button', { name: 'Start 2 captures' });
-    await expect(go).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Next: Check and start' })).toBeDisabled();
+    await expect(bar.getByRole('button', { name: /Check and start/ })).toBeDisabled();
+    // earlier steps stay open: the step bar goes back and forth
+    await bar.getByRole('button', { name: /Capture/ }).click();
+    await expect(dialog.getByRole('radio', { name: 'Until I stop it' })).toBeChecked();
+    await bar.getByRole('button', { name: /Second/ }).click();
     await secondSettings.getByRole('checkbox', { name: 'CH0 TX' }).check();
     await secondSettings.getByRole('checkbox', { name: 'CH9 NOISE' }).check();
-
-    // one rate per device, and until stopped
-    await dialog.getByRole('radio', { name: 'One per device' }).check();
-    await expect(benchSettings.getByLabel('Sample rate')).toBeVisible();
-    await dialog.getByRole('radio', { name: 'Until I stop it' }).check();
     await expect(secondSettings).toContainText('2 of 11 channels');
     const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await shot(page, 'capture-dialog');
 
+    await dialog.getByRole('button', { name: 'Next: Check and start' }).click();
+    await expect(dialog).toContainText('Each device into its own tab');
+    await expect(dialog).toContainText('2 of 11 channels');
+    const go = dialog.getByRole('button', { name: 'Start 2 captures' });
     await go.click();
     await expect(dialog).toHaveCount(0);
     const tabs = page.locator('.tabs');
@@ -207,21 +226,28 @@ test('two analysers go into one capture, lined up by the clock they share', asyn
     const dialog = page.getByRole('dialog', { name: 'Capture live' });
     await dialog.getByRole('checkbox', { name: /Virtual analyser: Bench/ }).check();
     await dialog.getByRole('checkbox', { name: /Virtual analyser: Second/ }).check();
-    await dialog.getByRole('button', { name: 'Next: settings' }).click();
+    await dialog.getByRole('button', { name: 'Next: Capture' }).click();
     await dialog.getByRole('radio', { name: 'All into one capture' }).check();
     await expect(dialog.getByLabel('Capture name')).toHaveValue('Live: Bench + Second');
     // one capture has one rate; the shared SYNC line is found on both by its name
     await expect(dialog.getByRole('radio', { name: 'One per device' })).toHaveCount(0);
+    // one capture adds a step: how the devices are lined up
+    await expect(dialog.getByRole('navigation', { name: 'Steps' }).getByRole('button')).toHaveText(['Devices', '2Capture', '3Line up', '4Bench', '5Second', '6Check and start']);
+    await dialog.getByRole('button', { name: 'Next: Line up' }).click();
     await expect(dialog.getByRole('radio', { name: 'By a signal they all see' })).toBeChecked();
     await expect(dialog.getByLabel('Shared signal on Virtual analyser: Second')).toHaveValue('10');
 
-    // the line it is lined up by must be captured
+    // the line it is lined up by must be captured; the problem shows at the device it is about
+    await dialog.getByRole('button', { name: 'Next: Bench' }).click();
+    await dialog.getByRole('button', { name: 'Next: Second' }).click();
     const second = dialog.getByRole('region', { name: 'Settings for Virtual analyser: Second' });
     await second.getByRole('checkbox', { name: 'CH10 SYNC' }).uncheck();
-    await expect(dialog.getByRole('list', { name: 'Problems with one capture' })).toContainText('Virtual analyser: Second: capture CH10 SYNC too');
-    const go = dialog.getByRole('button', { name: 'Start capture' });
-    await expect(go).toBeDisabled();
+    await expect(second.getByRole('list', { name: 'Problems with Virtual analyser: Second' })).toContainText('Virtual analyser: Second: capture CH10 SYNC too');
+    await expect(dialog.getByRole('button', { name: 'Next: Check and start' })).toBeDisabled();
     await second.getByRole('checkbox', { name: 'CH10 SYNC' }).check();
+    await dialog.getByRole('button', { name: 'Next: Check and start' }).click();
+    await expect(dialog).toContainText('By Bench CH10 SYNC, Second CH10 SYNC');
+    const go = dialog.getByRole('button', { name: 'Start capture' });
     const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await shot(page, 'capture-together');

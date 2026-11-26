@@ -80,16 +80,17 @@ test('a long dialog keeps its title and buttons in sight in the smallest window,
   await inWindow(dialog, 'the dialog');
   await inWindow(dialog.getByRole('heading', { name: 'SPI settings' }), 'the title');
   await inWindow(dialog.getByRole('button', { name: 'Done' }), 'the Done button');
-  // the form scrolls inside, between the title and the buttons
+  // a form longer than the window scrolls inside, between the title and the buttons
   const body = dialog.locator('.lg-dialog__body');
-  expect(await body.evaluate((e) => e.scrollHeight > e.clientHeight), 'the form is longer than the window').toBe(true);
+  expect(await body.evaluate((e) => getComputedStyle(e).overflowY), 'the body is what scrolls').toBe('auto');
   await body.evaluate((e) => (e.scrollTop = e.scrollHeight));
   await inWindow(dialog.getByRole('button', { name: 'Done' }), 'the Done button after scrolling');
   await inWindow(dialog.getByRole('heading', { name: 'SPI settings' }), 'the title after scrolling');
-  // horizontally centred, also while it opens (the opening animation must not move it sideways)
+  // centred, also while it opens (the opening animation must not move it sideways)
   const box = (await dialog.boundingBox())!;
   expect(Math.abs(box.x + box.width / 2 - MIN.width / 2)).toBeLessThanOrEqual(1);
-  expect(await dialog.evaluate((e) => getComputedStyle(e).translate)).toBe('-50%');
+  expect(Math.abs(box.y + box.height / 2 - MIN.height / 2)).toBeLessThanOrEqual(1);
+  expect(await dialog.evaluate((e) => getComputedStyle(e).translate)).toBe('-50% -50%');
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(dialog).toHaveCount(0);
   await app.close();

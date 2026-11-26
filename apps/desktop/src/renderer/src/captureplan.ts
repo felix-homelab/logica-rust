@@ -145,21 +145,77 @@ export function togetherTitle(models: string[]): string {
  * problems: they need a rate in common, and when lined up by a shared signal, each captures the
  * channel it is on.
  */
+/** A problem with capturing several devices as one, and the device it is about (index), if one. */
+export interface TogetherIssue {
+  text: string;
+  /** The rate the devices share, or the signal that lines them up. */
+  topic: 'rate' | 'signal';
+  device: number | null;
+}
+
+export function togetherIssues(
+  devices: { model: string; caps: Caps; choice: Choice }[],
+  align: number[] | null,
+  label: (c: Caps, ch: number) => string,
+): TogetherIssue[] {
+  const out: TogetherIssue[] = [];
+  if (commonRates(devices.map((d) => d.caps)).length === 0) {
+    out.push({ text: 'These devices share no sample rate, so they cannot be one capture; capture them each into a tab instead.', topic: 'rate', device: null });
+  }
+  if (align) {
+    devices.forEach((d, k) => {
+      const ch = align[k];
+      if (ch === undefined || !d.caps.channels.includes(ch)) out.push({ text: `Choose the channel of ${d.model} that sees the shared signal.`, topic: 'signal', device: null });
+      else if (!d.choice.channels.includes(ch)) out.push({ text: `${d.model}: capture ${label(d.caps, ch)} too; the capture is lined up by it.`, topic: 'signal', device: k });
+    });
+  }
+  return out;
+}
+
 export function togetherProblems(
   devices: { model: string; caps: Caps; choice: Choice }[],
   align: number[] | null,
   label: (c: Caps, ch: number) => string,
 ): string[] {
-  const out: string[] = [];
-  if (commonRates(devices.map((d) => d.caps)).length === 0) {
-    out.push('These devices share no sample rate, so they cannot be one capture; capture them each into a tab instead.');
-  }
-  if (align) {
-    devices.forEach((d, k) => {
-      const ch = align[k];
-      if (ch === undefined || !d.caps.channels.includes(ch)) out.push(`Choose the channel of ${d.model} that sees the shared signal.`);
-      else if (!d.choice.channels.includes(ch)) out.push(`${d.model}: capture ${label(d.caps, ch)} too; the capture is lined up by it.`);
-    });
-  }
-  return out;
+  return togetherIssues(devices, align, label).map((i) => i.text);
+}
+
+// The dialog's steps. They follow what is chosen: the devices first, then how and how long to
+// capture, how to line the devices up when they go into one capture, then one step per chosen
+// device (its channels, rate, mode), then a check of everything with the start. Without a device
+// chosen there is only the first step.
+
+export type StepId = 'devices' | 'capture' | 'lineup' | 'review' | `device:${string}`;
+
+export interface Step {
+  id: StepId;
+  /** Short, for the step bar and the "Next" button. */
+  label: string;
+}
+
+/** A device's name without what every virtual analyser's name starts with. */
+export function shortModel(model: string): string {
+  return model.replace(/^Virtual analyser: /, '');
+}
+
+export function captureSteps(devices: { id: string; model: string }[], options: { lineUp?: boolean } = {}): Step[] {
+  if (devices.length === 0) return [{ id: 'devices', label: 'Devices' }];
+  // two devices of the same model are told apart by their place in the list
+  const seen = new Map<string, number>();
+  for (const d of devices) seen.set(d.model, (seen.get(d.model) ?? 0) + 1);
+  const nth = new Map<string, number>();
+  const perDevice: Step[] = devices.map((d) => {
+    const n = (nth.get(d.model) ?? 0) + 1;
+    nth.set(d.model, n);
+    const name = shortModel(d.model);
+    return { id: `device:${d.id}`, label: (seen.get(d.model) ?? 0) > 1 ? `${name} ${n}` : name };
+  });
+  const lineUp: Step[] = options.lineUp && devices.length > 1 ? [{ id: 'lineup', label: 'Line up' }] : [];
+  return [{ id: 'devices', label: 'Devices' }, { id: 'capture', label: 'Capture' }, ...lineUp, ...perDevice, { id: 'review', label: 'Check and start' }];
+}
+
+/** The step to show: the one asked for while it exists, else the first (a device was unpicked). */
+export function currentStep(steps: Step[], wanted: StepId): number {
+  const i = steps.findIndex((s) => s.id === wanted);
+  return i < 0 ? 0 : i;
 }
