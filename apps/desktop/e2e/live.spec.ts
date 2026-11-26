@@ -2,7 +2,7 @@
 // port): the capture appears as a tab at once, the view follows the newest data, a decoder added
 // while capturing keeps decoding, and stopping ends it with what arrived.
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { createServer } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import AxeBuilder from '@axe-core/playwright';
@@ -39,6 +39,31 @@ async function analyser(extra: string[] = []): Promise<{ at: string; proc: Child
     });
     proc.stderr?.on('data', (b: Buffer) => (out += String(b)));
     proc.on('exit', (code) => reject(new Error(`logica-vla ended (${code}): ${out}`)));
+  });
+}
+
+/** What answers at `host:port`: the start of a greeting, a refusal, or silence. */
+function greetOnce(at: string): Promise<string> {
+  const [host, port] = at.split(':');
+  return new Promise((resolve) => {
+    const c = connect({ host, port: Number(port) });
+    let got = '';
+    const done = (what: string) => {
+      c.destroy();
+      resolve(what);
+    };
+    const timer = setTimeout(() => done(got ? `partial "${got.slice(0, 40)}"` : 'connected, no greeting'), 3_000);
+    c.on('data', (b: Buffer) => {
+      got += String(b);
+      if (got.includes('\n')) {
+        clearTimeout(timer);
+        done(`greeted "${got.slice(0, 60)}"`);
+      }
+    });
+    c.on('error', (e: NodeJS.ErrnoException) => {
+      clearTimeout(timer);
+      done(`error ${e.code}`);
+    });
   });
 }
 
@@ -231,6 +256,17 @@ test('the start screen shows an analyser that starts or stops while it is open',
   } finally {
     vla.proc.kill();
   }
+  // what is left once it was stopped (for a failure on one system only: Windows CI)
+  const exited = await new Promise<string>((res) => {
+    if (vla.proc.exitCode !== null || vla.proc.signalCode !== null) res(`exited (${vla.proc.exitCode ?? vla.proc.signalCode})`);
+    else {
+      vla.proc.once('exit', (c, s) => res(`exited (${c ?? s})`));
+      setTimeout(() => res('still running after 5 s'), 5_000);
+    }
+  });
+  console.log(`analyser ${exited}; ${at} after it stopped: ${await greetOnce(at)}`);
+  await page.waitForTimeout(5_000);
+  console.log(`start screen 5 s later: ${(await page.locator('.start').innerText()).replace(/\s+/g, ' ')}; ${at}: ${await greetOnce(at)}`);
   await expect(page.getByText('Virtual analyser: Bench')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByText(/No analyser found/)).toBeVisible();
   await app.close();
