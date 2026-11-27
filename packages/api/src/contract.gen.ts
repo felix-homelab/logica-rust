@@ -251,6 +251,12 @@ historyEntry: HistoryEntry
 export interface AnalogAddIn {
 capture: string
 /**
+ * A decoder of the capture to read from (SPI and I2C for the ADC sources, PWM for the PWM
+ * level): its channels and bus settings are used instead of `roles`, and follow it when it
+ * changes.
+ */
+decoder?: (string | null)
+/**
  * Row height in pixels, 40 to 800 (160 unless given).
  */
 height?: (number | null)
@@ -833,6 +839,10 @@ step?: (number | null)
  */
 export interface AnalogConfig {
 /**
+ * The decoder it reads from, if any: its channels and bus settings follow that decoder's.
+ */
+decoder?: (string | null)
+/**
  * Height of its row in the waveform, in pixels (40 to 800).
  */
 height?: number
@@ -916,6 +926,14 @@ export interface AnalogSourcesOut {
 sources: AnalogSourceEntry[]
 }
 export interface AnalogSourceEntry {
+/**
+ * Its settings that then come from the decoder (the bus's own).
+ */
+decoderSettings: string[]
+/**
+ * Decoder protocols it can read from instead of its own channels (`spi`, `i2c`, `pwm`).
+ */
+decoders: string[]
 help: string
 id: string
 name: string

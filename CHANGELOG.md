@@ -76,6 +76,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   the `measure` tool. (#31)
 - Virtual analog values export as CSV: one table with time, sample and a column per channel (and
   its raw code), from the channel list or for agents through `analog.export`. (#32)
+- Virtual analog channels can read from a decoder of the capture instead of its channels: an ADC
+  on the SPI or I2C decoder, a PWM level on the PWM decoder. They take the decoder's channels and
+  settings and follow it when it changes. (#33)
 
 ### Fixed
 

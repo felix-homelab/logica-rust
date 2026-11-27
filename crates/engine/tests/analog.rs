@@ -446,3 +446,95 @@ fn values_are_exported_as_csv() {
     assert!(msg.contains("no virtual analog channel to export"), "{msg}");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_channel_reads_from_a_decoder_and_follows_it() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let d = run(&mut e, "decoder.add", json!({ "capture": c, "protocol": "pwm", "roles": { "signal": 0 } }))
+        ["decoder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // no channels given: they come from the decoder
+    let o = run(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": d,
+        "scaling": { "kind": "range", "low": 0, "high": 100 } }),
+    );
+    let id = o["analog"]["id"].as_str().unwrap().to_string();
+    assert_eq!(o["analog"]["config"]["decoder"], d.as_str());
+    assert_eq!(o["analog"]["config"]["roles"]["signal"], 0);
+    let mean = |e: &mut Engine| {
+        run(e, "analog.stats", json!({ "capture": c, "analog": id }))["mean"].as_f64().unwrap()
+    };
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    // the decoder counts the low time now: the channel follows, and an undo takes it back
+    run(
+        &mut e,
+        "decoder.update",
+        json!({ "capture": c, "decoder": d, "settings": { "activeLevel": "low" } }),
+    );
+    assert!(close(mean(&mut e), 70.0, 1.0), "{}", mean(&mut e));
+    run(&mut e, "history.undo", json!({}));
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    // the decoder goes: the channel keeps working and says why; back with undo, the note goes
+    run(&mut e, "decoder.remove", json!({ "capture": c, "decoder": d }));
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    let notes = capture(&mut e, &c)["analog"][0]["notes"].to_string();
+    assert!(notes.contains("was removed"), "{notes}");
+    run(&mut e, "history.undo", json!({}));
+    let notes = capture(&mut e, &c)["analog"][0]["notes"].to_string();
+    assert!(!notes.contains("was removed"), "{notes}");
+    // a decoder the source cannot read, and one that is not there
+    let spi = run(
+        &mut e,
+        "decoder.add",
+        json!({ "capture": c, "protocol": "spi",
+        "roles": { "clk": 5, "cs": 3, "mosi": 6, "miso": 2 } }),
+    )["decoder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (code, msg) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": spi,
+        "scaling": { "kind": "range", "low": 0, "high": 1 } }),
+    );
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains("is read by the source spi-adc"), "{msg}");
+    let (code, _) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": "nope",
+        "scaling": { "kind": "range", "low": 0, "high": 1 } }),
+    );
+    assert_eq!(code, ErrorCode::NotFound);
+    // an ADC on the SPI decoder takes its channels and mode
+    let o = run(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "spi-adc", "roles": {}, "decoder": spi,
+        "settings": { "bits": 8 }, "scaling": { "kind": "range", "low": 0, "high": 3.3 } }),
+    );
+    assert_eq!(o["analog"]["config"]["roles"]["clk"], 5);
+    assert_eq!(o["analog"]["config"]["settings"]["bits"], 8.0);
+    // changing such a channel keeps the decoder's bus settings
+    let adc = o["analog"]["id"].as_str().unwrap().to_string();
+    let u = run(
+        &mut e,
+        "analog.update",
+        json!({ "capture": c, "analog": adc, "settings": { "bits": 10 }, "replaceSettings": true }),
+    );
+    assert_eq!(u["analog"]["config"]["settings"]["mode"], "0");
+    assert_eq!(u["analog"]["config"]["settings"]["bits"], 10.0);
+    // the sources say which decoders they read and which settings then come from them
+    let s = run(&mut e, "analog.sources", json!({}));
+    let spi = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "spi-adc").unwrap().clone();
+    assert_eq!(spi["decoders"], json!(["spi"]));
+    assert_eq!(spi["decoderSettings"], json!(["mode", "bitOrder", "wordSize", "csPolarity"]));
+    let pwm = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "pwm").unwrap().clone();
+    assert_eq!(pwm["decoderSettings"], json!(["activeLevel"]));
+}

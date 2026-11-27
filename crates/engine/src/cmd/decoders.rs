@@ -133,6 +133,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: DecoderAddIn) -> Result<Done, Comm
     let summary = DecoderSummary::of(&id, &d);
     c.decoders.insert(id.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: id.clone() });
+    super::analog::follow_decoder(e, &i.capture, &id);
     let canonical = DecoderAddIn {
         id: Some(id.clone()),
         name: Some(cfg.name.clone()),
@@ -238,6 +239,7 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: DecoderUpdateIn) -> Result<Done
     let summary = DecoderSummary::of(&i.decoder, &d);
     c.decoders.insert(i.decoder.clone(), d);
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: i.decoder.clone() });
+    super::analog::follow_decoder(e, &i.capture, &i.decoder);
     let codes: std::collections::BTreeSet<ProblemCode> = before.keys().chain(after.keys()).copied().collect();
     let problem_changes = codes
         .into_iter()
@@ -270,6 +272,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: DecoderRef) -> Result<Done, Com
     let d =
         c.decoders.remove(&i.decoder).ok_or_else(|| err(ErrorCode::NotFound, "There is no such decoder."))?;
     e.emit(Event::DecoderUpdated { capture: i.capture.clone(), decoder: i.decoder.clone() });
+    super::analog::follow_decoder(e, &i.capture, &i.decoder);
     let back = DecoderAddIn {
         capture: i.capture.clone(),
         protocol: d.config.protocol.clone(),

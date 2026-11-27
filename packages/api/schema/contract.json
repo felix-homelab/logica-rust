@@ -78,6 +78,13 @@
         "capture": {
           "type": "string"
         },
+        "decoder": {
+          "description": "A decoder of the capture to read from (SPI and I2C for the ADC sources, PWM for the PWM\nlevel): its channels and bus settings are used instead of `roles`, and follow it when it\nchanges.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "height": {
           "description": "Row height in pixels, 40 to 800 (160 unless given).",
           "format": "uint32",
@@ -268,6 +275,13 @@
     "AnalogConfig": {
       "description": "A virtual analog channel's definition: what `analog.add` takes, an undo restores and a\n`.lacap` saves.",
       "properties": {
+        "decoder": {
+          "description": "The decoder it reads from, if any: its channels and bus settings follow that decoder's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "height": {
           "default": 160,
           "description": "Height of its row in the waveform, in pixels (40 to 800).",
@@ -472,6 +486,20 @@
     },
     "AnalogSourceEntry": {
       "properties": {
+        "decoderSettings": {
+          "description": "Its settings that then come from the decoder (the bus's own).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "decoders": {
+          "description": "Decoder protocols it can read from instead of its own channels (`spi`, `i2c`, `pwm`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "help": {
           "type": "string"
         },
@@ -507,7 +535,9 @@
         "help",
         "roles",
         "settings",
-        "presets"
+        "presets",
+        "decoders",
+        "decoderSettings"
       ],
       "type": "object"
     },

@@ -141,6 +141,12 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 
   First presets: MCP3201, MCP3208 (8 inputs, selected on MOSI), ADS1115 (I2C, pointer register
   0, two's complement), ADC0804 (parallel, RD as strobe, CS as enable).
+- **Reading from a decoder.** Instead of choosing channels, a channel can read from a decoder of
+  the capture whose protocol its source reads (SPI and I2C for the ADC sources, PWM for the PWM
+  level). It takes the decoder's channels and all its settings (defaults filled in) and keeps a
+  link (`decoder` in its definition): when the decoder is changed, the channel follows, as part of
+  that command and its undo; when the decoder is removed, the channel keeps what it had and says
+  so, and an undo of the removal links it again.
 - **I2C registers.** Many I2C ADCs (ADS1115) write a register pointer in one transaction and read
   it in the next, so the I2C ADC remembers the pointer last written to each address and keeps
   only reads of the chosen register.

@@ -143,3 +143,42 @@ test("an ADC on SPI from the virtual analyser, set up with the chip's preset", a
     proc.kill();
   }
 });
+
+test('a virtual channel reads from a decoder and follows it when the decoder changes', async () => {
+  const { app, page } = await start([fixture('captures/mystery_D.demo')]);
+  // the analysis finds the PWM on CH0; its decoder first
+  const card = page.getByRole('button', { name: 'Add PWM level' }).locator('..');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await card.getByRole('button', { name: 'Add decoder' }).click();
+  const channels = page.getByRole('complementary', { name: 'Channels' });
+  await expect(channels.getByRole('region', { name: /^Channels of PWM/ })).toBeVisible();
+
+  await channels.getByRole('button', { name: 'Add virtual analog channel' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a virtual analog channel' });
+  const from = dialog.getByLabel('Read from');
+  await expect(from.locator('option')).toHaveText(['Its own channels', /^Decoder: PWM.* \(CH0\)$/]);
+  await from.selectOption({ index: 1 });
+  // the source follows from the decoder, and no channels are asked for
+  await expect(dialog.getByLabel('Source')).toHaveValue('pwm');
+  await expect(dialog.getByLabel('Source')).toBeDisabled();
+  await expect(dialog.getByLabel(/^Signal/)).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  // the PWM's own setting stays; the bus's (active level) comes from the decoder
+  await expect(dialog.getByLabel('Value')).toBeVisible();
+  await expect(dialog.getByLabel('Active level')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  await dialog.getByLabel('Lowest value').fill('0');
+  await dialog.getByLabel('Highest value').fill('100');
+  await dialog.getByLabel('Unit').fill('%');
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  await dialog.getByRole('button', { name: 'Add channel' }).click();
+  await expect(page.locator('#wave-description')).toContainText(/PWM level \(30(\.\d+)? %/, { timeout: 10_000 });
+
+  // the decoder counts the low time now: the channel follows
+  await channels.getByRole('button', { name: /^Settings of PWM/ }).first().click();
+  const settings = page.getByRole('dialog', { name: /settings$/ });
+  await settings.getByLabel('Duty counts the time spent').selectOption('low');
+  await settings.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#wave-description')).toContainText(/PWM level \(70(\.\d+)? %/, { timeout: 10_000 });
+  await app.close();
+});

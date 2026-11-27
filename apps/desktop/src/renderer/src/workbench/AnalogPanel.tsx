@@ -44,6 +44,8 @@ interface Form {
   /** The chip chosen from the source's presets, and for several inputs 'all' or one's index. */
   preset: string;
   input: string;
+  /** A decoder of the capture to read from instead of its own channels ('' for none). */
+  decoder: string;
 }
 
 const blank: Form = {
@@ -61,6 +63,7 @@ const blank: Form = {
   height: '160',
   preset: '',
   input: 'all',
+  decoder: '',
 };
 
 function formOf(a: AnalogInfo): Form {
@@ -80,6 +83,7 @@ function formOf(a: AnalogInfo): Form {
     height: String(a.config.height ?? 160),
     preset: '',
     input: 'all',
+    decoder: a.config.decoder ?? '',
   };
 }
 
@@ -111,6 +115,15 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
   const [at, setAt] = useState(0);
   const set = (patch: Partial<Form>) => setF((old) => ({ ...old, ...patch }));
   const source = sources.find((s) => s.id === f.source);
+  // decoders of the capture a source can read from, and the one chosen
+  const readable = capture.decoders.filter((d) => sources.some((s) => s.decoders.includes(d.config.protocol)));
+  const linked = capture.decoders.find((d) => d.id === f.decoder);
+  const fromDecoder = (id: string) => {
+    const d = capture.decoders.find((x) => x.id === id);
+    const s = d && sources.find((x) => x.decoders.includes(d.config.protocol));
+    if (!d || !s) return set({ decoder: '' });
+    set({ decoder: id, source: s.id, roles: { ...d.config.roles } as Record<string, number | null>, settings: {}, preset: '' });
+  };
   const preset = source?.presets.find((p) => p.id === f.preset);
   // a chip fills the settings and the scaling; its name stays a suggestion
   const choosePreset = (id: string) => {
@@ -135,7 +148,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
   const problem: Record<StepId, string | null> = {
     source: !source
       ? 'Choose a source.'
-      : source.roles.some((r) => !r.optional && (f.roles[r.key] ?? null) === null)
+      : !linked && source.roles.some((r) => !r.optional && (f.roles[r.key] ?? null) === null)
         ? 'Choose a channel for every role that is not optional.'
         : null,
     settings: null,
@@ -157,6 +170,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
       ...(f.name.trim() ? { name: f.name.trim() } : preset ? { name: preset.name.split(' (')[0]! } : {}),
       ...(f.unit.trim() ? { unit: f.unit.trim() } : {}),
     };
+    const link = f.decoder ? { decoder: f.decoder } : {};
     if (allInputs && preset) {
       // one channel per input of the chip, each undoable on its own
       const base = f.name.trim() || preset.name.split(' (')[0]!;
@@ -166,6 +180,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
           source: source.id,
           roles: f.roles,
           settings: { ...f.settings, ...(input.settings as Settings) },
+          ...link,
           ...common,
           name: `${base} ${input.name}`,
         });
@@ -176,7 +191,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
     }
     const done = editing
       ? await run('analog.update', { capture: capture.id, analog: editing.id, source: source.id, roles: f.roles, settings: f.settings, replaceSettings: true, ...common })
-      : await run('analog.add', { capture: capture.id, source: source.id, roles: f.roles, settings: f.settings, ...common });
+      : await run('analog.add', { capture: capture.id, source: source.id, roles: f.roles, settings: f.settings, ...link, ...common });
     if (done) onClose();
   };
   const forward = () => {
@@ -188,7 +203,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
   const number = (label: string, key: 'low' | 'high' | 'gain' | 'offset', hint: string) => (
     <TextField label={label} type="number" step="any" value={f[key]} hint={hint} onChange={(e) => set({ [key]: e.target.value })} />
   );
-  const select = (id: string, label: string, value: string, onChange: (v: string) => void, options: [string, string][], hint?: ReactNode) => (
+  const select = (id: string, label: string, value: string, onChange: (v: string) => void, options: [string, string][], hint?: ReactNode, disabled = false) => (
     <div className="lg-field">
       <label className="lg-field__label" htmlFor={`${uid}-${id}`}>
         {label}
@@ -198,6 +213,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
         className="lg-input"
         {...(hint ? { 'aria-describedby': `${uid}-${id}-hint` } : {})}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
         {options.map(([v, l]) => (
@@ -275,6 +291,25 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
       >
         {step.id === 'source' && (
           <>
+            {(readable.length > 0 || linked) &&
+              select(
+                'from',
+                'Read from',
+                f.decoder,
+                fromDecoder,
+                [
+                  ['', 'Its own channels'],
+                  ...readable.map((d): [string, string] => [
+                    d.id,
+                    `Decoder: ${d.config.name} (${d.channels.map((c) => `CH${c}`).join(', ')})`,
+                  ]),
+                ],
+                linked
+                  ? 'Its channels and the bus settings come from the decoder, and follow it when you change it.'
+                  : 'Or a decoder of this capture: its channels and settings are used, and followed.',
+                // a channel stays with what it reads from; to change that, add a new one
+                editing !== undefined,
+              )}
             {select(
               'source',
               'Source',
@@ -282,8 +317,10 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
               (v) => set({ source: v, roles: {}, settings: {} }),
               [['', 'Choose…'], ...sources.map((s): [string, string] => [s.id, s.name])],
               source?.help,
+              !!linked,
             )}
-            {source?.roles.map((r) =>
+            {!linked &&
+              source?.roles.map((r) =>
               select(
                 `role-${r.key}`,
                 `${r.label}${r.optional ? ' (optional)' : ''}`,
@@ -318,7 +355,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
         )}
         {step.id === 'settings' &&
           (source?.settings.length ? (
-            source.settings.map((s) => (
+            source.settings.filter((s) => !linked || !source.decoderSettings.includes(s.key)).map((s) => (
               <SettingField key={s.key} spec={s} value={f.settings[s.key]} onChange={(v) => set({ settings: { ...f.settings, [s.key]: v } })} />
             ))
           ) : (

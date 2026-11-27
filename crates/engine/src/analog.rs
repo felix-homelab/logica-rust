@@ -43,6 +43,9 @@ pub struct AnalogConfig {
     /// Height of its row in the waveform, in pixels (40 to 800).
     #[serde(default = "default_height")]
     pub height: u32,
+    /// The decoder it reads from, if any: its channels and bus settings follow that decoder's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decoder: Option<String>,
 }
 
 /// A row tall enough to read a curve.
