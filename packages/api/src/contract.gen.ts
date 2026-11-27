@@ -876,8 +876,43 @@ export interface AnalogSourceEntry {
 help: string
 id: string
 name: string
+/**
+ * Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.
+ */
+presets: AdcPreset[]
 roles: RoleSpec[]
 settings: SettingSpec[]
+}
+export interface AdcPreset {
+help: string
+high: number
+id: string
+/**
+ * For an ADC with several inputs: one virtual channel each.
+ */
+inputs?: PresetInput[]
+/**
+ * The scaling's lowest and highest value, and the unit.
+ */
+low: number
+name: string
+settings: {
+[k: string]: SettingValue
+}
+/**
+ * The source it fills (`spi-adc`, `i2c-adc`).
+ */
+source: string
+unit: string
+}
+/**
+ * One input of a multiplexed ADC: its name and the settings that select it.
+ */
+export interface PresetInput {
+name: string
+settings: {
+[k: string]: SettingValue
+}
 }
 /**
  * A channel a protocol needs.

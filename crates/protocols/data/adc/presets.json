@@ -1,0 +1,107 @@
+[
+  {
+    "id": "mcp3201",
+    "name": "MCP3201 (12 bits, SPI)",
+    "source": "spi-adc",
+    "help": "Microchip MCP3201: 16 clocks a sample; two sampling bits and a null bit, then 12 bits most significant first. High is the reference voltage on VREF.",
+    "settings": {
+      "mode": "0",
+      "stream": "miso",
+      "skipBits": 3,
+      "bits": 12,
+      "order": "msb",
+      "encoding": "unsigned"
+    },
+    "low": 0,
+    "high": 3.3,
+    "unit": "V"
+  },
+  {
+    "id": "mcp3208",
+    "name": "MCP3208 (12 bits, 8 inputs, SPI)",
+    "source": "spi-adc",
+    "help": "Microchip MCP3208 in single-ended mode with 3-byte transfers: MOSI selects the input in bits 7 to 9, MISO answers in bits 12 to 23. One channel per input.",
+    "settings": {
+      "mode": "0",
+      "stream": "miso",
+      "skipBits": 12,
+      "bits": 12,
+      "order": "msb",
+      "encoding": "unsigned",
+      "matchStream": "mosi",
+      "matchSkip": 7,
+      "matchBits": 3,
+      "matchValue": 0
+    },
+    "low": 0,
+    "high": 3.3,
+    "unit": "V",
+    "inputs": [
+      {
+        "name": "CH0",
+        "settings": {
+          "matchValue": 0
+        }
+      },
+      {
+        "name": "CH1",
+        "settings": {
+          "matchValue": 1
+        }
+      },
+      {
+        "name": "CH2",
+        "settings": {
+          "matchValue": 2
+        }
+      },
+      {
+        "name": "CH3",
+        "settings": {
+          "matchValue": 3
+        }
+      },
+      {
+        "name": "CH4",
+        "settings": {
+          "matchValue": 4
+        }
+      },
+      {
+        "name": "CH5",
+        "settings": {
+          "matchValue": 5
+        }
+      },
+      {
+        "name": "CH6",
+        "settings": {
+          "matchValue": 6
+        }
+      },
+      {
+        "name": "CH7",
+        "settings": {
+          "matchValue": 7
+        }
+      }
+    ]
+  },
+  {
+    "id": "ads1115",
+    "name": "ADS1115 (16 bits, I2C)",
+    "source": "i2c-adc",
+    "help": "TI ADS1115 at 0x48 (ADDR to GND): reads of the conversion register (pointer 0), two's complement. The range follows the PGA: ±4.096 V after power-up.",
+    "settings": {
+      "address": 72,
+      "register": 0,
+      "bits": 16,
+      "order": "msb",
+      "encoding": "twos",
+      "skipBits": 0
+    },
+    "low": -4.096,
+    "high": 4.096,
+    "unit": "V"
+  }
+]

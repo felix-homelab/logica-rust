@@ -26,6 +26,8 @@ pub struct AnalogSourceEntry {
     pub help: String,
     pub roles: Vec<RoleSpec>,
     pub settings: Vec<SettingSpec>,
+    /// Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.
+    pub presets: Vec<logica_protocols::analog::presets::AdcPreset>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -35,9 +37,11 @@ pub struct AnalogSourcesOut {
 }
 
 pub(crate) fn list_sources(_: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
+    let presets = logica_protocols::analog::presets::presets();
     let sources = sources()
         .iter()
         .map(|s| AnalogSourceEntry {
+            presets: presets.iter().filter(|p| p.source == s.id()).cloned().collect(),
             id: s.id().into(),
             name: s.name().into(),
             help: s.help().into(),

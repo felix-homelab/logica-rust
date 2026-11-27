@@ -60,5 +60,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   analog channel in one click. (#24)
 - App: the Measurements panel reads virtual analog channels at the cursors: the value, the raw
   code, the difference from A to B and one step. (#25)
+- Virtual analog channels from ADCs on SPI and I2C: a bit field of every transfer, unsigned or
+  two's complement, with a filter for one input of a multiplexed ADC, and presets for the
+  MCP3201, MCP3208 and ADS1115. (#26)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

@@ -68,8 +68,10 @@ sit on (`uart`, `spi`, `i2c`) and turns packets into frames and packets of its o
 
 First layers: Modbus RTU (on UART), SPI NOR flash commands (on SPI), I2C/SPI register maps (below),
 NMEA sentences (on UART), AT command and response pairing (on UART). The serial ADC source of
-virtual analog channels (below) is a layer too, and the first one built: it emits points instead
-of frames.
+virtual analog channels (below) is a layer too, and the first one built: it runs the bus's own
+streaming decoder inside itself, feeds it the edges, takes its complete packets and emits points;
+the bus decoder's state is part of its snapshot, so live decoding and the batching rules hold
+without any engine support. The layers above can follow the same pattern.
 
 ## Register maps
 
@@ -119,18 +121,24 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 | PWM | edges of one channel | value: duty, frequency, period, or the width of the active pulse; active level; expected period (when not given, the last period measured) | the start of each period (an edge into the active level) |
 | PDM / sigma-delta | a data and a clock channel | clock edge; sinc³ CIC decimation ratio R (default 64); the effective resolution is shown | the end of each output word |
 
-- **Presets.** ADCs are described as data files beside the register maps
-  (`crates/protocols/data/adc/`), loaded through the same validation as a person's own; a preset
-  fills the serial ADC settings, and for a multiplexed ADC it creates one channel per input:
+- **Presets.** ADCs are described as data (`crates/protocols/data/adc/presets.json`), checked
+  in tests against their source's settings; `analog.sources` lists them with their source. A
+  preset fills the source's settings and the scaling, and for a multiplexed ADC it names the
+  settings of each input, so a client can create one channel per input:
 
   ```json
-  { "id": "mcp3201", "name": "MCP3201 12-bit ADC", "bus": ["spi"],
-    "sample": { "stream": "miso", "skipBits": 3, "bits": 12, "order": "msb" },
-    "encoding": "unsigned", "range": { "low": 0, "high": "vref" } }
+  { "id": "mcp3201", "name": "MCP3201 (12 bits, SPI)", "source": "spi-adc",
+    "help": "Microchip MCP3201: 16 clocks a sample; …",
+    "settings": { "mode": "0", "stream": "miso", "skipBits": 3, "bits": 12, "order": "msb",
+                  "encoding": "unsigned" },
+    "low": 0, "high": 3.3, "unit": "V" }
   ```
 
-  First presets: MCP3201, MCP3008/3208 (multiplexed), ADS1115 (I2C), and the 8-bit parallel
-  ADC0804.
+  First presets: MCP3201, MCP3208 (8 inputs, selected on MOSI), ADS1115 (I2C, pointer register
+  0, two's complement); the parallel ADC0804 comes with the parallel source.
+- **I2C registers.** Many I2C ADCs (ADS1115) write a register pointer in one transaction and read
+  it in the next, so the I2C ADC remembers the pointer last written to each address and keeps
+  only reads of the chosen register.
 - **PWM at the ends.** A line without an edge for more than two periods (the expected one, or the
   last measured) reads 0 % (low) or 100 % (high) from its last edge; frequency, period and pulse
   width leave a gap instead, since they have no value without edges. Exactly two periods still

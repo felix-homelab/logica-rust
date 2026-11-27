@@ -61,6 +61,14 @@ fn sources_are_listed_with_their_channels_and_settings() {
     let keys: Vec<_> =
         pwm["settings"].as_array().unwrap().iter().map(|s| s["key"].as_str().unwrap()).collect();
     assert_eq!(keys, ["measure", "activeLevel", "expectedPeriod"]);
+    assert_eq!(pwm["presets"], json!([]));
+    // ADCs on SPI and I2C, with the chips they know
+    let spi = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "spi-adc").unwrap();
+    let ids: Vec<_> = spi["presets"].as_array().unwrap().iter().map(|p| p["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["mcp3201", "mcp3208"]);
+    assert_eq!(spi["roles"].as_array().unwrap().len(), 4);
+    let i2c = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "i2c-adc").unwrap();
+    assert_eq!(i2c["presets"][0]["settings"]["address"], 72.0);
 }
 
 #[test]

@@ -6,7 +6,9 @@
 //! for any decoder. A new source implements [`Source`] and is added to [`sources`]; nothing else
 //! changes.
 
+pub mod presets;
 pub mod pwm;
+pub mod serial;
 
 use logica_core::analog::{Encoding, PointKind};
 use serde::{Deserialize, Serialize};
@@ -64,7 +66,11 @@ pub trait Source: Send + Sync {
 
 /// Every built-in source.
 pub fn sources() -> Vec<Box<dyn Source>> {
-    vec![Box::new(pwm::PwmSource::default())]
+    vec![
+        Box::new(pwm::PwmSource::default()),
+        Box::new(serial::SerialAdc::new(serial::Bus::Spi)),
+        Box::new(serial::SerialAdc::new(serial::Bus::I2c)),
+    ]
 }
 
 /// The source with `id`.

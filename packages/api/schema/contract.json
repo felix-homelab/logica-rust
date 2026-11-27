@@ -5,6 +5,61 @@
       "pattern": "^(user|cli|agent:.+)$",
       "type": "string"
     },
+    "AdcPreset": {
+      "additionalProperties": false,
+      "properties": {
+        "help": {
+          "type": "string"
+        },
+        "high": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inputs": {
+          "default": [],
+          "description": "For an ADC with several inputs: one virtual channel each.",
+          "items": {
+            "$ref": "#/$defs/PresetInput"
+          },
+          "type": "array"
+        },
+        "low": {
+          "description": "The scaling's lowest and highest value, and the unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        },
+        "source": {
+          "description": "The source it fills (`spi-adc`, `i2c-adc`).",
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "source",
+        "help",
+        "settings",
+        "low",
+        "high",
+        "unit"
+      ],
+      "type": "object"
+    },
     "AddCustomIn": {
       "additionalProperties": false,
       "properties": {
@@ -357,6 +412,13 @@
         "name": {
           "type": "string"
         },
+        "presets": {
+          "description": "Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.",
+          "items": {
+            "$ref": "#/$defs/AdcPreset"
+          },
+          "type": "array"
+        },
         "roles": {
           "items": {
             "$ref": "#/$defs/RoleSpec"
@@ -375,7 +437,8 @@
         "name",
         "help",
         "roles",
-        "settings"
+        "settings",
+        "presets"
       ],
       "type": "object"
     },
@@ -3797,6 +3860,26 @@
           "type": "string"
         }
       ]
+    },
+    "PresetInput": {
+      "additionalProperties": false,
+      "description": "One input of a multiplexed ADC: its name and the settings that select it.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "settings"
+      ],
+      "type": "object"
     },
     "Problem": {
       "properties": {
