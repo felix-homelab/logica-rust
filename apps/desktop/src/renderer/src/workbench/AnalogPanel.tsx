@@ -46,6 +46,52 @@ interface Form {
   input: string;
   /** A decoder of the capture to read from instead of its own channels ('' for none). */
   decoder: string;
+  /** Math channels: A, the operator and B, each a channel id or '#' for the number beside it. */
+  mathA: string;
+  numA: string;
+  op: Op;
+  mathB: string;
+  numB: string;
+  /** A formula the builder cannot show (written by an agent): kept as it is. */
+  expression: Expr | null;
+}
+
+type Expr = NonNullable<Input<'analog.add'>['expression']>;
+type Op = 'add' | 'sub' | 'mul' | 'div' | 'min' | 'max';
+const OPS: [Op, string][] = [
+  ['add', '+ (plus)'],
+  ['sub', '− (minus)'],
+  ['mul', '× (times)'],
+  ['div', '÷ (divided by)'],
+  ['min', 'the smaller of'],
+  ['max', 'the larger of'],
+];
+
+/** A math formula as "A op B" for the builder, or null when it is anything else. */
+function asBinary(e: Expr | null | undefined): Pick<Form, 'mathA' | 'numA' | 'op' | 'mathB' | 'numB'> | null {
+  if (!e) return null;
+  const [op, parts] = Object.entries(e)[0] ?? [];
+  if (!OPS.some(([o]) => o === op) || !Array.isArray(parts) || parts.length !== 2) return null;
+  const side = (x: unknown): [string, string] | null => {
+    const v = x as { channel?: string; constant?: number };
+    if (typeof v.channel === 'string') return [v.channel, '1'];
+    if (typeof v.constant === 'number') return ['#', String(v.constant)];
+    return null;
+  };
+  const a = side(parts[0]);
+  const b = side(parts[1]);
+  return a && b ? { mathA: a[0], numA: a[1], op: op as Op, mathB: b[0], numB: b[1] } : null;
+}
+
+/** The builder's "A op B" as a formula; null while a number is not filled in. */
+function binary(f: Form): Expr | null {
+  const side = (ch: string, num: string): Expr | null => {
+    if (ch === '#') return num.trim() !== '' && Number.isFinite(Number(num)) ? { constant: Number(num) } : null;
+    return ch ? { channel: ch } : null;
+  };
+  const a = side(f.mathA, f.numA);
+  const b = side(f.mathB, f.numB);
+  return a && b ? ({ [f.op]: [a, b] } as Expr) : null;
 }
 
 const blank: Form = {
@@ -64,6 +110,12 @@ const blank: Form = {
   preset: '',
   input: 'all',
   decoder: '',
+  mathA: '',
+  numA: '1',
+  op: 'sub',
+  mathB: '',
+  numB: '1',
+  expression: null,
 };
 
 function formOf(a: AnalogInfo): Form {
@@ -84,6 +136,8 @@ function formOf(a: AnalogInfo): Form {
     preset: '',
     input: 'all',
     decoder: a.config.decoder ?? '',
+    ...(asBinary(a.config.expression) ?? { mathA: '', numA: '1', op: 'sub' as Op, mathB: '', numB: '1' }),
+    expression: a.config.expression && !asBinary(a.config.expression) ? a.config.expression : null,
   };
 }
 
@@ -115,6 +169,8 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
   const [at, setAt] = useState(0);
   const set = (patch: Partial<Form>) => setF((old) => ({ ...old, ...patch }));
   const source = sources.find((s) => s.id === f.source);
+  // the channels a math channel can read: every other one
+  const others = capture.analog.filter((a) => a.id !== editing?.id);
   // decoders of the capture a source can read from, and the one chosen
   const readable = capture.decoders.filter((d) => sources.some((s) => s.decoders.includes(d.config.protocol)));
   const linked = capture.decoders.find((d) => d.id === f.decoder);
@@ -151,7 +207,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
       : !linked && source.roles.some((r) => !r.optional && (f.roles[r.key] ?? null) === null)
         ? 'Choose a channel for every role that is not optional.'
         : null,
-    settings: null,
+    settings: f.source === 'math' && !f.expression && !binary(f) ? 'Choose A and B, each a channel or a number, and at least one channel.' : null,
     scaling: scaling ? null : 'Fill in every number of the scaling.',
     look: Number.isInteger(height) && height >= 40 && height <= 800 ? null : 'The row height is a whole number from 40 to 800.',
   };
@@ -163,7 +219,9 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
 
   const submit = async () => {
     if (!source || !scaling || !ready) return;
+    const formula = f.source === 'math' ? { expression: (f.expression ?? binary(f))! } : {};
     const common = {
+      ...formula,
       scaling,
       style: f.style,
       height,
@@ -314,7 +372,8 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
               'source',
               'Source',
               f.source,
-              (v) => set({ source: v, roles: {}, settings: {} }),
+              // a math result is already in units: scaled with a gain of 1 unless changed
+              (v) => set({ source: v, roles: {}, settings: {}, ...(v === 'math' ? { kind: 'linear', gain: '1', offset: '0' } : {}) }),
               [['', 'Choose…'], ...sources.map((s): [string, string] => [s.id, s.name])],
               source?.help,
               !!linked,
@@ -330,6 +389,34 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
                 r.help,
               ),
             )}
+          </>
+        )}
+        {step.id === 'settings' && f.source === 'math' && (
+          <>
+            {f.expression ? (
+              <p className="muted">
+                Formula (written elsewhere, kept as it is): <code>{JSON.stringify(f.expression)}</code>
+              </p>
+            ) : (
+              <>
+                {select('math-a', 'A', f.mathA, (v) => set({ mathA: v }), [
+                  ['', 'Choose…'],
+                  ...others.map((o): [string, string] => [o.id, o.config.name]),
+                  ['#', 'A number'],
+                ])}
+                {f.mathA === '#' && <TextField label="A (number)" type="number" step="any" value={f.numA} onChange={(e) => set({ numA: e.target.value })} />}
+                {select('math-op', 'Operation', f.op, (v) => set({ op: v as Op }), OPS)}
+                {select('math-b', 'B', f.mathB, (v) => set({ mathB: v }), [
+                  ['', 'Choose…'],
+                  ...others.map((o): [string, string] => [o.id, o.config.name]),
+                  ['#', 'A number'],
+                ])}
+                {f.mathB === '#' && <TextField label="B (number)" type="number" step="any" value={f.numB} onChange={(e) => set({ numB: e.target.value })} />}
+              </>
+            )}
+            <p className="muted">
+              Values sampled at different moments are combined by holding each until its next; there is no value before every channel has one. Agents can write longer formulas.
+            </p>
           </>
         )}
         {step.id === 'settings' && !!source?.presets.length && (
@@ -354,6 +441,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
           </>
         )}
         {step.id === 'settings' &&
+          f.source !== 'math' &&
           (source?.settings.length ? (
             source.settings.filter((s) => !linked || !source.decoderSettings.includes(s.key)).map((s) => (
               <SettingField key={s.key} spec={s} value={f.settings[s.key]} onChange={(v) => set({ settings: { ...f.settings, [s.key]: v } })} />

@@ -46,6 +46,9 @@ pub struct AnalogConfig {
     /// The decoder it reads from, if any: its channels and bus settings follow that decoder's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decoder: Option<String>,
+    /// Math channels (source `math`): the formula over other channels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<crate::math::Expr>,
 }
 
 /// A row tall enough to read a curve.
@@ -83,6 +86,16 @@ pub fn check(cfg: &AnalogConfig) -> Result<SourceOutput, String> {
             cfg.height
         ));
     }
+    if cfg.source == crate::math::MATH {
+        let expr = cfg.expression.as_ref().ok_or("A math channel needs a formula (expression).")?;
+        expr.check()?;
+        let output = SourceOutput { unit: None, ..SourceOutput::quantity("") };
+        cfg.scaling.validate(output.kind).map_err(|e| e.to_string())?;
+        return Ok(output);
+    }
+    if cfg.expression.is_some() {
+        return Err("Only a math channel has a formula; choose the source math.".into());
+    }
     let src = find_source(&cfg.source)?;
     let output = src.output(&SettingSpec::with_defaults(src.settings(), &cfg.settings));
     cfg.scaling.validate(output.kind).map_err(|e| e.to_string())?;
@@ -90,6 +103,12 @@ pub fn check(cfg: &AnalogConfig) -> Result<SourceOutput, String> {
 }
 
 impl Analog {
+    /// A channel with no values yet: a math channel, which the engine computes from its inputs.
+    pub fn empty(config: AnalogConfig) -> Result<Self, String> {
+        let output = check(&config)?;
+        Ok(Analog { config, output, series: ValueSeries::new(), result: DecodeResult::default(), live: None })
+    }
+
     /// Computes a channel over a capture as it is now: a finished capture whole, a running one up
     /// to its newest data and then live.
     pub fn compute(config: AnalogConfig, store: &CaptureStore, meta: &CaptureMeta) -> Result<Self, String> {

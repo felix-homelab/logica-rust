@@ -208,3 +208,30 @@ test('search finds where a virtual analog channel stays above a level, and where
   await expect(page.getByText('No hits.')).toBeVisible();
   await app.close();
 });
+
+test('a math channel computes from another one in the dialog', async () => {
+  const { app, page } = await start([fixture('captures/mystery_D.demo')]);
+  const add = page.getByRole('button', { name: 'Add PWM level' });
+  await expect(add).toBeVisible({ timeout: 20_000 });
+  await add.click();
+  const channels = page.getByRole('complementary', { name: 'Channels' });
+  await channels.getByRole('region', { name: 'Virtual analog channels' }).getByRole('button', { name: 'Add virtual analog channel' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a virtual analog channel' });
+  await dialog.getByLabel('Source').selectOption({ label: 'Math on other channels' });
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  // A × B with B a number; Next waits for both
+  const next = dialog.getByRole('button', { name: 'Next' });
+  await expect(next).toBeDisabled();
+  await dialog.getByLabel('A', { exact: true }).selectOption({ label: 'PWM level' });
+  await dialog.getByLabel('Operation').selectOption('mul');
+  await dialog.getByLabel('B', { exact: true }).selectOption('#');
+  await dialog.getByLabel('B (number)').fill('2');
+  await next.click();
+  // the result is already in units: a gain of 1
+  await expect(dialog.getByLabel('Scaling')).toHaveValue('linear');
+  await expect(dialog.getByLabel('Gain')).toHaveValue('1');
+  await next.click();
+  await dialog.getByRole('button', { name: 'Add channel' }).click();
+  await expect(page.locator('#wave-description')).toContainText(/Math \(60(\.\d+)? %/, { timeout: 10_000 });
+  await app.close();
+});

@@ -158,7 +158,13 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
     for (aid, cfg) in session.analog {
         e.reserve_id(&aid);
         let c = e.capture_mut(&id)?;
-        match crate::analog::Analog::compute(cfg, &c.store, &c.meta) {
+        // math channels are computed below, once the channels they read are there
+        let made = if cfg.source == crate::math::MATH {
+            crate::analog::Analog::empty(cfg)
+        } else {
+            crate::analog::Analog::compute(cfg, &c.store, &c.meta)
+        };
+        match made {
             Ok(a) => {
                 c.analog.insert(aid, a);
             }
@@ -168,6 +174,7 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
             }),
         }
     }
+    crate::math::refresh(e.capture_mut(&id)?);
     let c = e.capture_mut(&id)?;
     for m in session.markers {
         c.markers.insert(m.id.clone(), m);

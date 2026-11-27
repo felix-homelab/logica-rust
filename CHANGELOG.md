@@ -87,6 +87,10 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Search finds virtual analog values: where a channel crosses a level, rising or falling, or
   stretches where it stays above, below or between levels, optionally for longer than a time; in a
   query it also filters other hits by the value at their start. (#38)
+- Math channels: virtual analog channels computed from others with a formula (A − B, A × 2,
+  min, max, abs, …), combining values sampled at different moments by holding each until its
+  next; they follow their inputs, and a formula that would read itself is refused. In the dialog
+  as "Math on other channels", for agents with any formula. (#39)
 
 ### Changed
 

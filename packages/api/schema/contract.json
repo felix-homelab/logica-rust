@@ -85,6 +85,17 @@
             "null"
           ]
         },
+        "expression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "For the source `math`: the formula over other virtual analog channels, such as\n`{ \"sub\": [ { \"channel\": \"analog-3\" }, { \"channel\": \"analog-4\" } ] }`."
+        },
         "height": {
           "description": "Row height in pixels, 40 to 800 (160 unless given).",
           "format": "uint32",
@@ -281,6 +292,17 @@
             "string",
             "null"
           ]
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Math channels (source `math`): the formula over other channels."
         },
         "height": {
           "default": 160,
@@ -865,6 +887,17 @@
         },
         "capture": {
           "type": "string"
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A math channel's new formula."
         },
         "height": {
           "format": "uint32",
@@ -3023,6 +3056,155 @@
         "causes"
       ],
       "type": "object"
+    },
+    "Expr": {
+      "description": "A formula over virtual analog channels, in their units.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Another virtual analog channel's value, by its id.",
+          "properties": {
+            "channel": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "channel"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "constant": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "constant"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The sum of two or more.",
+          "properties": {
+            "add": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "add"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The first minus the second.",
+          "properties": {
+            "sub": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "sub"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The product of two or more.",
+          "properties": {
+            "mul": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "mul"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The first divided by the second; no value where the second is 0.",
+          "properties": {
+            "div": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "div"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "min"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "max": {
+              "items": {
+                "$ref": "#/$defs/Expr"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "max"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "abs": {
+              "$ref": "#/$defs/Expr"
+            }
+          },
+          "required": [
+            "abs"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "neg": {
+              "$ref": "#/$defs/Expr"
+            }
+          },
+          "required": [
+            "neg"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "FileOpenIn": {
       "additionalProperties": false,

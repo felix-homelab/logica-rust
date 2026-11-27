@@ -665,3 +665,132 @@ fn search_finds_crossings_and_stretches_of_values() {
     );
     assert_eq!(code, ErrorCode::NotFound);
 }
+
+#[test]
+fn math_channels_combine_others_and_follow_them() {
+    let dir = std::env::temp_dir().join(format!("logica-engine-math-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    // two inputs sampled at different moments: periods from rising edges (30 %) and from falling
+    // edges (the low time, 70 %)
+    let mut hi = duty(&c);
+    hi["name"] = json!("High");
+    let hi = add(&mut e, hi);
+    let mut lo = duty(&c);
+    lo["name"] = json!("Low");
+    lo["settings"] = json!({ "activeLevel": "low" });
+    let lo = add(&mut e, lo);
+    let math = |expr: Value| {
+        json!({ "capture": c, "source": "math", "roles": {}, "expression": expr,
+        "scaling": { "kind": "linear", "gain": 1 }, "unit": "%" })
+    };
+    let ch = |id: &str| json!({ "channel": id });
+    let sum = run(&mut e, "analog.add", math(json!({ "add": [ch(&hi), ch(&lo)] })));
+    let sum_id = sum["analog"]["id"].as_str().unwrap().to_string();
+    assert_eq!(sum["analog"]["config"]["name"], "Math");
+    // without a unit of its own, the first channel's
+    let plain = run(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "math", "roles": {},
+        "expression": { "add": [ch(&hi), ch(&lo)] }, "scaling": { "kind": "linear", "gain": 1 } }),
+    );
+    assert_eq!(plain["analog"]["config"]["unit"], "%");
+    run(&mut e, "history.undo", json!({}));
+    let st = |e: &mut Engine, id: &str| run(e, "analog.stats", json!({ "capture": c, "analog": id }));
+    let s = st(&mut e, &sum_id);
+    assert!(
+        close(s["min"].as_f64().unwrap(), 100.0, 1.0) && close(s["max"].as_f64().unwrap(), 100.0, 1.0),
+        "{s}"
+    );
+    // a value wherever either input has a new one: about twice as many as each
+    let n_hi = st(&mut e, &hi)["count"].as_u64().unwrap();
+    let n_sum = s["count"].as_u64().unwrap();
+    assert!(n_sum + 2 >= 2 * n_hi && n_sum <= 2 * n_hi + 2, "{n_sum} values from {n_hi} and its partner");
+
+    // an input changes: the math channel follows
+    run(
+        &mut e,
+        "analog.update",
+        json!({ "capture": c, "analog": hi, "scaling": { "kind": "range", "low": 0, "high": 200 } }),
+    );
+    assert!(close(st(&mut e, &sum_id)["mean"].as_f64().unwrap(), 130.0, 1.5));
+    run(&mut e, "history.undo", json!({}));
+    assert!(close(st(&mut e, &sum_id)["mean"].as_f64().unwrap(), 100.0, 1.0));
+
+    // an input goes: no values and a note; back with undo
+    run(&mut e, "analog.remove", json!({ "capture": c, "analog": lo }));
+    let gone = capture(&mut e, &c)["analog"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == sum_id.as_str())
+        .unwrap()
+        .clone();
+    assert_eq!(gone["points"], 0);
+    assert!(gone["notes"].to_string().contains("does not have"), "{gone}");
+    run(&mut e, "history.undo", json!({}));
+    assert!(close(st(&mut e, &sum_id)["mean"].as_f64().unwrap(), 100.0, 1.0));
+
+    // division by zero leaves gaps with a problem that says why
+    let div = add(&mut e, math(json!({ "div": [ch(&hi), { "sub": [ch(&hi), ch(&hi)] }] })));
+    let d = capture(&mut e, &c)["analog"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == div.as_str())
+        .unwrap()
+        .clone();
+    assert!(d["problemCounts"]["protocol"].as_u64().unwrap() > 0, "{d}");
+    let v = run(
+        &mut e,
+        "analog.values",
+        json!({ "capture": c, "analog": div, "from": 0, "to": 1000000, "buckets": 10 }),
+    );
+    assert!(v["problems"][0]["message"].as_str().unwrap().contains("Division by zero"), "{v}");
+
+    // a formula that would read itself is refused, naming the chain; so are unknown channels
+    let twice = add(&mut e, math(json!({ "mul": [ch(&sum_id), { "constant": 2 }] })));
+    let (code, msg) = fail(
+        &mut e,
+        "analog.update",
+        json!({ "capture": c, "analog": sum_id,
+        "expression": { "add": [ch(&hi), ch(&twice)] } }),
+    );
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains(&format!("would read {sum_id} itself, through {twice}")), "{msg}");
+    let (code, _) = fail(&mut e, "analog.add", math(json!({ "add": [ch(&hi), ch("analog-999")] })));
+    assert_eq!(code, ErrorCode::NotFound);
+    let (_, msg) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "math", "roles": {},
+        "scaling": { "kind": "linear", "gain": 1 } }),
+    );
+    assert!(msg.contains("needs a formula"), "{msg}");
+    let (_, msg) = fail(&mut e, "analog.add", math(json!({ "sub": [ch(&hi)] })));
+    assert!(msg.contains("exactly two"), "{msg}");
+    let mut bad = duty(&c);
+    bad["expression"] = json!({ "add": [ch(&hi), ch(&lo)] });
+    let (_, msg) = fail(&mut e, "analog.add", bad);
+    assert!(msg.contains("Only a math channel has a formula"), "{msg}");
+    let (_, msg) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "math", "roles": {},
+        "expression": { "add": [ch(&hi), ch(&lo)] }, "scaling": { "kind": "range", "low": 0, "high": 1 } }),
+    );
+    assert!(msg.contains("gain and an offset"), "{msg}");
+
+    // the sources list it; saved and opened again, math channels come back after their inputs
+    let sources = run(&mut e, "analog.sources", json!({}));
+    assert!(sources["sources"].as_array().unwrap().iter().any(|s| s["id"] == "math"));
+    let path = dir.join("math.lacap");
+    run(&mut e, "file.save", json!({ "capture": c, "path": path }));
+    let mut f = Engine::new(EngineConfig::default());
+    let id = run(&mut f, "file.open", json!({ "path": path }))["capture"]["id"].as_str().unwrap().to_string();
+    let reopened = run(&mut f, "analog.stats", json!({ "capture": id, "analog": twice }));
+    assert!(close(reopened["mean"].as_f64().unwrap(), 200.0, 2.0), "{reopened}");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
