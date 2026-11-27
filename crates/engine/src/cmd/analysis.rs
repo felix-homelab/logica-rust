@@ -247,6 +247,8 @@ pub enum Query {
     Pulse(PulseQuery),
     Level(LevelQuery),
     Within(WithinQuery),
+    /// A virtual analog channel's values (ADR 0010).
+    Analog(AnalogQuery),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -298,6 +300,61 @@ pub struct PulseQuery {
 pub struct LevelQuery {
     pub channel: u32,
     pub level: Level,
+}
+
+/// Values of a virtual analog channel, in its unit: where it crosses a level, or the stretches
+/// where it is above, below or between levels (a gap ends a stretch). As a filter inside `all`, the
+/// value at the start of a hit.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalogQuery {
+    /// A virtual analog channel id on the capture.
+    pub analog: String,
+    /// Find where the value passes this level.
+    pub crosses: Option<f64>,
+    /// With `crosses`: which way (any by default).
+    pub direction: Option<Direction>,
+    /// Find stretches above this value (both with `below`: between them).
+    pub above: Option<f64>,
+    /// Find stretches below this value.
+    pub below: Option<f64>,
+    /// With `above` or `below`: only stretches longer or shorter than this, in seconds.
+    pub longer_than: Option<f64>,
+    pub shorter_than: Option<f64>,
+}
+
+impl AnalogQuery {
+    fn inside(&self, v: f64) -> bool {
+        self.above.is_none_or(|a| v > a) && self.below.is_none_or(|b| v < b)
+    }
+
+    fn check(&self) -> Result<(), CommandError> {
+        let stretch = self.above.is_some() || self.below.is_some();
+        let finite = [self.crosses, self.above, self.below, self.longer_than, self.shorter_than]
+            .iter()
+            .flatten()
+            .all(|x| x.is_finite());
+        if !finite {
+            return Err(err(
+                ErrorCode::InvalidInput,
+                "The levels and times of an analog search must be numbers.",
+            ));
+        }
+        match (self.crosses.is_some(), stretch) {
+            (true, true) => Err(err(
+                ErrorCode::InvalidInput,
+                "An analog search finds crossings (crosses) or stretches (above, below), not both; make two.",
+            )),
+            (false, false) => {
+                Err(err(ErrorCode::InvalidInput, "An analog search needs a level: crosses, above or below."))
+            }
+            _ if self.above.zip(self.below).is_some_and(|(a, b)| a >= b) => Err(err(
+                ErrorCode::InvalidInput,
+                "With above and below, above must be the lower one: the stretches lie between them.",
+            )),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -366,7 +423,100 @@ impl Searcher<'_> {
     }
 
     fn is_producer(q: &Query) -> bool {
-        matches!(q, Query::Decoded(_) | Query::Edge(_) | Query::Pulse(_) | Query::Any(_))
+        matches!(q, Query::Decoded(_) | Query::Edge(_) | Query::Pulse(_) | Query::Any(_) | Query::Analog(_))
+    }
+
+    fn analog(&self, q: &AnalogQuery) -> Result<&crate::analog::Analog, CommandError> {
+        q.check()?;
+        self.c.analog.get(&q.analog).ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                format!("There is no virtual analog channel \"{}\" on this capture.", q.analog),
+            )
+        })
+    }
+
+    /// Crossings or stretches of a virtual analog channel inside `[from, to)`, at most `limit + 1`.
+    fn produce_analog(
+        &self,
+        q: &AnalogQuery,
+        from: Sample,
+        to: Sample,
+        limit: usize,
+    ) -> Result<Vec<Hit>, CommandError> {
+        let a = self.analog(q)?;
+        let rate = self.c.meta.sample_rate_hz;
+        let s = &a.config.scaling;
+        let unit = &a.config.unit;
+        let name = &a.config.name;
+        let v = |x: f64| format!("{} {unit}", logica_protocols::format::sig(x, 4)).trim_end().to_string();
+        let hit =
+            |start: Sample, end: Sample, what: String| Hit { start, end, seconds: start as f64 / rate, what };
+        let mut out = Vec::new();
+        let mut cur = a.series.held_before(from).map(|x| s.apply(x));
+        let points = a.series.points(from, to).take(SCAN_LIMIT);
+        if let Some(level) = q.crosses {
+            let dir = q.direction.unwrap_or(Direction::Any);
+            for p in points {
+                let next = p.x.map(|x| s.apply(x));
+                if let (Some(a0), Some(b0)) = (cur, next) {
+                    let up = a0 < level && b0 >= level;
+                    let down = a0 > level && b0 <= level;
+                    let wanted = match dir {
+                        Direction::Rising => up,
+                        Direction::Falling => down,
+                        Direction::Any => up || down,
+                    };
+                    if wanted {
+                        let how = if up { "rises" } else { "falls" };
+                        out.push(hit(p.sample, p.sample + 1, format!("{name} {how} through {}", v(level))));
+                        if out.len() > limit {
+                            break;
+                        }
+                    }
+                }
+                cur = next;
+            }
+            return Ok(out);
+        }
+        let what = match (q.above, q.below) {
+            (Some(lo), Some(hi)) => format!("between {} and {}", v(lo), v(hi)),
+            (Some(lo), None) => format!("above {}", v(lo)),
+            (None, Some(hi)) => format!("below {}", v(hi)),
+            (None, None) => unreachable!("checked"),
+        };
+        let longer = q.longer_than.map(|t| t * rate);
+        let shorter = q.shorter_than.map(|t| t * rate);
+        let push = |start: Sample, end: Sample, out: &mut Vec<Hit>| {
+            let n = (end - start) as f64;
+            if longer.is_none_or(|l| n > l) && shorter.is_none_or(|l| n < l) {
+                let len = logica_protocols::format::time(n / rate);
+                out.push(hit(start, end, format!("{name} {what} for {len}")));
+            }
+        };
+        let mut open = cur.filter(|&x| q.inside(x)).map(|_| from);
+        for p in points {
+            let next = p.x.map(|x| s.apply(x));
+            let now = next.is_some_and(|x| q.inside(x));
+            match (open, now) {
+                (None, true) => open = Some(p.sample),
+                (Some(start), false) => {
+                    push(start, p.sample, &mut out);
+                    open = None;
+                    if out.len() > limit {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(start) = open
+            && out.len() <= limit
+            && to > start
+        {
+            push(start, to, &mut out);
+        }
+        Ok(out)
     }
 
     /// Hits of a producer inside `[from, to)`, at most `limit + 1`.
@@ -461,10 +611,14 @@ impl Searcher<'_> {
                     prev = Some((s, c.store.level_at(slot, s).map_err(store_err)?));
                 }
             }
+            Query::Analog(q) => out = self.produce_analog(q, from, to, limit)?,
             Query::Any(list) => {
                 for q in list {
                     if !Self::is_producer(q) {
-                        return Err(err(ErrorCode::InvalidInput, "Inside any, use decoded, edge or pulse."));
+                        return Err(err(
+                            ErrorCode::InvalidInput,
+                            "Inside any, use decoded, edge, pulse or analog.",
+                        ));
                     }
                     out.extend(self.produce(q, from, to, limit)?);
                 }
@@ -474,7 +628,7 @@ impl Searcher<'_> {
             _ => {
                 return Err(err(
                     ErrorCode::InvalidInput,
-                    "A search needs decoded, edge or pulse to find something.",
+                    "A search needs decoded, edge, pulse or analog to find something.",
                 ));
             }
         }
@@ -493,6 +647,11 @@ impl Searcher<'_> {
                 self.c.store.level_at(slot, h.start).map_err(store_err)? == l.level
             }
             Query::Not(x) => !self.holds(x, h)?,
+            // as a filter: the channel's value where the hit starts
+            Query::Analog(q) if q.crosses.is_none() => {
+                let a = self.analog(q)?;
+                a.series.value_at(h.start).is_some_and(|x| q.inside(a.config.scaling.apply(x)))
+            }
             Query::All(xs) => {
                 for x in xs {
                     if !self.holds(x, h)? {
@@ -510,7 +669,10 @@ impl Searcher<'_> {
         match q {
             Query::All(xs) => {
                 let first = xs.iter().find(|x| Self::is_producer(x)).ok_or_else(|| {
-                    err(ErrorCode::InvalidInput, "A search needs decoded, edge or pulse to find something.")
+                    err(
+                        ErrorCode::InvalidInput,
+                        "A search needs decoded, edge, pulse or analog to find something.",
+                    )
                 })?;
                 // `within` limits where the producer looks
                 let (mut from, mut to) = (0, n);
@@ -548,9 +710,10 @@ impl Searcher<'_> {
                 Ok(hits)
             }
             q if Self::is_producer(q) => self.produce(q, 0, n, limit),
-            _ => {
-                Err(err(ErrorCode::InvalidInput, "A search needs decoded, edge or pulse to find something."))
-            }
+            _ => Err(err(
+                ErrorCode::InvalidInput,
+                "A search needs decoded, edge, pulse or analog to find something.",
+            )),
         }
     }
 }

@@ -537,7 +537,12 @@ type Query = Input<'search.run'>['query'];
 
 export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo; onJump: (from: number, to: number) => void; expert: boolean }) {
   const { run } = useStore();
-  const [kind, setKind] = useState<'decoded' | 'edge' | 'pulse'>(capture.decoders.length ? 'decoded' : 'edge');
+  const [kind, setKind] = useState<'decoded' | 'edge' | 'pulse' | 'analog'>(capture.decoders.length ? 'decoded' : 'edge');
+  // values of a virtual analog channel: crossings of a level, or stretches above, below or between
+  const [analog, setAnalog] = useState(capture.analog[0]?.id ?? '');
+  const [find, setFind] = useState<'crosses' | 'above' | 'below' | 'between'>('crosses');
+  const [value, setValue] = useState('');
+  const [value2, setValue2] = useState('');
   const [decoder, setDecoder] = useState(capture.decoders[0]?.id ?? '');
   const [text, setText] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
@@ -550,8 +555,17 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
   const query = useMemo<Query>(() => {
     if (kind === 'decoded') return { decoded: { decoder, hasProblem: problemsOnly, ...(text ? { text } : {}) } };
     if (kind === 'edge') return { edge: { channel, direction } };
+    if (kind === 'analog') {
+      const v = Number(value);
+      const longerThan = longer ? { longerThan: Number(longer) } : {};
+      if (find === 'crosses') return { analog: { analog, crosses: v, direction } };
+      if (find === 'above') return { analog: { analog, above: v, ...longerThan } };
+      if (find === 'below') return { analog: { analog, below: v, ...longerThan } };
+      return { analog: { analog, above: v, below: Number(value2), ...longerThan } };
+    }
     return { pulse: { channel, level, ...(longer ? { longerThan: Number(longer) } : {}) } };
-  }, [kind, decoder, problemsOnly, text, channel, direction, level, longer]);
+  }, [kind, decoder, problemsOnly, text, channel, direction, level, longer, analog, find, value, value2]);
+  const unit = capture.analog.find((a) => a.id === analog)?.config.unit ?? '';
   const search = async () => {
     const r = await run('search.run', { capture: capture.id, query, limit: 1000 });
     if (r) {
@@ -585,6 +599,9 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
             </option>
             <option value="edge">Edges</option>
             <option value="pulse">Pulses</option>
+            <option value="analog" disabled={!capture.analog.length}>
+              Virtual analog values
+            </option>
           </select>
         </label>
         {kind === 'decoded' && (
@@ -603,7 +620,52 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
             <Switch label="Only with problems" checked={problemsOnly} onCheckedChange={setProblemsOnly} />
           </>
         )}
-        {kind !== 'decoded' && (
+        {kind === 'analog' && (
+          <>
+            <label className="lg-field">
+              <span className="lg-field__label">Virtual analog channel</span>
+              <select className="lg-input" value={analog} onChange={(e) => setAnalog(e.target.value)}>
+                {capture.analog.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.config.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="lg-field">
+              <span className="lg-field__label">Where it</span>
+              <select className="lg-input" value={find} onChange={(e) => setFind(e.target.value as typeof find)}>
+                <option value="crosses">Crosses a level</option>
+                <option value="above">Stays above</option>
+                <option value="below">Stays below</option>
+                <option value="between">Stays between</option>
+              </select>
+            </label>
+            <TextField
+              label={`${find === 'between' ? 'From' : 'Level'}${unit ? ` (${unit})` : ''}`}
+              type="number"
+              step="any"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            {find === 'between' && (
+              <TextField label={`To${unit ? ` (${unit})` : ''}`} type="number" step="any" value={value2} onChange={(e) => setValue2(e.target.value)} />
+            )}
+            {find === 'crosses' ? (
+              <label className="lg-field">
+                <span className="lg-field__label">Direction</span>
+                <select className="lg-input" value={direction} onChange={(e) => setDirection(e.target.value as typeof direction)}>
+                  <option value="rising">Rising</option>
+                  <option value="falling">Falling</option>
+                  <option value="any">Either</option>
+                </select>
+              </label>
+            ) : (
+              <TextField label="For longer than (seconds)" type="number" step="any" value={longer} placeholder="optional" onChange={(e) => setLonger(e.target.value)} />
+            )}
+          </>
+        )}
+        {kind !== 'decoded' && kind !== 'analog' && (
           <label className="lg-field">
             <span className="lg-field__label">Channel</span>
             <select className="lg-input" value={channel} onChange={(e) => setChannel(Number(e.target.value))}>
@@ -638,7 +700,13 @@ export function SearchPanel({ capture, onJump, expert }: { capture: CaptureInfo;
           </>
         )}
         <div className="row">
-          <Button type="submit" variant="primary" size="sm" icon={<SearchIcon />}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            icon={<SearchIcon />}
+            disabled={kind === 'analog' && (value.trim() === '' || (find === 'between' && value2.trim() === ''))}
+          >
             Search
           </Button>
         </div>

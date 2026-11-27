@@ -56,6 +56,8 @@ pulse: PulseQuery
 level: LevelQuery
 } | {
 within: WithinQuery
+} | {
+analog: AnalogQuery
 })
 export type ProblemCode = ("frame-error" | "parity-error" | "incomplete" | "glitch" | "checksum" | "stuffing" | "timing" | "protocol")
 export type Direction = ("rising" | "falling" | "any")
@@ -749,6 +751,38 @@ to: number
  * Seconds by default.
  */
 unit?: (Unit | null)
+}
+/**
+ * Values of a virtual analog channel, in its unit: where it crosses a level, or the stretches
+ * where it is above, below or between levels (a gap ends a stretch). As a filter inside `all`, the
+ * value at the start of a hit.
+ */
+export interface AnalogQuery {
+/**
+ * Find stretches above this value (both with `below`: between them).
+ */
+above?: (number | null)
+/**
+ * A virtual analog channel id on the capture.
+ */
+analog: string
+/**
+ * Find stretches below this value.
+ */
+below?: (number | null)
+/**
+ * Find where the value passes this level.
+ */
+crosses?: (number | null)
+/**
+ * With `crosses`: which way (any by default).
+ */
+direction?: (Direction | null)
+/**
+ * With `above` or `below`: only stretches longer or shorter than this, in seconds.
+ */
+longerThan?: (number | null)
+shorterThan?: (number | null)
 }
 export interface PauseAgentsIn {
 /**

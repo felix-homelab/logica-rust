@@ -24,6 +24,8 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   analyser sends an MCP3201 sine on CH13 to CH15.
 - Virtual analyser: MCP3201, MCP3208 (8 inputs) and ADS1115 signals (CH13 to CH21); rates up to
   1 GS/s, tried live in an engine test (0.2 s, 200 million samples).
+- Search: the query `analog` (crossings, stretches above, below or between levels) in the search
+  panel and for agents.
 - From a decoder: a channel can read from an SPI, I2C or PWM decoder and follows it.
 - Export: `analog.export` writes one CSV table (sample and hold across channels); a button in the
   channel list with the system's save dialog.
@@ -42,7 +44,7 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
 
 - The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
   and says which to use.
-- Search and math channels (doc 11, M2a).
+- Math channels (doc 11, M2a).
 
 ## M2 Desktop app and viewer (November 2026)
 

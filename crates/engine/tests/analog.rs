@@ -575,3 +575,93 @@ fn a_live_capture_at_one_gigasample_a_second() {
         "{st}"
     );
 }
+
+/// One second of the virtual analyser's SINE level (CH12: 10 % to 90 %, once a second) at
+/// 4 MS/s, with a PWM level on it in per cent.
+fn sine_capture() -> (Engine, String, String) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let at = listener.local_addr().unwrap().to_string();
+    let mut cfg = logica_vla::config::Config::example();
+    cfg.seed = Some(4);
+    cfg.listen.clone_from(&at);
+    cfg.speed = 0.0;
+    std::thread::spawn(move || logica_vla::server::serve(listener, cfg, Arc::new(|_: &str| {})));
+    let mut e = Engine::new(EngineConfig { vla_addresses: vec![at.clone()], ..EngineConfig::default() });
+    let dev = format!("vla/{at}");
+    run(&mut e, "device.connect", json!({ "device": dev }));
+    run(
+        &mut e,
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [12], "sampleRateHz": 4e6, "samples": 4_000_000u64, "mode": "stream" } }),
+    );
+    let c = run(&mut e, "capture.start", json!({ "device": dev }))["id"].as_str().unwrap().to_string();
+    let id = add(
+        &mut e,
+        json!({ "capture": c, "source": "pwm", "roles": { "signal": 12 },
+        "scaling": { "kind": "range", "low": 0, "high": 100 }, "unit": "%", "name": "Sine" }),
+    );
+    (e, c, id)
+}
+
+#[test]
+fn search_finds_crossings_and_stretches_of_values() {
+    let (mut e, c, id) = sine_capture();
+    let search = |e: &mut Engine, query: Value| run(e, "search.run", json!({ "capture": c, "query": query }));
+    let secs = |hits: &Value| {
+        hits["hits"].as_array().unwrap().iter().map(|h| h["seconds"].as_f64().unwrap()).collect::<Vec<_>>()
+    };
+    // 0.5 + 0.4 sin(2πt) reaches 70 % at 1/12 s rising and 5/12 s falling
+    let up = search(&mut e, json!({ "analog": { "analog": id, "crosses": 70, "direction": "rising" } }));
+    assert_eq!(secs(&up).len(), 1, "{up}");
+    assert!(close(secs(&up)[0], 1.0 / 12.0, 0.002), "{up}");
+    assert_eq!(up["hits"][0]["what"], "Sine rises through 70 %");
+    let any = search(&mut e, json!({ "analog": { "analog": id, "crosses": 70 } }));
+    assert_eq!(secs(&any).len(), 2);
+    assert!(close(secs(&any)[1], 5.0 / 12.0, 0.002), "{any}");
+    // stretches: above 70 % for a third of a second, below 30 % from 7/12 to 11/12 s
+    let above = search(&mut e, json!({ "analog": { "analog": id, "above": 70 } }));
+    let h = &above["hits"][0];
+    assert_eq!(above["hits"].as_array().unwrap().len(), 1);
+    let len = (h["end"].as_u64().unwrap() - h["start"].as_u64().unwrap()) as f64 / 4e6;
+    assert!(close(len, 1.0 / 3.0, 0.003), "{above}");
+    assert!(h["what"].as_str().unwrap().starts_with("Sine above 70 % for "), "{above}");
+    let below = search(&mut e, json!({ "analog": { "analog": id, "below": 30, "longerThan": 0.3 } }));
+    assert!(close(secs(&below)[0], 7.0 / 12.0, 0.002), "{below}");
+    let none = search(&mut e, json!({ "analog": { "analog": id, "below": 30, "shorterThan": 0.2 } }));
+    assert_eq!(none["hits"], json!([]));
+    let band = search(&mut e, json!({ "analog": { "analog": id, "above": 40, "below": 60 } }));
+    assert!(band["hits"].as_array().unwrap().len() >= 2, "{band}");
+    // as a filter: rising edges of CH12 while the level is above 70 % (about a third of 1000)
+    let edges = run(
+        &mut e,
+        "search.run",
+        json!({ "capture": c, "limit": 1000, "query": { "all": [ { "edge": { "channel": 12, "direction": "rising" } },
+        { "analog": { "analog": id, "above": 70 } } ] } }),
+    );
+    let n = secs(&edges);
+    assert!((320..=345).contains(&n.len()), "{} edges", n.len());
+    assert!(n.iter().all(|&t| t > 1.0 / 12.0 - 0.002 && t < 5.0 / 12.0 + 0.002));
+    // mistakes say what to do
+    let (code, msg) =
+        fail(&mut e, "search.run", json!({ "capture": c, "query": { "analog": { "analog": id } } }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert_eq!(msg, "An analog search needs a level: crosses, above or below.");
+    let (_, msg) = fail(
+        &mut e,
+        "search.run",
+        json!({ "capture": c, "query": { "analog": { "analog": id, "crosses": 1, "above": 2 } } }),
+    );
+    assert!(msg.contains("not both"), "{msg}");
+    let (_, msg) = fail(
+        &mut e,
+        "search.run",
+        json!({ "capture": c, "query": { "analog": { "analog": id, "above": 60, "below": 40 } } }),
+    );
+    assert!(msg.contains("above must be the lower one"), "{msg}");
+    let (code, _) = fail(
+        &mut e,
+        "search.run",
+        json!({ "capture": c, "query": { "analog": { "analog": "nope", "above": 1 } } }),
+    );
+    assert_eq!(code, ErrorCode::NotFound);
+}
