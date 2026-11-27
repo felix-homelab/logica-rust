@@ -79,6 +79,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Virtual analog channels can read from a decoder of the capture instead of its channels: an ADC
   on the SPI or I2C decoder, a PWM level on the PWM decoder. They take the decoder's channels and
   settings and follow it when it changes. (#33)
+- App: decoders get a name of your own when added (the protocol's name otherwise) and can be
+  renamed in their settings; undo takes a rename back. (#35)
 
 ### Fixed
 

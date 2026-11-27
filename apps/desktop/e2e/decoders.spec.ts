@@ -97,3 +97,46 @@ test('UART text reads as a string under its bytes', async () => {
   await shot(page, 'uart-text-out');
   await app.close();
 });
+
+test('a decoder gets a name when added, and is renamed in its settings', async () => {
+  const { app, page } = await start([fixture('captures/4_SPI_wrong_mode.demo')]);
+  await page.getByRole('tab', { name: 'Decoders' }).click();
+  const add = page.getByRole('region', { name: 'Add a decoder' });
+  await add.getByLabel('Protocol').selectOption({ label: 'SPI' });
+  for (const [role, ch] of [
+    ['CLK', '3'],
+    ['MISO', '4'],
+    ['CS', '5'],
+    ['MOSI', '6'],
+  ] as const) {
+    await add.getByLabel(new RegExp(`^${role}`)).selectOption(ch);
+  }
+  // the protocol's name is the suggestion
+  await expect(add.getByLabel('Name (optional)')).toHaveAttribute('placeholder', 'SPI');
+  await add.getByLabel('Name (optional)').fill('Flash bus');
+  await add.getByRole('button', { name: /^Add SPI/ }).click();
+  const channels = page.getByRole('complementary', { name: 'Channels' });
+  await expect(channels.getByRole('region', { name: 'Channels of Flash bus' })).toBeVisible();
+  // the form is ready for the next one
+  await expect(add.getByLabel('Name (optional)')).toHaveValue('');
+
+  // renamed in its settings; Enter takes it
+  await channels.getByRole('button', { name: 'Settings of Flash bus' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Flash bus settings' });
+  await dialog.getByLabel('Name', { exact: true }).fill('Sensor bus');
+  await dialog.getByLabel('Name', { exact: true }).press('Enter');
+  // (the channel list is hidden from assistive tech while the dialog is open)
+  const renamed = page.getByRole('dialog', { name: 'Sensor bus settings' });
+  await expect(renamed).toBeVisible();
+  // an empty name is not taken: the field shows the name again
+  await renamed.getByLabel('Name', { exact: true }).fill('');
+  await renamed.getByLabel('Name', { exact: true }).press('Enter');
+  await expect(renamed.getByLabel('Name', { exact: true })).toHaveValue('Sensor bus');
+  await renamed.getByRole('button', { name: 'Done' }).click();
+  await expect(channels.getByRole('region', { name: 'Channels of Sensor bus' })).toBeVisible();
+  // undo brings the old name back
+  await page.locator('.wave__canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(channels.getByRole('region', { name: 'Channels of Flash bus' })).toBeVisible();
+  await app.close();
+});

@@ -400,6 +400,25 @@ function DecoderSettings({ capture, decoder: d, protocol: p }: { capture: Captur
           {n}
         </p>
       ))}
+      <TextField
+        // a new name from elsewhere (an agent, undo) replaces what the field shows
+        key={d.config.name}
+        label="Name"
+        defaultValue={d.config.name}
+        hint="Shown above its channels, in the decoded table and to agents."
+        onBlur={(e) => {
+          const name = e.target.value.trim();
+          if (name && name !== d.config.name) void run('decoder.update', { capture: capture.id, decoder: d.id, name });
+          else e.target.value = d.config.name;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            e.currentTarget.value = d.config.name;
+            e.currentTarget.blur();
+          }
+        }}
+      />
       <label className="lg-field">
         <span className="lg-field__label">Show data as</span>
         <select
@@ -427,6 +446,7 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
   const protocols = useProtocols();
   const [adding, setAdding] = useState('');
   const [roles, setRoles] = useState<Record<string, number | null>>({});
+  const [name, setName] = useState('');
   const byId = useMemo(() => new Map(protocols.map((p) => [p.id, p])), [protocols]);
   const chosen = byId.get(adding);
   return (
@@ -484,13 +504,25 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
           </label>
         ))}
         {chosen && (
+          <TextField
+            label="Name (optional)"
+            value={name}
+            placeholder={chosen.name}
+            hint="Says what it is, such as EEPROM bus; the protocol's name otherwise."
+            onChange={(e) => setName(e.target.value)}
+          />
+        )}
+        {chosen && (
           <div className="row">
             <Button
               variant="primary"
               size="sm"
               icon={<Plus />}
               disabled={chosen.roles.some((r) => !r.optional && (roles[r.key] ?? null) === null)}
-              onClick={() => void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles })}
+              onClick={() => {
+                void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles, ...(name.trim() ? { name: name.trim() } : {}) });
+                setName('');
+              }}
             >
               Add {chosen.name}
             </Button>
