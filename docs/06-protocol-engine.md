@@ -159,8 +159,13 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
   ("The SPI transfer has 8 bits; the sample needs bits 3 to 14"), `protocol` for a NACK (the first 3 × R bits), `timing` for a PWM that
   stopped ("The line stayed high for longer than two periods (200 µs), so it reads 100 %.").
   Problems are searchable and counted like decoder problems.
-- **Math channels** take other virtual channels and a typed JSON expression (`add`, `sub`, `mul`,
-  `div`, `scale`, `abs`, `min`, `max`, constants), with the unit given by the person. Inputs are
+- **Math channels** (source `math`, computed by the engine in `crates/engine/src/math.rs`) take
+  other virtual channels and a typed JSON expression over their values in their units (`channel`,
+  `constant`, `add`, `sub`, `mul`, `div`, `min`, `max`, `abs`, `neg`; `sub` and `div` take two
+  parts, the others two or more), scaled with a gain and offset; the unit is the first input's
+  unless given. They are computed again whenever an input changes (an edit, an undo, live
+  capture, a followed decoder), in dependency order; an input that is removed leaves no values and
+  a note. Inputs are
   combined by sample and hold: a point whenever any input has a new one, using the latest value of
   each, and none before every input has its first. Division by zero leaves a gap with a problem. A
   definition that would form a cycle is refused.

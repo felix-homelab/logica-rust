@@ -12,6 +12,7 @@ use logica_protocols::types::{RoleSpec, Roles, SettingSpec, Settings};
 use crate::analog::{Analog, AnalogConfig, AnalogStyle, AnalogSummary};
 use crate::contract::{CommandError, ErrorCode, Event};
 use crate::engine::{Ctx, Done, Engine, err};
+use crate::math::{Expr, MATH};
 
 use super::{Nothing, inv, out};
 
@@ -42,7 +43,7 @@ pub struct AnalogSourcesOut {
 
 pub(crate) fn list_sources(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
     let presets = logica_protocols::analog::presets::presets();
-    let sources = sources()
+    let sources: Vec<AnalogSourceEntry> = sources()
         .iter()
         .map(|s| AnalogSourceEntry {
             presets: presets.iter().filter(|p| p.source == s.id()).cloned().collect(),
@@ -65,6 +66,18 @@ pub(crate) fn list_sources(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, 
             settings: s.settings().to_vec(),
         })
         .collect();
+    let mut sources = sources;
+    // math channels read other channels, not edges: the engine computes them
+    sources.push(AnalogSourceEntry {
+        id: MATH.into(),
+        name: "Math on other channels".into(),
+        help: "Computed from other virtual analog channels with a formula, such as A − B or A × 2, combining values sampled at different moments by holding each until its next.".into(),
+        roles: Vec::new(),
+        settings: Vec::new(),
+        presets: Vec::new(),
+        decoders: Vec::new(),
+        decoder_settings: Vec::new(),
+    });
     Ok(Done::query(out(&AnalogSourcesOut { sources })))
 }
 
@@ -89,6 +102,9 @@ pub struct AnalogAddIn {
     /// level): its channels and bus settings are used instead of `roles`, and follow it when it
     /// changes.
     pub decoder: Option<String>,
+    /// For the source `math`: the formula over other virtual analog channels, such as
+    /// `{ "sub": [ { "channel": "analog-3" }, { "channel": "analog-4" } ] }`.
+    pub expression: Option<Expr>,
     /// Chosen by the engine; redo and undo use the id it had.
     pub id: Option<String>,
 }
@@ -117,7 +133,49 @@ fn find<'a>(e: &'a Engine, i: &AnalogRef) -> Result<&'a Analog, CommandError> {
 
 fn compute(e: &Engine, capture: &str, cfg: AnalogConfig) -> Result<Analog, CommandError> {
     let c = e.capture(capture)?;
-    Analog::compute(cfg, &c.store, &c.meta).map_err(|m| err(ErrorCode::InvalidInput, m))
+    let bad = |m: String| err(ErrorCode::InvalidInput, m);
+    if cfg.source == MATH {
+        // computed from its inputs once it is in the capture (`refresh_math`)
+        return Analog::empty(cfg).map_err(bad);
+    }
+    Analog::compute(cfg, &c.store, &c.meta).map_err(bad)
+}
+
+/// Refuses a formula that reads an unknown channel, or the channel `id` itself, naming the chain.
+fn no_cycle(e: &Engine, capture: &str, id: &str, cfg: &AnalogConfig) -> Result<(), CommandError> {
+    let Some(expr) = &cfg.expression else { return Ok(()) };
+    let c = e.capture(capture)?;
+    for input in expr.channels() {
+        if !c.analog.contains_key(&input) && input != id {
+            return Err(err(
+                ErrorCode::NotFound,
+                format!("The formula reads {input}, which is no virtual analog channel of this capture."),
+            ));
+        }
+    }
+    match crate::math::cycle(c, id, expr) {
+        Some(path) => {
+            let chain = if path.is_empty() { "itself".to_string() } else { path.join(", which reads ") };
+            Err(err(
+                ErrorCode::InvalidInput,
+                format!(
+                    "The formula of {id} would read {id} itself, through {chain}; a channel cannot depend on itself."
+                ),
+            ))
+        }
+        None => Ok(()),
+    }
+}
+
+/// Computes the capture's math channels again after a change; tells clients about every one
+/// except `but` (whose own command reports it).
+pub(crate) fn refresh_math(e: &mut Engine, capture: &str, but: Option<&str>) {
+    let Ok(c) = e.capture_mut(capture) else { return };
+    for id in crate::math::refresh(c) {
+        if Some(id.as_str()) != but {
+            e.emit(Event::AnalogUpdated { capture: capture.into(), analog: id });
+        }
+    }
 }
 
 fn default_unit(scaling: &Scaling, output_unit: Option<&str>) -> String {
@@ -202,14 +260,26 @@ pub(crate) fn follow_decoder(e: &mut Engine, capture: &str, decoder: &str) {
         }
         e.emit(Event::AnalogUpdated { capture: capture.into(), analog: id });
     }
+    refresh_math(e, capture, None);
 }
 
 pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, CommandError> {
     let src = logica_protocols::analog::source(&i.source);
-    let name =
-        i.name.clone().unwrap_or_else(|| src.as_ref().map_or("Analog".into(), |s| s.name().to_string()));
+    let name = i.name.clone().unwrap_or_else(|| {
+        src.as_ref().map_or_else(
+            || if i.source == MATH { "Math".into() } else { "Analog".into() },
+            |s| s.name().to_string(),
+        )
+    });
     let output_unit = src.map(|s| s.output(&SettingSpec::with_defaults(s.settings(), &i.settings)).unit);
-    let unit = i.unit.clone().unwrap_or_else(|| default_unit(&i.scaling, output_unit.flatten().as_deref()));
+    // a math channel is in the unit of the first channel it reads, unless one is given
+    let math_unit = i.expression.as_ref().and_then(|x| x.channels().into_iter().next()).and_then(|first| {
+        e.capture(&i.capture).ok().and_then(|c| c.analog.get(&first)).map(|a| a.config.unit.clone())
+    });
+    let unit = i.unit.clone().unwrap_or_else(|| match (i.source == MATH, math_unit) {
+        (true, Some(u)) => u,
+        _ => default_unit(&i.scaling, output_unit.flatten().as_deref()),
+    });
     let cfg = AnalogConfig {
         source: i.source.clone(),
         roles: i.roles.clone(),
@@ -220,6 +290,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
         style: i.style.unwrap_or_default(),
         height: i.height.unwrap_or(crate::analog::DEFAULT_HEIGHT),
         decoder: i.decoder.clone(),
+        expression: i.expression.clone(),
     };
     let mut cfg = cfg;
     if let Some(did) = &i.decoder {
@@ -253,6 +324,7 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
         }
         None => e.new_id("analog-"),
     };
+    no_cycle(e, &i.capture, &id, &a.config)?;
     let c = e.capture_mut(&i.capture)?;
     if c.analog.contains_key(&id) {
         return Err(err(
@@ -260,9 +332,10 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
             format!("There is already a virtual analog channel \"{id}\"."),
         ));
     }
-    let summary = AnalogSummary::of(&id, &a);
     let cfg = a.config.clone();
     c.analog.insert(id.clone(), a);
+    refresh_math(e, &i.capture, Some(&id));
+    let summary = AnalogSummary::of(&id, &e.capture(&i.capture)?.analog[&id]);
     e.emit(Event::AnalogUpdated { capture: i.capture.clone(), analog: id.clone() });
     let canonical = AnalogAddIn {
         name: Some(cfg.name.clone()),
@@ -296,6 +369,8 @@ pub struct AnalogUpdateIn {
     pub unit: Option<String>,
     pub style: Option<AnalogStyle>,
     pub height: Option<u32>,
+    /// A math channel's new formula.
+    pub expression: Option<Expr>,
 }
 
 pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done, CommandError> {
@@ -331,13 +406,17 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
     if let Some(h) = i.height {
         cfg.height = h;
     }
+    if let Some(x) = &i.expression {
+        cfg.expression = Some(x.clone());
+    }
+    no_cycle(e, &i.capture, &i.analog, &cfg)?;
     // a channel reading from a decoder keeps taking its channels and bus settings from it
     if let Some(did) = cfg.decoder.clone()
         && let Some(d) = e.capture(&i.capture)?.decoders.get(&did).map(|d| d.config.clone())
     {
         take_decoder(e, &mut cfg, &d);
     }
-    let new = if old.needs_recompute(&cfg) {
+    let new = if cfg.source == MATH || old.needs_recompute(&cfg) {
         compute(e, &i.capture, cfg)?
     } else {
         // Scaling, name, unit and style apply when the series is read: nothing to compute.
@@ -347,8 +426,9 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
         a.config = cfg;
         a
     };
-    let summary = AnalogSummary::of(&i.analog, &new);
     e.capture_mut(&i.capture)?.analog.insert(i.analog.clone(), new);
+    refresh_math(e, &i.capture, Some(&i.analog));
+    let summary = AnalogSummary::of(&i.analog, &e.capture(&i.capture)?.analog[&i.analog]);
     e.emit(Event::AnalogUpdated { capture: i.capture.clone(), analog: i.analog.clone() });
     let inverse = AnalogUpdateIn {
         source: Some(before.source),
@@ -360,6 +440,7 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
         unit: Some(before.unit),
         style: Some(before.style),
         height: Some(before.height),
+        expression: before.expression.clone(),
         ..i.clone()
     };
     Ok(Done::edit(
@@ -373,6 +454,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
     find(e, &i)?;
     let a = e.capture_mut(&i.capture)?.analog.remove(&i.analog).expect("found above");
     e.emit(Event::AnalogUpdated { capture: i.capture.clone(), analog: i.analog.clone() });
+    refresh_math(e, &i.capture, None);
     let cfg = a.config;
     let restore = AnalogAddIn {
         capture: i.capture.clone(),
@@ -385,6 +467,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
         style: Some(cfg.style),
         height: Some(cfg.height),
         decoder: cfg.decoder.clone(),
+        expression: cfg.expression.clone(),
         id: Some(i.analog),
     };
     Ok(Done::edit(

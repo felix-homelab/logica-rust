@@ -2,6 +2,30 @@
 // Command API version 1.0.
 
 /**
+ * A formula over virtual analog channels, in their units.
+ */
+export type Expr = ({
+channel: string
+} | {
+constant: number
+} | {
+add: Expr[]
+} | {
+sub: Expr[]
+} | {
+mul: Expr[]
+} | {
+div: Expr[]
+} | {
+min: Expr[]
+} | {
+max: Expr[]
+} | {
+abs: Expr
+} | {
+neg: Expr
+})
+/**
  * A setting's value: a number, a choice (text) or a switch.
  */
 export type SettingValue = (boolean | number | string)
@@ -259,6 +283,11 @@ capture: string
  */
 decoder?: (string | null)
 /**
+ * For the source `math`: the formula over other virtual analog channels, such as
+ * `{ "sub": [ { "channel": "analog-3" }, { "channel": "analog-4" } ] }`.
+ */
+expression?: (Expr | null)
+/**
  * Row height in pixels, 40 to 800 (160 unless given).
  */
 height?: (number | null)
@@ -339,6 +368,10 @@ to?: (number | null)
 export interface AnalogUpdateIn {
 analog: string
 capture: string
+/**
+ * A math channel's new formula.
+ */
+expression?: (Expr | null)
 height?: (number | null)
 name?: (string | null)
 replaceSettings?: boolean
@@ -876,6 +909,10 @@ export interface AnalogConfig {
  * The decoder it reads from, if any: its channels and bus settings follow that decoder's.
  */
 decoder?: (string | null)
+/**
+ * Math channels (source `math`): the formula over other channels.
+ */
+expression?: (Expr | null)
 /**
  * Height of its row in the waveform, in pixels (40 to 800).
  */

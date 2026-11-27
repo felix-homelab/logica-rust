@@ -9,6 +9,7 @@ pub mod contract;
 pub mod engine;
 pub mod group;
 pub mod live;
+pub mod math;
 pub mod render;
 pub mod schema;
 pub mod state;

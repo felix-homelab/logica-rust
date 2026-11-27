@@ -580,8 +580,16 @@ impl Engine {
                 updated.push(id.clone());
             }
         }
-        let analog: Vec<String> =
+        let mut analog: Vec<String> =
             c.analog.iter_mut().filter_map(|(id, a)| a.advance_live(&c.store).then(|| id.clone())).collect();
+        // math channels follow their inputs
+        if !analog.is_empty() {
+            for id in crate::math::refresh(c) {
+                if !analog.contains(&id) {
+                    analog.push(id);
+                }
+            }
+        }
         if samples != r.reported {
             r.reported = samples;
             let fraction = (r.samples > 0).then(|| (samples as f64 / r.samples as f64).min(1.0));
@@ -675,11 +683,16 @@ impl Engine {
                 updated.push(id.clone());
             }
         }
-        let analog: Vec<String> = c
+        let mut analog: Vec<String> = c
             .analog
             .iter_mut()
             .filter_map(|(id, a)| a.finish_live(&c.store, end).then(|| id.clone()))
             .collect();
+        for id in crate::math::refresh(c) {
+            if !analog.contains(&id) {
+                analog.push(id);
+            }
+        }
         for decoder in updated {
             self.emit(Event::DecoderUpdated { capture: capture.into(), decoder });
         }
