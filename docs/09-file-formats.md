@@ -30,7 +30,7 @@ file to the running app, or starts the app with it).
 | `.lacap` (native) | Everything: data, decoders with settings, virtual analog channels, markers, notes, agent annotations |
 | sigrok `.sr` | Opens in PulseView |
 | VCD | Opens in GTKWave and most tools |
-| CSV | Transitions only, decoded packets, or the values of virtual analog channels (time in seconds, sample index, value, raw code; one file per channel, or one table of several channels lined up by sample and hold) |
+| CSV | Transitions only, decoded packets, or the values of virtual analog channels (`analog.export`: one table with the time in seconds, the sample index, and per channel its value in its unit and, where the source reads codes, the raw code; a row wherever any channel has a new value, each column holding its value until its next one, a gap as an empty cell) |
 | Saleae binary v0 | For further analysis in Saleae's ecosystem |
 | Decoded data | CSV or JSON of packets per decoder |
 

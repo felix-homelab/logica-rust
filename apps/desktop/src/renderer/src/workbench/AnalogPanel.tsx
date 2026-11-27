@@ -5,9 +5,10 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { Input, Output } from '@logica/api';
 import { Button, Dialog, IconButton, Status, TextField } from '@logica/ui';
-import { Check, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Check, Download, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { int } from '../format';
 import { formatValue } from '../analogplot';
+import { bridge } from '../bridge';
 import { useStore, type CaptureInfo } from '../store';
 import { SettingField } from './panels';
 
@@ -382,8 +383,15 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
 
 /** The virtual analog channels of a capture, for the channel list. */
 export function AnalogChannels({ capture }: { capture: CaptureInfo }) {
-  const { run } = useStore();
+  const { run, notify } = useStore();
   const sources = useSources();
+  const exportCsv = async () => {
+    const base = capture.title.replace(/\.[^.]+$/, '');
+    const path = await bridge().chooseSave(`${base} analog.csv`, 'csv');
+    if (!path) return;
+    const r = await run('analog.export', { capture: capture.id, path });
+    if (r) notify('success', `Exported ${r.rows} rows to ${r.path}.`);
+  };
   // null: closed; '': adding; an id: changing that channel
   const [dialog, setDialog] = useState<string | null>(null);
   const editing = capture.analog.find((a) => a.id === dialog);
@@ -410,6 +418,7 @@ export function AnalogChannels({ capture }: { capture: CaptureInfo }) {
     <section className="channels__group" aria-label="Virtual analog channels">
       <div className="channels__group-head">
         <h3 className="channels__group-title">Virtual analog</h3>
+        <IconButton label="Export values as CSV" icon={<Download />} onClick={() => void exportCsv()} />
         <IconButton label="Add virtual analog channel" icon={<Plus />} onClick={() => setDialog('')} />
       </div>
       <ul className="channels__list">

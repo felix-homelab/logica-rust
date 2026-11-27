@@ -67,7 +67,7 @@ indices, so follow-up calls are exact.
 | `capture` | capture | `start` with the configuration inline (channels and names, sample rate, duration or sample count, threshold, buffer or stream mode, trigger as a query, doc 06); validates against capabilities and explains rejections. `wait: true` (default) blocks with progress notifications and can be cancelled. `stop` ends a running capture |
 | `session` | read | Open captures and their state (samples so far, data-loss notes), decoders with problem counts, markers, the person's view per tab (range, cursors, selection), lease holders, recent activity |
 | `open_file` | read | Import a file from a path on the machine running the engine (doc 09) |
-| `save_capture` | read | Save as `.lacap`, or export as `.sr`, VCD, CSV, Saleae binary, decoded packets (CSV, JSON), or the values of virtual analog channels (CSV) |
+| `save_capture` | read | Save as `.lacap`, or export as `.sr`, VCD, CSV, Saleae binary, or decoded packets (CSV, JSON) |
 | `summarize` | read | Per-channel measurements, bus groups, detected protocols with confidence and evidence, virtual analog channels with their range and suggested ones, problems; for the whole capture or a time range; bounded length |
 | `measure` | read | `stats` (frequency, period, duty, pulse widths, edge counts for a channel and range), `edges` (edges of chosen channels in a range, capped and paged), `between` (time between two edges), `analog` (minimum, maximum, mean and RMS weighted by time, peak to peak and value count of a virtual analog channel in a range; the value at a time is `analog.at` through `run_command`) |
 | `decoder` | read | `add` (protocol, roles, settings, layers, register map; or from a detection), `update` (returns how the problem counts changed), `remove` |
@@ -84,7 +84,7 @@ Tools change only deliberately (schema snapshot tests); a new capability first g
 comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
 exist, the tools are not offered. Virtual analog channels (ADR 0010) are created and changed with
 `run_command` (`analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`,
-`analog.at`, `analog.stats`);
+`analog.at`, `analog.stats`, `analog.export` for CSV);
 the tools above include them where they read data. A tool that has several actions (`device`, `capture`, `measure`,
 `decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
 `oneOf`.

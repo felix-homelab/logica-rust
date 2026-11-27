@@ -47,6 +47,8 @@ test('a PWM level is added as a virtual analog channel, rescaled and undone', as
   const list = channels.getByRole('region', { name: 'Virtual analog channels' });
   await expect(list).toContainText('PWM level');
   await expect(list).toContainText('%');
+  // the export asks the system for a file (a native dialog, checked by hand: docs/manual-tests.md)
+  await expect(list.getByRole('button', { name: 'Export values as CSV' })).toBeEnabled();
   await expect(page.locator('#wave-description')).toContainText(/Virtual analog channels PWM level \(30(\.\d+)? %/, { timeout: 10_000 });
   await shot(page, 'analog-row');
 

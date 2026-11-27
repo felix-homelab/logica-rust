@@ -321,6 +321,75 @@
       ],
       "type": "object"
     },
+    "AnalogExportIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analogs": {
+          "description": "The channels, in this order; all of the capture's when absent.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "The range; the whole capture when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Where to write the CSV file, on the machine running the engine.",
+          "type": "string"
+        },
+        "to": {
+          "description": "Exclusive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "path"
+      ],
+      "type": "object"
+    },
+    "AnalogExportOut": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "rows": {
+          "description": "Rows of values, without the header.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "rows",
+        "bytes"
+      ],
+      "type": "object"
+    },
     "AnalogOut": {
       "properties": {
         "analog": {
@@ -5520,6 +5589,22 @@
       "summary": "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
       "undo": {
         "kind": "query"
+      }
+    },
+    "analog.export": {
+      "input": {
+        "$ref": "#/$defs/AnalogExportIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogExportOut"
+      },
+      "safety": "read",
+      "summary": "Write virtual analog values as CSV: time, sample, and per channel its value (and raw code), a row wherever any has a new value.",
+      "undo": {
+        "kind": "never",
+        "reason": "Writing a file cannot be undone."
       }
     },
     "analog.remove": {

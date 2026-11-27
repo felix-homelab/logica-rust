@@ -448,11 +448,13 @@ function buildMenu(): void {
 }
 
 ipcMain.handle('logica:choose-files', () => chooseFiles());
-ipcMain.handle('logica:choose-save', async (_e, suggested: string) => {
+ipcMain.handle('logica:choose-save', async (_e, suggested: string, kind: unknown) => {
+  // only the kinds the window knows; anything else is a capture
+  const csv = kind === 'csv';
   const r = await dialog.showSaveDialog(main ?? BrowserWindow.getFocusedWindow()!, {
-    title: 'Save capture',
+    title: csv ? 'Export values' : 'Save capture',
     defaultPath: suggested,
-    filters: [{ name: 'Logica capture', extensions: ['lacap'] }],
+    filters: [csv ? { name: 'CSV table', extensions: ['csv'] } : { name: 'Logica capture', extensions: ['lacap'] }],
   });
   return r.canceled ? null : (r.filePath ?? null);
 });

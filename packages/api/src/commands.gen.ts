@@ -34,6 +34,17 @@ export const COMMANDS: readonly CommandSpec[] = [
     }
   },
   {
+    "name": "analog.export",
+    "summary": "Write virtual analog values as CSV: time, sample, and per channel its value (and raw code), a row wherever any has a new value.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "never",
+      "reason": "Writing a file cannot be undone."
+    }
+  },
+  {
     "name": "analog.remove",
     "summary": "Remove a virtual analog channel; undo restores it with the same id.",
     "safety": "read",

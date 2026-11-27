@@ -387,3 +387,62 @@ fn numbers_over_a_range_in_the_channels_unit() {
     let (code, _) = fail(&mut e, "analog.stats", json!({ "capture": c, "analog": "nope" }));
     assert_eq!(code, ErrorCode::NotFound);
 }
+
+#[test]
+fn values_are_exported_as_csv() {
+    let dir = std::env::temp_dir().join(format!("logica-engine-csv-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let mut duty_in = duty(&c);
+    duty_in["name"] = json!("Fan, duty");
+    let a = add(&mut e, duty_in);
+    let f = add(
+        &mut e,
+        json!({ "capture": c, "source": "pwm", "roles": { "signal": 0 },
+        "settings": { "measure": "frequency" }, "scaling": { "kind": "linear", "gain": 1 }, "name": "Fan speed" }),
+    );
+    let path = dir.join("fan.csv");
+    let o = run(&mut e, "analog.export", json!({ "capture": c, "path": path, "analogs": [a, f] }));
+    let text = std::fs::read_to_string(&path).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    // a quoted name with a comma; no code columns, since a duty and a frequency are no codes
+    assert_eq!(lines[0], "time_s,sample,\"Fan, duty (%)\",Fan speed (Hz)");
+    assert_eq!(o["rows"].as_u64().unwrap() as usize, lines.len() - 1);
+    assert_eq!(o["bytes"].as_u64().unwrap(), text.len() as u64);
+    // both channels have a value from the same periods, so every row holds both
+    let row: Vec<&str> = lines[1].split(',').collect();
+    assert_eq!(row.len(), 4);
+    assert!(
+        close(row[2].parse::<f64>().unwrap(), 30.0, 1.0)
+            && close(row[3].parse::<f64>().unwrap(), 1000.0, 20.0),
+        "{}",
+        lines[1]
+    );
+    let rate = capture(&mut e, &c)["sampleRateHz"].as_f64().unwrap();
+    let sample: f64 = row[1].parse().unwrap();
+    assert!(close(row[0].parse::<f64>().unwrap(), sample / rate, 1e-9));
+    // a range from the middle starts with the values held there
+    let mid = (rate * 0.5) as u64;
+    let o = run(&mut e, "analog.export", json!({ "capture": c, "path": path, "from": mid, "to": mid + 10 }));
+    let text = std::fs::read_to_string(&path).unwrap();
+    let first = text.lines().nth(1).unwrap();
+    assert!(first.starts_with(&format!("{},{mid},", mid as f64 / rate)), "{first}");
+    assert!(o["rows"].as_u64().unwrap() >= 1);
+    // writing a file is recorded but not undone
+    let entry = run(&mut e, "session.get", json!({}))["recent"][0].clone();
+    assert_eq!(entry["done"]["command"], "analog.export");
+    let (code, msg) = fail(&mut e, "history.undo", json!({ "entry": entry["id"] }));
+    assert_eq!(code, ErrorCode::NotUndoable, "{msg}");
+    // refusals that say what to do
+    let (code, msg) =
+        fail(&mut e, "analog.export", json!({ "capture": c, "path": dir.join("no/such/dir/x.csv") }));
+    assert_eq!(code, ErrorCode::Failed);
+    assert!(msg.contains("could not be written"), "{msg}");
+    let (code, _) = fail(&mut e, "analog.export", json!({ "capture": c, "path": path, "analogs": ["nope"] }));
+    assert_eq!(code, ErrorCode::NotFound);
+    let c2 = open_mystery_d(&mut e);
+    let (_, msg) = fail(&mut e, "analog.export", json!({ "capture": c2, "path": path }));
+    assert!(msg.contains("no virtual analog channel to export"), "{msg}");
+    std::fs::remove_dir_all(&dir).unwrap();
+}

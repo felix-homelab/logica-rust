@@ -74,6 +74,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Measurements of virtual analog channels over the selection or the view: mean and RMS weighted
   by time, minimum, maximum and peak to peak, in the Measurements panel and for agents through
   the `measure` tool. (#31)
+- Virtual analog values export as CSV: one table with time, sample and a column per channel (and
+  its raw code), from the channel list or for agents through `analog.export`. (#32)
 
 ### Fixed
 

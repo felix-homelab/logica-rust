@@ -150,6 +150,11 @@ pub const COMMANDS: &[CommandSpec] = &[
         "Change a virtual analog channel's source, channels, settings, scaling, name, unit or style.",
     ),
     edit("analog.remove", "Remove a virtual analog channel; undo restores it with the same id."),
+    never(
+        "analog.export",
+        "Write virtual analog values as CSV: time, sample, and per channel its value (and raw code), a row wherever any has a new value.",
+        "Writing a file cannot be undone.",
+    ),
     query(
         "analog.stats",
         "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",

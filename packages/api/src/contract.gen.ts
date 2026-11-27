@@ -144,6 +144,7 @@ export interface Contract {
 inputs: {
 "analog.add": AnalogAddIn
 "analog.at": AnalogAtIn
+"analog.export": AnalogExportIn
 "analog.remove": AnalogRef
 "analog.sources": Nothing
 "analog.stats": AnalogStatsIn
@@ -194,6 +195,7 @@ render: RenderIn
 outputs: {
 "analog.add": AnalogOut
 "analog.at": AnalogAtOut
+"analog.export": AnalogExportOut
 "analog.remove": Nothing
 "analog.sources": AnalogSourcesOut
 "analog.stats": AnalogStatsOut
@@ -290,6 +292,25 @@ export interface AnalogAtIn {
  */
 at: number[]
 capture: string
+}
+export interface AnalogExportIn {
+/**
+ * The channels, in this order; all of the capture's when absent.
+ */
+analogs?: (string[] | null)
+capture: string
+/**
+ * The range; the whole capture when absent.
+ */
+from?: (number | null)
+/**
+ * Where to write the CSV file, on the machine running the engine.
+ */
+path: string
+/**
+ * Exclusive.
+ */
+to?: (number | null)
 }
 export interface AnalogRef {
 analog: string
@@ -882,6 +903,14 @@ export interface AnalogPoint {
 code?: (number | null)
 sample: number
 value?: (number | null)
+}
+export interface AnalogExportOut {
+bytes: number
+path: string
+/**
+ * Rows of values, without the header.
+ */
+rows: number
 }
 export interface AnalogSourcesOut {
 sources: AnalogSourceEntry[]

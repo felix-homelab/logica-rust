@@ -600,6 +600,7 @@
             "analog.add",
             "analog.update",
             "analog.remove",
+            "analog.export",
             "analog.stats",
             "analog.at",
             "analog.values",

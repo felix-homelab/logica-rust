@@ -11,7 +11,7 @@ Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Lis
 
 1. **Found.** The start screen lists "Virtual analyser: Bench". (Started the other way round:
    "Capture live…" looks again, or "Look again" in its dialog.)
-2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its eleven
+2. **Live.** "Capture live…": the analyser is picked already; "Next: settings" shows its
    channels by name (CH0 TX, …), its lowest rate and 60 seconds. "Start capture" opens a tab
    "Live: Bench" with a "capturing" badge; the bar above the waveform counts the seconds; the
    waveform moves smoothly with the newest data on the right.
@@ -101,3 +101,16 @@ palette, undo and axe (`npm run test:e2e`). These need a person:
    `logica.log` with the reason. Close a tab or quit with unsaved changes: Logica asks first.
 10. **Updates.** With a newer release published, the packaged app (Windows, Linux AppImage)
    downloads it and says it installs on quit; with Settings > Updates off it does not look.
+
+## Virtual analog channels (M2a)
+
+Setup: `cargo run -p logica-vla`, then `npm start`; "Capture live…" with all channels for a few
+seconds. The end-to-end tests cover the dialog, the PWM level and the ADC preset; these need a
+person:
+
+1. **Curves.** Add a PWM level on CH11 (LEVEL) and CH12 (SINE), and "ADC on SPI" on CH13 to CH15
+   with the MCP3201 chip: the rows show a wandering ramp, a clean sine and a sine in volts. Drag a
+   row's bottom edge: it grows or shrinks and stays so after saving and reopening.
+2. **Export.** The "Export values as CSV" button in the channel list's Virtual analog section
+   opens the system's save dialog with a `.csv` name; the file opens in a spreadsheet with a time,
+   a sample and one column per channel.
