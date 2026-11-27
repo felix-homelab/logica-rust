@@ -36,9 +36,9 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { bridge, client, mod } from '../bridge';
-import { at, elapsed, hz, int, time } from '../format';
+import { at, elapsed, int, rate as formatRate, time } from '../format';
 import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
-import { centreOn, zoomAt } from '../viewmath';
+import { adoptEngineView, centreOn, zoomAt } from '../viewmath';
 import { DEFAULTS, LIMITS, fitPanels } from '../panelsize';
 import { ActivityFeed, DecodedTable, Measurements } from './bottom';
 import { AnalysisPanel, ChannelList, DecodersPanel, DevicePanel, SearchPanel } from './panels';
@@ -69,7 +69,9 @@ export function Workbench() {
   const { session, settings, run, notify } = store;
   const active = useActive();
   const [views, setViews] = useState<Record<string, ViewState>>({});
-  const sent = useRef<Record<string, string>>({});
+  // the engine's view of each tab as last seen, and the tabs whose view is still being sent
+  const seen = useRef<Record<string, string>>({});
+  const sending = useRef<Record<string, number>>({});
   const timers = useRef<Record<string, number>>({});
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState<'keys' | 'agent' | null>(null);
@@ -118,7 +120,14 @@ export function Workbench() {
           next[c.id] = mine;
           continue;
         }
-        next[c.id] = !mine || (sent.current[c.id] !== key(engine) && key(mine) !== key(engine)) ? engine : mine;
+        const adopt = adoptEngineView({
+          mine: mine ? key(mine) : null,
+          engine: key(engine),
+          seen: seen.current[c.id] ?? null,
+          sending: (sending.current[c.id] ?? 0) > 0,
+        });
+        next[c.id] = adopt || !mine ? engine : mine;
+        seen.current[c.id] = key(engine);
       }
       return next;
     });
@@ -128,9 +137,11 @@ export function Workbench() {
   const setView = useCallback(
     (capture: string, v: ViewState) => {
       setViews((old) => ({ ...old, [capture]: v }));
+      // the newest change counts: an earlier one finishing does not end the wait for it
+      const generation = Date.now() + Math.random();
+      sending.current[capture] = generation;
       window.clearTimeout(timers.current[capture]);
       timers.current[capture] = window.setTimeout(() => {
-        sent.current[capture] = key(v);
         void client
           .run('view.set', {
             capture,
@@ -141,7 +152,14 @@ export function Workbench() {
             ...(v.cursorB !== null ? { cursorB: v.cursorB } : {}),
             ...(v.selection ? { selection: v.selection } : { clearSelection: true }),
           })
-          .catch(() => {});
+          .then(() => {
+            // the engine has it now; only a later change by someone else replaces it
+            seen.current[capture] = key(v);
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (sending.current[capture] === generation) sending.current[capture] = 0;
+          });
       }, 200);
     },
     [],
@@ -333,7 +351,7 @@ export function Workbench() {
       id: `c-${c.id}`,
       group: 'Captures',
       title: c.title,
-      hint: `${int(c.sampleCount)} samples at ${hz(c.sampleRateHz)}`,
+      hint: `${int(c.sampleCount)} samples at ${formatRate(c.sampleRateHz)}`,
       run: () => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {}),
     }));
     const marks: PaletteItem[] = (active?.markers ?? []).map((m) => ({
@@ -723,7 +741,7 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
               ? `${device.info.model}: connected`
               : 'No device connected'}
       </span>
-      <span className="lg-num status__keep">{hz(rate)}</span>
+      <span className="lg-num status__keep">{formatRate(rate)}</span>
       <span className="lg-num status__fit">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
       </span>

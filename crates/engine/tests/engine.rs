@@ -352,7 +352,7 @@ fn a_synthetic_capture_appears_and_decodes() {
         json!({ "device": dev, "config": { "channels": [0, 1, 2], "sampleRateHz": 1e6, "samples": 1000, "mode": "stream" } }),
     );
     assert_eq!(code, ErrorCode::InvalidInput);
-    assert!(msg.contains("runs at 100 MHz"), "{msg}");
+    assert!(msg.contains("runs at 100 MS/s"), "{msg}");
     run(
         &mut e,
         &agent(),

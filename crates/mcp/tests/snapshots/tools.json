@@ -403,15 +403,20 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "action \"stats\": frequency, period, duty cycle, pulse widths and edge count of one channel; \"edges\": the edges of channels in a range (paged); \"between\": the time between two samples.",
+    "description": "action \"stats\": frequency, period, duty cycle, pulse widths and edge count of one channel; \"edges\": the edges of channels in a range (paged); \"between\": the time between two samples; \"analog\": minimum, maximum, mean and RMS of a virtual analog channel in its unit.",
     "inputSchema": {
       "properties": {
         "action": {
           "enum": [
             "stats",
             "edges",
-            "between"
+            "between",
+            "analog"
           ],
+          "type": "string"
+        },
+        "analog": {
+          "description": "For analog.",
           "type": "string"
         },
         "capture": {
@@ -595,6 +600,9 @@
             "analog.add",
             "analog.update",
             "analog.remove",
+            "analog.export",
+            "analog.stats",
+            "analog.at",
             "analog.values",
             "search.run",
             "marker.add",

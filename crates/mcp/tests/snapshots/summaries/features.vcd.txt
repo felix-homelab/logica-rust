@@ -1,4 +1,4 @@
-open_file: Opened c1 "features.vcd": 6 samples at 50 MHz (120 ns), channels CH0 (clk), CH1 (clk_copy), CH2 (top.en), CH3 (nibble[0]), CH4 (nibble[1]), CH5 (nibble[2]), CH6 (nibble[3]), CH7 (top.sub.en).
+open_file: Opened c1 "features.vcd": 6 samples at 50 MS/s (120 ns), channels CH0 (clk), CH1 (clk_copy), CH2 (top.en), CH3 (nibble[0]), CH4 (nibble[1]), CH5 (nibble[2]), CH6 (nibble[3]), CH7 (top.sub.en).
 
 summarize:
 No protocol was recognised.

@@ -48,6 +48,25 @@ pub struct Periodicity {
     pub bursts: Vec<Span>,
 }
 
+/// A PWM that carries a level: periods of the same length, a high time that changes (a fan, a
+/// dimmer, a DAC by PWM). Clocks and steady PWM are [`Periodicity`] instead.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DutyLevel {
+    /// Average rising-to-rising period, in samples.
+    pub period_samples: f64,
+    /// Fraction of periods within a few percent of the typical one.
+    pub regularity: f64,
+    /// Lowest and highest duty, ignoring the outer 2 % of periods, and the mean.
+    pub duty_min: f64,
+    pub duty_max: f64,
+    pub duty_mean: f64,
+    /// Periods measured.
+    pub periods: u64,
+    /// The signal never pauses between its first and last edge and spans most of the window.
+    pub continuous: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Narrowest {
     pub samples: f64,
@@ -76,6 +95,9 @@ pub struct ChannelMeasurement {
     pub bursts: Vec<Span>,
     pub burst_gap: f64,
     pub periodic: Option<Periodicity>,
+    /// Regular periods with a changing duty; only when it is not [`Self::periodic`].
+    #[serde(default)]
+    pub duty_level: Option<DutyLevel>,
 }
 
 /// Level of pulse `i`, the stretch from edge `i` to edge `i + 1`.
@@ -185,6 +207,48 @@ pub fn measure_periodicity(edges: &[Sample], initial: Level, window: u64) -> Opt
     })
 }
 
+/// A PWM whose duty changes while its period stays: `None` unless at least 8 periods are within
+/// 20 % of the typical one (85 % of them) and the duty moves by at least 2 percentage points.
+pub fn measure_duty_level(edges: &[Sample], initial: Level, window: u64) -> Option<DutyLevel> {
+    // periods from one rising edge to the next, each with its high time
+    let mut cycles: Vec<(f64, f64)> = Vec::new();
+    let first_rise = usize::from(pulse_level(initial, 0) != Level::High);
+    let mut i = first_rise;
+    while i + 2 < edges.len() {
+        let (rise, fall, next) = (edges[i], edges[i + 1], edges[i + 2]);
+        cycles.push(((next - rise) as f64, (fall - rise) as f64));
+        i += 2;
+    }
+    if cycles.len() < 8 {
+        return None;
+    }
+    let p0 = median(&cycles.iter().map(|c| c.0).collect::<Vec<_>>());
+    let in_burst: Vec<(f64, f64)> = cycles.iter().copied().filter(|c| c.0 < 3.0 * p0).collect();
+    let regular: Vec<(f64, f64)> = in_burst.iter().copied().filter(|c| near(c.0, p0, 0.2)).collect();
+    let regularity = regular.len() as f64 / in_burst.len().max(1) as f64;
+    if regularity < 0.85 || regular.len() < 8 {
+        return None;
+    }
+    let mut duties: Vec<f64> = regular.iter().map(|c| c.1 / c.0).collect();
+    duties.sort_by(f64::total_cmp);
+    let k = duties.len() / 50;
+    let (duty_min, duty_max) = (duties[k], duties[duties.len() - 1 - k]);
+    if duty_max - duty_min < 0.02 {
+        return None;
+    }
+    let span = (edges[edges.len() - 1] - edges[0]) as f64;
+    let continuous = cycles.len() == in_burst.len() && span > 0.5 * window as f64;
+    Some(DutyLevel {
+        period_samples: regular.iter().map(|c| c.0).sum::<f64>() / regular.len() as f64,
+        regularity,
+        duty_min,
+        duty_max,
+        duty_mean: duties.iter().sum::<f64>() / duties.len() as f64,
+        periods: regular.len() as u64,
+        continuous,
+    })
+}
+
 /// Measures one channel: `edges` ascending inside `[start, end)`, `initial` the level before them.
 pub fn measure_channel(
     channel: u32,
@@ -208,6 +272,7 @@ pub fn measure_channel(
         bursts: Vec::new(),
         burst_gap: 0.0,
         periodic: None,
+        duty_level: None,
     };
     if n == 0 {
         return m;
@@ -268,6 +333,9 @@ pub fn measure_channel(
     m.high_fraction = if span > 0.0 { high_time as f64 / span } else { m.high_fraction };
     m.bursts = bursts;
     m.burst_gap = burst_gap;
+    if periodic.is_none() {
+        m.duty_level = measure_duty_level(edges, initial, window);
+    }
     m.periodic = periodic;
     m
 }
@@ -288,6 +356,53 @@ pub fn multiple_fit(clusters: &[WidthCluster], unit: f64, tolerance: f64) -> f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Edges of a PWM from a low line: one `(period, high)` per cycle, starting at sample 10.
+    fn pwm(cycles: &[(u64, u64)]) -> Vec<Sample> {
+        let mut t = 10;
+        let mut e = Vec::new();
+        for &(p, h) in cycles {
+            e.extend([t, t + h]);
+            t += p;
+        }
+        e.push(t);
+        e
+    }
+
+    #[test]
+    fn a_pwm_with_a_changing_duty_carries_a_level() {
+        let cycles: Vec<(u64, u64)> = (0..100).map(|k| (100, 10 + (k * 7) % 80)).collect();
+        let e = pwm(&cycles);
+        let m = measure_channel(0, &e, Level::Low, 0, 15_000);
+        assert!(m.periodic.is_none(), "not a clock");
+        let d = m.duty_level.expect("a level");
+        assert_eq!(d.period_samples, 100.0);
+        // 10 % to 89 %, without the outer 2 % of the 100 periods (two at each end)
+        assert_eq!((d.duty_min, d.duty_max), (0.11, 0.87));
+        assert_eq!(d.periods, 100);
+        assert!(d.continuous && d.regularity == 1.0);
+        // starting high: the first edge falls, and the cycles still run from rise to rise
+        let varied: Vec<(u64, u64)> = (0..10).map(|k| (100, 20 + 6 * k)).collect();
+        let e = [vec![5], pwm(&varied)].concat();
+        let m = measure_channel(0, &e, Level::High, 0, 1100);
+        assert!(m.duty_level.is_some(), "{m:?}");
+    }
+
+    #[test]
+    fn steady_pwm_few_periods_and_uneven_periods_are_no_level() {
+        // a steady duty is a periodic signal, not a level
+        let m = measure_channel(0, &pwm(&[(100, 30); 50]), Level::Low, 0, 6000);
+        assert!(m.periodic.is_some() && m.duty_level.is_none());
+        // a duty that moves by under two points is steady too
+        let small: Vec<(u64, u64)> = (0..50).map(|k| (1000, 300 + k % 15)).collect();
+        assert!(measure_duty_level(&pwm(&small), Level::Low, 60_000).is_none());
+        // seven periods are too few
+        let few: Vec<(u64, u64)> = (0..7).map(|k| (100, 10 + 10 * k)).collect();
+        assert!(measure_duty_level(&pwm(&few), Level::Low, 1000).is_none());
+        // periods all over the place are no PWM
+        let uneven: Vec<(u64, u64)> = (0..40).map(|k| (50 + (k * 37) % 200, 20)).collect();
+        assert!(measure_duty_level(&pwm(&uneven), Level::Low, 20_000).is_none());
+    }
 
     #[test]
     fn a_regular_clock_is_periodic() {
@@ -334,7 +449,7 @@ mod tests {
     fn rest_level_comes_from_long_quiet_stretches() {
         // starts low, ends high; long high stretches dominate
         let e = vec![10, 12, 14, 5000, 5002];
-        let m = measure_channel(0, &e, Level::Low, 0, 20_000);
+        let m = measure_channel(0, &e, Level::Low, 0, 15_000);
         assert_eq!(m.rest_level, Level::High);
     }
 }

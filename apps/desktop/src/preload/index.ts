@@ -126,7 +126,8 @@ contextBridge.exposeInMainWorld('logica', {
 
   /** Native dialogs (doc 08): paths the person picks go to the engine as command inputs. */
   chooseFiles: (): Promise<string[]> => ipcRenderer.invoke('logica:choose-files') as Promise<string[]>,
-  chooseSave: (suggested: string): Promise<string | null> => ipcRenderer.invoke('logica:choose-save', suggested) as Promise<string | null>,
+  chooseSave: (suggested: string, kind: 'lacap' | 'csv' = 'lacap'): Promise<string | null> =>
+    ipcRenderer.invoke('logica:choose-save', suggested, kind) as Promise<string | null>,
   /** The path of a file dropped onto the window. */
   pathOf: (file: File): string => webUtils.getPathForFile(file),
   opened: (file: string): void => ipcRenderer.send('logica:opened', file),

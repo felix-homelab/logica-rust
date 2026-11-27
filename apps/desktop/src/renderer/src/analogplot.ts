@@ -84,3 +84,42 @@ export function valueLines(points: ValuePoint[], held: number | null | undefined
   }
   return lines;
 }
+
+export interface ReadValue {
+  value?: number | null;
+  code?: number | null;
+}
+
+/** A channel's value at a cursor, with its raw code where it has one. */
+export function readout(v: ReadValue | undefined, unit: string, step?: number | null): string {
+  if (v?.value === null || v?.value === undefined) return 'no value';
+  const code = v.code !== null && v.code !== undefined ? ` (code ${v.code})` : '';
+  return `${formatValue(v.value, unit, step)}${code}`;
+}
+
+/** The difference from A to B, when both have a value. */
+export function difference(a: ReadValue | undefined, b: ReadValue | undefined, unit: string, step?: number | null): string | null {
+  if (a?.value === null || a?.value === undefined || b?.value === null || b?.value === undefined) return null;
+  const d = b.value - a.value;
+  return `${d > 0 ? '+' : ''}${formatValue(d, unit, step)}`;
+}
+
+export interface RangeStats {
+  unit: string;
+  min?: number | null;
+  max?: number | null;
+  peakToPeak?: number | null;
+  mean?: number | null;
+  rms?: number | null;
+  covered: number;
+  step?: number | null;
+}
+
+/** A channel over a range in one line: mean, RMS, extremes and peak to peak. */
+export function analogSummary(s: RangeStats): string {
+  const v = (x: number | null | undefined) => (x === null || x === undefined ? null : formatValue(x, s.unit, s.step));
+  const [mean, rms, lo, hi, pp] = [v(s.mean), v(s.rms), v(s.min), v(s.max), v(s.peakToPeak)];
+  if (mean === null || lo === null || hi === null) return 'no value in this range';
+  const gaps = s.covered < 0.995 ? ` · values for ${Math.round(s.covered * 100)} % of it` : '';
+  return `mean ${mean} · RMS ${rms} · ${lo} to ${hi} · peak to peak ${pp}${gaps}`;
+}

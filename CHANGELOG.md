@@ -55,5 +55,47 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Devices: the virtual analyser's PWM can carry a level: with `dutyRange` its duty glides from one
   random value to the next, or with `sinePeriodMs` follows a sine. The built-in mix has one of
   each, CH11 (LEVEL) and CH12 (SINE), for trying virtual analog channels without hardware. (#21)
+- Analysis: a PWM whose duty changes is recognised as a PWM carrying a level (it was taken for
+  UART), with the range its duty moves in, and "Add PWM level" turns any PWM found into a virtual
+  analog channel in one click. (#24)
+- App: the Measurements panel reads virtual analog channels at the cursors: the value, the raw
+  code, the difference from A to B and one step. (#25)
+- Virtual analog channels from ADCs on SPI and I2C: a bit field of every transfer, unsigned or
+  two's complement, with a filter for one input of a multiplexed ADC, and presets for the
+  MCP3201, MCP3208 and ADS1115. (#26)
+- App: the virtual analog dialog offers the ADC chips a source knows: choosing one fills the
+  settings and the scaling, and for an ADC with several inputs it adds one channel per input. The
+  virtual analyser sends an MCP3201 sine on CH13 to CH15 to try it. (#27)
+- Virtual analog channels from a parallel bus of up to 16 bits, read on a clock or strobe edge
+  (with an enable line), or without a clock once the word stays put, so skewed bits give no false
+  values; with a preset for the ADC0804. (#28)
+- Virtual analog channels from PDM or sigma-delta bitstreams (PDM microphones, isolated ADCs),
+  filtered back into values by a sinc³ filter with a decimation ratio you choose. (#29)
+- Measurements of virtual analog channels over the selection or the view: mean and RMS weighted
+  by time, minimum, maximum and peak to peak, in the Measurements panel and for agents through
+  the `measure` tool. (#31)
+- Virtual analog values export as CSV: one table with time, sample and a column per channel (and
+  its raw code), from the channel list or for agents through `analog.export`. (#32)
+- Virtual analog channels can read from a decoder of the capture instead of its channels: an ADC
+  on the SPI or I2C decoder, a PWM level on the PWM decoder. They take the decoder's channels and
+  settings and follow it when it changes. (#33)
+- App: decoders get a name of your own when added (the protocol's name otherwise) and can be
+  renamed in their settings; undo takes a rename back. (#35)
+- Devices: the virtual analyser also plays an MCP3208 (eight inputs, read in turn) and an ADS1115
+  (I2C), next to the MCP3201, each sending sines in its preset's format (CH16 to CH21 of the
+  built-in mix), and offers rates up to 1000 MS/s (1 GS/s). (#36)
+
+### Changed
+
+- **Breaking:** sample rates are written in samples per second (S/s, kS/s, MS/s, GS/s) in the window, MCP
+  answers and the CLI, so they are not mistaken for frequencies, which stay in Hz. (#37)
+- App: the mouse wheel scrolls through the channels; Ctrl+wheel (Cmd on macOS) zooms and
+  Shift+wheel pans, so a capture with many channels can be scrolled without changing the zoom.
+  (#37)
+
+### Fixed
+
+- App: a cursor set just before the window read the session again (after adding a decoder or a
+  virtual channel, for example) is no longer taken back. (#30)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

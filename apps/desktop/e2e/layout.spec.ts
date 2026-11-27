@@ -193,3 +193,27 @@ test('each panel has one scroll bar, docked and as a drawer, at 100 % and 125 % 
   }
   await app.close();
 });
+
+test('the wheel scrolls through many channels; Ctrl+wheel zooms', async () => {
+  const { app, page } = await start([fixture('formats/sr/walk-24ch.sr')]);
+  const canvas = page.locator('.wave__canvas');
+  await expect(canvas).toBeVisible();
+  const area = page.locator('.wave-area');
+  const description = page.locator('#wave-description');
+  await expect(description).toContainText('Channels');
+  // "walk-24ch.sr: 0 s to 1 s. Channels …": the time range shown
+  const range = async () => /: (.+?) to (.+?)\. Channels/.exec((await description.textContent()) ?? '')?.slice(1).join(' to ') ?? '';
+  const before = await range();
+  // 24 channels are taller than the window: the wheel scrolls down, the time range stays
+  await canvas.hover({ position: { x: 300, y: 80 } });
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => area.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await page.waitForTimeout(500);
+  expect(await range()).toBe(before);
+  // with Ctrl it zooms instead
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -200);
+  await page.keyboard.up('Control');
+  await expect.poll(range).not.toBe(before);
+  await app.close();
+});

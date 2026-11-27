@@ -26,6 +26,12 @@ pub struct AnalogSourceEntry {
     pub help: String,
     pub roles: Vec<RoleSpec>,
     pub settings: Vec<SettingSpec>,
+    /// Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.
+    pub presets: Vec<logica_protocols::analog::presets::AdcPreset>,
+    /// Decoder protocols it can read from instead of its own channels (`spi`, `i2c`, `pwm`).
+    pub decoders: Vec<String>,
+    /// Its settings that then come from the decoder (the bus's own).
+    pub decoder_settings: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -34,10 +40,24 @@ pub struct AnalogSourcesOut {
     pub sources: Vec<AnalogSourceEntry>,
 }
 
-pub(crate) fn list_sources(_: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
+pub(crate) fn list_sources(e: &mut Engine, _: &Ctx, _: Nothing) -> Result<Done, CommandError> {
+    let presets = logica_protocols::analog::presets::presets();
     let sources = sources()
         .iter()
         .map(|s| AnalogSourceEntry {
+            presets: presets.iter().filter(|p| p.source == s.id()).cloned().collect(),
+            decoders: ["spi", "i2c", "pwm"]
+                .iter()
+                .filter(|p| source_for(p) == Some(s.id()))
+                .map(|p| (*p).to_string())
+                .collect(),
+            decoder_settings: ["spi", "i2c", "pwm"]
+                .iter()
+                .filter(|p| source_for(p) == Some(s.id()))
+                .filter_map(|p| e.registry.get(p))
+                .flat_map(|p| p.settings().iter().map(|x| x.key.clone()).collect::<Vec<_>>())
+                .filter(|k| s.settings().iter().any(|x| &x.key == k))
+                .collect(),
             id: s.id().into(),
             name: s.name().into(),
             help: s.help().into(),
@@ -65,6 +85,10 @@ pub struct AnalogAddIn {
     pub style: Option<AnalogStyle>,
     /// Row height in pixels, 40 to 800 (160 unless given).
     pub height: Option<u32>,
+    /// A decoder of the capture to read from (SPI and I2C for the ADC sources, PWM for the PWM
+    /// level): its channels and bus settings are used instead of `roles`, and follow it when it
+    /// changes.
+    pub decoder: Option<String>,
     /// Chosen by the engine; redo and undo use the id it had.
     pub id: Option<String>,
 }
@@ -104,6 +128,82 @@ fn default_unit(scaling: &Scaling, output_unit: Option<&str>) -> String {
     }
 }
 
+/// The virtual analog source that reads a decoder of `protocol`.
+pub fn source_for(protocol: &str) -> Option<&'static str> {
+    match protocol {
+        "spi" => Some("spi-adc"),
+        "i2c" => Some("i2c-adc"),
+        "pwm" => Some("pwm"),
+        _ => None,
+    }
+}
+
+/// Takes a decoder's channels and all its settings (the bus's own, defaults filled in, so a
+/// setting the decoder went back to its default for is taken too) into a channel's definition.
+fn take_decoder(e: &Engine, cfg: &mut AnalogConfig, d: &crate::state::DecoderConfig) {
+    cfg.roles = d.roles.clone();
+    let all = e
+        .registry
+        .get(&d.protocol)
+        .map_or_else(|| d.settings.clone(), |p| SettingSpec::with_defaults(p.settings(), &d.settings));
+    for (k, v) in all {
+        cfg.settings.insert(k, v);
+    }
+}
+
+/// After a decoder was added, changed or removed: the channels reading from it follow it. They
+/// are derived data, so this is part of the decoder's command and its undo, not an entry of its own.
+pub(crate) fn follow_decoder(e: &mut Engine, capture: &str, decoder: &str) {
+    let Ok(c) = e.capture(capture) else { return };
+    let linked: Vec<String> = c
+        .analog
+        .iter()
+        .filter(|(_, a)| a.config.decoder.as_deref() == Some(decoder))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let dcfg = c.decoders.get(decoder).map(|d| d.config.clone());
+    for id in linked {
+        let Ok(c) = e.capture(capture) else { return };
+        let a = &c.analog[&id];
+        let next = match &dcfg {
+            Some(d) => {
+                let mut cfg = a.config.clone();
+                take_decoder(e, &mut cfg, d);
+                if cfg == a.config {
+                    // back after an undo of its removal: nothing to compute, only the note goes
+                    let gone = format!("Decoder {decoder} was removed;");
+                    let Ok(c) = e.capture_mut(capture) else { return };
+                    let a = c.analog.get_mut(&id).expect("listed above");
+                    let before = a.result.notes.len();
+                    a.result.notes.retain(|n| !n.starts_with(&gone));
+                    if a.result.notes.len() != before {
+                        e.emit(Event::AnalogUpdated { capture: capture.into(), analog: id });
+                    }
+                    continue;
+                }
+                Analog::compute(cfg, &c.store, &c.meta)
+                    .map_err(|m| format!("The change of decoder {decoder} could not be followed: {m}"))
+            }
+            None => Err(format!(
+                "Decoder {decoder} was removed; this channel keeps the channels and settings it had and follows it again if it comes back."
+            )),
+        };
+        let Ok(c) = e.capture_mut(capture) else { return };
+        match next {
+            Ok(a) => {
+                c.analog.insert(id.clone(), a);
+            }
+            Err(note) => {
+                let a = c.analog.get_mut(&id).expect("listed above");
+                if !a.result.notes.contains(&note) {
+                    a.result.notes.push(note);
+                }
+            }
+        }
+        e.emit(Event::AnalogUpdated { capture: capture.into(), analog: id });
+    }
+}
+
 pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, CommandError> {
     let src = logica_protocols::analog::source(&i.source);
     let name =
@@ -119,7 +219,32 @@ pub(crate) fn add(e: &mut Engine, _: &Ctx, i: AnalogAddIn) -> Result<Done, Comma
         unit,
         style: i.style.unwrap_or_default(),
         height: i.height.unwrap_or(crate::analog::DEFAULT_HEIGHT),
+        decoder: i.decoder.clone(),
     };
+    let mut cfg = cfg;
+    if let Some(did) = &i.decoder {
+        let c = e.capture(&i.capture)?;
+        let d = c.decoders.get(did).ok_or_else(|| {
+            err(ErrorCode::NotFound, format!("There is no decoder \"{did}\" on this capture to read from."))
+        })?;
+        let fits = source_for(&d.config.protocol);
+        if fits != Some(i.source.as_str()) {
+            return Err(err(
+                ErrorCode::InvalidInput,
+                match fits {
+                    Some(s) => {
+                        format!("The {} decoder is read by the source {s}, not {}.", d.config.name, i.source)
+                    }
+                    None => format!(
+                        "No virtual analog source reads a {} decoder; choose its channels instead.",
+                        d.config.name
+                    ),
+                },
+            ));
+        }
+        let dcfg = d.config.clone();
+        take_decoder(e, &mut cfg, &dcfg);
+    }
     let a = compute(e, &i.capture, cfg)?;
     let id = match &i.id {
         Some(id) => {
@@ -206,6 +331,12 @@ pub(crate) fn update(e: &mut Engine, _: &Ctx, i: AnalogUpdateIn) -> Result<Done,
     if let Some(h) = i.height {
         cfg.height = h;
     }
+    // a channel reading from a decoder keeps taking its channels and bus settings from it
+    if let Some(did) = cfg.decoder.clone()
+        && let Some(d) = e.capture(&i.capture)?.decoders.get(&did).map(|d| d.config.clone())
+    {
+        take_decoder(e, &mut cfg, &d);
+    }
     let new = if old.needs_recompute(&cfg) {
         compute(e, &i.capture, cfg)?
     } else {
@@ -253,6 +384,7 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
         unit: Some(cfg.unit),
         style: Some(cfg.style),
         height: Some(cfg.height),
+        decoder: cfg.decoder.clone(),
         id: Some(i.analog),
     };
     Ok(Done::edit(
@@ -260,6 +392,147 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
         inv("analog.add", &restore),
         format!("removed the virtual analog channel {}", cfg.name),
     ))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalogStatsIn {
+    pub capture: String,
+    pub analog: String,
+    /// The range; the whole capture when absent.
+    pub from: Option<Sample>,
+    /// Exclusive.
+    pub to: Option<Sample>,
+}
+
+/// A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it
+/// holds; gaps do not count.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogStatsOut {
+    pub analog: String,
+    pub name: String,
+    pub unit: String,
+    pub from: Sample,
+    pub to: Sample,
+    /// Values that start in the range.
+    pub count: u64,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub peak_to_peak: Option<f64>,
+    pub mean: Option<f64>,
+    pub rms: Option<f64>,
+    /// The share of the range that has a value.
+    pub covered: f64,
+    pub step: Option<f64>,
+}
+
+pub(crate) fn stats(e: &mut Engine, _: &Ctx, i: AnalogStatsIn) -> Result<Done, CommandError> {
+    let count = e.capture(&i.capture)?.store.sample_count();
+    let from = i.from.unwrap_or(0);
+    let to = i.to.unwrap_or(count);
+    if to <= from {
+        return Err(err(ErrorCode::InvalidInput, "The range is empty: `to` must be after `from`."));
+    }
+    let a = find(e, &AnalogRef { capture: i.capture.clone(), analog: i.analog.clone() })?;
+    let st = a.series.stats(from, to);
+    let s = &a.config.scaling;
+    let (min, max) = match (st.min, st.max) {
+        (Some(lo), Some(hi)) => {
+            let (lo, hi) = s.apply_range(lo, hi);
+            (Some(lo), Some(hi))
+        }
+        _ => (None, None),
+    };
+    // the mean scales like a value; the RMS of a + b·x needs the mean square too
+    let (a0, b) = (s.apply(0.0), s.apply(1.0) - s.apply(0.0));
+    let rms = match (st.mean, st.mean_square) {
+        (Some(m), Some(m2)) => Some((a0 * a0 + 2.0 * a0 * b * m + b * b * m2).max(0.0).sqrt()),
+        _ => None,
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let covered = st.covered as f64 / (to - from) as f64;
+    Ok(Done::query(out(&AnalogStatsOut {
+        analog: i.analog.clone(),
+        name: a.config.name.clone(),
+        unit: a.config.unit.clone(),
+        from,
+        to,
+        count: st.count,
+        peak_to_peak: min.zip(max).map(|(lo, hi)| hi - lo),
+        min,
+        max,
+        mean: st.mean.map(|m| s.apply(m)),
+        rms,
+        covered,
+        step: a.step(),
+    })))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalogAtIn {
+    pub capture: String,
+    /// Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.
+    pub at: Vec<Sample>,
+}
+
+/// One channel's values at the asked samples, in its unit.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogAtChannel {
+    pub analog: String,
+    pub name: String,
+    pub unit: String,
+    /// One step of the code in the unit, where the source reads codes.
+    pub step: Option<f64>,
+    /// In the order asked; `value` is absent where the channel has none (before its first value,
+    /// in a gap).
+    pub values: Vec<AnalogPoint>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogAtOut {
+    pub channels: Vec<AnalogAtChannel>,
+}
+
+/// The raw code behind a fraction, where the source reads codes.
+fn code_of(a: &crate::analog::Analog, x: f64) -> Option<i64> {
+    match (a.output.kind, a.output.bits) {
+        (PointKind::Fraction, Some(bits)) => code_of_fraction(x, bits, a.output.encoding),
+        _ => None,
+    }
+}
+
+pub(crate) fn at(e: &mut Engine, _: &Ctx, i: AnalogAtIn) -> Result<Done, CommandError> {
+    if i.at.is_empty() || i.at.len() > 16 {
+        return Err(err(ErrorCode::InvalidInput, "Give 1 to 16 samples to read the values at."));
+    }
+    let c = e.capture(&i.capture)?;
+    let channels = c
+        .analog
+        .iter()
+        .map(|(id, a)| AnalogAtChannel {
+            analog: id.clone(),
+            name: a.config.name.clone(),
+            unit: a.config.unit.clone(),
+            step: a.step(),
+            values: i
+                .at
+                .iter()
+                .map(|&s| {
+                    let x = a.series.value_at(s);
+                    AnalogPoint {
+                        sample: s,
+                        value: x.map(|x| a.config.scaling.apply(x)),
+                        code: x.and_then(|x| code_of(a, x)),
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(Done::query(out(&AnalogAtOut { channels })))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -336,10 +609,7 @@ pub(crate) fn values(e: &mut Engine, _: &Ctx, i: AnalogValuesIn) -> Result<Done,
     let bucket = (i.to - i.from).div_ceil(u64::from(i.buckets));
     let limit = 2 * i.buckets as usize;
     let raw: Vec<_> = a.series.points(i.from, i.to).take(limit + 1).collect();
-    let code = |x: f64| match (a.output.kind, a.output.bits) {
-        (PointKind::Fraction, Some(bits)) => code_of_fraction(x, bits, a.output.encoding),
-        _ => None,
-    };
+    let code = |x: f64| code_of(a, x);
     let (points, buckets) = if raw.len() <= limit {
         let pts = raw.iter().map(|p| AnalogPoint {
             sample: p.sample,

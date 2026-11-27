@@ -276,7 +276,7 @@ fn summary(path: &Path, c: &CaptureSummary, container: Option<((u16, u16), u64)>
         format!(
             "{} at {}: {}",
             samples(c.sample_count),
-            format::hz(c.sample_rate_hz),
+            format::rate(c.sample_rate_hz),
             format::time(c.seconds)
         ),
     );
@@ -368,7 +368,7 @@ fn convert(args: &[String], out: &mut dyn Write) -> Result<()> {
             to.display(),
             c.channels.len(),
             samples(c.sample_count),
-            format::hz(c.sample_rate_hz),
+            format::rate(c.sample_rate_hz),
             bytes(size)
         ),
     )

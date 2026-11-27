@@ -5,6 +5,61 @@
       "pattern": "^(user|cli|agent:.+)$",
       "type": "string"
     },
+    "AdcPreset": {
+      "additionalProperties": false,
+      "properties": {
+        "help": {
+          "type": "string"
+        },
+        "high": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inputs": {
+          "default": [],
+          "description": "For an ADC with several inputs: one virtual channel each.",
+          "items": {
+            "$ref": "#/$defs/PresetInput"
+          },
+          "type": "array"
+        },
+        "low": {
+          "description": "The scaling's lowest and highest value, and the unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        },
+        "source": {
+          "description": "The source it fills (`spi-adc`, `i2c-adc`).",
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "source",
+        "help",
+        "settings",
+        "low",
+        "high",
+        "unit"
+      ],
+      "type": "object"
+    },
     "AddCustomIn": {
       "additionalProperties": false,
       "properties": {
@@ -22,6 +77,13 @@
       "properties": {
         "capture": {
           "type": "string"
+        },
+        "decoder": {
+          "description": "A decoder of the capture to read from (SPI and I2C for the ADC sources, PWM for the PWM\nlevel): its channels and bus settings are used instead of `roles`, and follow it when it\nchanges.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "height": {
           "description": "Row height in pixels, 40 to 800 (160 unless given).",
@@ -96,6 +158,78 @@
       ],
       "type": "object"
     },
+    "AnalogAtChannel": {
+      "description": "One channel's values at the asked samples, in its unit.",
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "step": {
+          "description": "One step of the code in the unit, where the source reads codes.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string"
+        },
+        "values": {
+          "description": "In the order asked; `value` is absent where the channel has none (before its first value,\nin a gap).",
+          "items": {
+            "$ref": "#/$defs/AnalogPoint"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "analog",
+        "name",
+        "unit",
+        "values"
+      ],
+      "type": "object"
+    },
+    "AnalogAtIn": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "description": "Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "capture": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "at"
+      ],
+      "type": "object"
+    },
+    "AnalogAtOut": {
+      "properties": {
+        "channels": {
+          "items": {
+            "$ref": "#/$defs/AnalogAtChannel"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "channels"
+      ],
+      "type": "object"
+    },
     "AnalogBucket": {
       "description": "One bucket in the channel's unit.",
       "properties": {
@@ -141,6 +275,13 @@
     "AnalogConfig": {
       "description": "A virtual analog channel's definition: what `analog.add` takes, an undo restores and a\n`.lacap` saves.",
       "properties": {
+        "decoder": {
+          "description": "The decoder it reads from, if any: its channels and bus settings follow that decoder's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "height": {
           "default": 160,
           "description": "Height of its row in the waveform, in pixels (40 to 800).",
@@ -191,6 +332,75 @@
         "roles",
         "scaling",
         "name"
+      ],
+      "type": "object"
+    },
+    "AnalogExportIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analogs": {
+          "description": "The channels, in this order; all of the capture's when absent.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "The range; the whole capture when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Where to write the CSV file, on the machine running the engine.",
+          "type": "string"
+        },
+        "to": {
+          "description": "Exclusive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "path"
+      ],
+      "type": "object"
+    },
+    "AnalogExportOut": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "rows": {
+          "description": "Rows of values, without the header.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "rows",
+        "bytes"
       ],
       "type": "object"
     },
@@ -276,6 +486,20 @@
     },
     "AnalogSourceEntry": {
       "properties": {
+        "decoderSettings": {
+          "description": "Its settings that then come from the decoder (the bus's own).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "decoders": {
+          "description": "Decoder protocols it can read from instead of its own channels (`spi`, `i2c`, `pwm`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "help": {
           "type": "string"
         },
@@ -284,6 +508,13 @@
         },
         "name": {
           "type": "string"
+        },
+        "presets": {
+          "description": "Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.",
+          "items": {
+            "$ref": "#/$defs/AdcPreset"
+          },
+          "type": "array"
         },
         "roles": {
           "items": {
@@ -303,7 +534,10 @@
         "name",
         "help",
         "roles",
-        "settings"
+        "settings",
+        "presets",
+        "decoders",
+        "decoderSettings"
       ],
       "type": "object"
     },
@@ -318,6 +552,127 @@
       },
       "required": [
         "sources"
+      ],
+      "type": "object"
+    },
+    "AnalogStatsIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "The range; the whole capture when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "Exclusive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "analog"
+      ],
+      "type": "object"
+    },
+    "AnalogStatsOut": {
+      "description": "A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it\nholds; gaps do not count.",
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "count": {
+          "description": "Values that start in the range.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "covered": {
+          "description": "The share of the range that has a value.",
+          "format": "double",
+          "type": "number"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "peakToPeak": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "step": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "analog",
+        "name",
+        "unit",
+        "from",
+        "to",
+        "count",
+        "covered"
       ],
       "type": "object"
     },
@@ -1363,6 +1718,18 @@
           },
           "type": "array"
         },
+        "dutyLevel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DutyLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Regular periods with a changing duty; only when it is not [`Self::periodic`]."
+        },
         "edgeCount": {
           "format": "uint64",
           "minimum": 0,
@@ -2189,6 +2556,54 @@
         "any"
       ],
       "type": "string"
+    },
+    "DutyLevel": {
+      "description": "A PWM that carries a level: periods of the same length, a high time that changes (a fan, a\ndimmer, a DAC by PWM). Clocks and steady PWM are [`Periodicity`] instead.",
+      "properties": {
+        "continuous": {
+          "description": "The signal never pauses between its first and last edge and spans most of the window.",
+          "type": "boolean"
+        },
+        "dutyMax": {
+          "format": "double",
+          "type": "number"
+        },
+        "dutyMean": {
+          "format": "double",
+          "type": "number"
+        },
+        "dutyMin": {
+          "description": "Lowest and highest duty, ignoring the outer 2 % of periods, and the mean.",
+          "format": "double",
+          "type": "number"
+        },
+        "periodSamples": {
+          "description": "Average rising-to-rising period, in samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "periods": {
+          "description": "Periods measured.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regularity": {
+          "description": "Fraction of periods within a few percent of the typical one.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "periodSamples",
+        "regularity",
+        "dutyMin",
+        "dutyMax",
+        "dutyMean",
+        "periods",
+        "continuous"
+      ],
+      "type": "object"
     },
     "EdgeOut": {
       "properties": {
@@ -3665,6 +4080,26 @@
           "type": "string"
         }
       ]
+    },
+    "PresetInput": {
+      "additionalProperties": false,
+      "description": "One input of a multiplexed ADC: its name and the settings that select it.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "settings"
+      ],
+      "type": "object"
     },
     "Problem": {
       "properties": {
@@ -5171,6 +5606,37 @@
         "kind": "inverse"
       }
     },
+    "analog.at": {
+      "input": {
+        "$ref": "#/$defs/AnalogAtIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogAtOut"
+      },
+      "safety": "read",
+      "summary": "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "analog.export": {
+      "input": {
+        "$ref": "#/$defs/AnalogExportIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogExportOut"
+      },
+      "safety": "read",
+      "summary": "Write virtual analog values as CSV: time, sample, and per channel its value (and raw code), a row wherever any has a new value.",
+      "undo": {
+        "kind": "never",
+        "reason": "Writing a file cannot be undone."
+      }
+    },
     "analog.remove": {
       "input": {
         "$ref": "#/$defs/AnalogRef"
@@ -5197,6 +5663,21 @@
       },
       "safety": "read",
       "summary": "The sources of virtual analog channels, with their channels and settings.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "analog.stats": {
+      "input": {
+        "$ref": "#/$defs/AnalogStatsIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogStatsOut"
+      },
+      "safety": "read",
+      "summary": "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",
       "undo": {
         "kind": "query"
       }

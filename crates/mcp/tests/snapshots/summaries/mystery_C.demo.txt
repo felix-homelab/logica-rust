@@ -1,4 +1,4 @@
-open_file: Opened c1 "mystery_C.demo": 10,000,008 samples at 10 MHz (1 s), channels CH4, CH5.
+open_file: Opened c1 "mystery_C.demo": 10,000,008 samples at 10 MS/s (1 s), channels CH4, CH5.
 
 summarize:
 I2C: scl on CH5, sda on CH4; addressFormat 7bit; confidence 100 %.

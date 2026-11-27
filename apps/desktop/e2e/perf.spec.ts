@@ -57,7 +57,7 @@ test('the window meets the doc 08 budgets', async () => {
             last = t;
             const zoomIn = Math.floor(i / 40) % 2 === 0;
             const at = { clientX: r.left + r.width * (0.3 + 0.4 * ((i % 7) / 7)), clientY: r.top + 60, bubbles: true, cancelable: true };
-            c.dispatchEvent(new WheelEvent('wheel', { ...at, deltaY: zoomIn ? -50 : 50 }));
+            c.dispatchEvent(new WheelEvent('wheel', { ...at, ctrlKey: true, deltaY: zoomIn ? -5 : 5 }));
             if (i % 3 === 0) c.dispatchEvent(new WheelEvent('wheel', { ...at, deltaX: 60 }));
             i++;
             if (t - t0 < 4000) requestAnimationFrame(step);

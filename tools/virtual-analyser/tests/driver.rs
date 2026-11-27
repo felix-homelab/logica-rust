@@ -47,10 +47,10 @@ fn a_capture_streams_in_and_decodes() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].id, format!("vla/{at}"));
     assert_eq!(list[0].model, "Virtual analyser: Bench");
-    assert_eq!(list[0].channels, 13);
+    assert_eq!(list[0].channels, 22);
 
     let mut dev = driver.open(&list[0].id).unwrap();
-    assert_eq!(dev.capabilities().rates_hz, vec![4e6, 10e6, 25e6, 100e6]);
+    assert_eq!(dev.capabilities().rates_hz, vec![4e6, 10e6, 25e6, 100e6, 250e6, 500e6, 1e9]);
     assert_eq!(dev.capabilities().modes, vec![CaptureMode::Stream]);
     // 1 MS/s is too slow for the example's SPI, so the analyser does not offer it
     assert!(dev.configure(&cfg(vec![0], 1e6, 100)).unwrap_err().0.contains("not a rate this device offers"));

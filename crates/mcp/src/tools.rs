@@ -89,12 +89,13 @@ pub const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "measure",
         title: "Measure",
-        description: "action \"stats\": frequency, period, duty cycle, pulse widths and edge count of one channel; \"edges\": the edges of channels in a range (paged); \"between\": the time between two samples.",
+        description: "action \"stats\": frequency, period, duty cycle, pulse widths and edge count of one channel; \"edges\": the edges of channels in a range (paged); \"between\": the time between two samples; \"analog\": minimum, maximum, mean and RMS of a virtual analog channel in its unit.",
         read_only: true,
         kind: Kind::Actions(&[
             ("stats", "measure.stats"),
             ("edges", "measure.edges"),
             ("between", "measure.between"),
+            ("analog", "analog.stats"),
         ]),
         hide: &[],
     },

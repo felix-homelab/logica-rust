@@ -1,4 +1,4 @@
-open_file: Opened c1 "mystery_D.demo": 50,000,008 samples at 50 MHz (1 s), channels CH0, CH2, CH3, CH4, CH5, CH6.
+open_file: Opened c1 "mystery_D.demo": 50,000,008 samples at 50 MS/s (1 s), channels CH0, CH2, CH3, CH4, CH5, CH6.
 
 summarize:
 PWM: signal on CH0; activeLevel high; confidence 100 %.

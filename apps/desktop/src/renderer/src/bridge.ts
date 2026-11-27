@@ -28,7 +28,8 @@ export interface LogicaBridge {
   ready(coldStartMs: number): void;
   failed(message: string): void;
   chooseFiles(): Promise<string[]>;
-  chooseSave(suggested: string): Promise<string | null>;
+  /** A path to save to, asked of the person; `kind` sets the dialog's file type. */
+  chooseSave(suggested: string, kind?: 'lacap' | 'csv'): Promise<string | null>;
   pathOf(file: File): string;
   opened(file: string): void;
   getSettings(): Promise<Settings>;

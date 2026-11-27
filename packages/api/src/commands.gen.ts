@@ -24,6 +24,27 @@ export const COMMANDS: readonly CommandSpec[] = [
     }
   },
   {
+    "name": "analog.at",
+    "summary": "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
+    "name": "analog.export",
+    "summary": "Write virtual analog values as CSV: time, sample, and per channel its value (and raw code), a row wherever any has a new value.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "never",
+      "reason": "Writing a file cannot be undone."
+    }
+  },
+  {
     "name": "analog.remove",
     "summary": "Remove a virtual analog channel; undo restores it with the same id.",
     "safety": "read",
@@ -36,6 +57,16 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     "name": "analog.sources",
     "summary": "The sources of virtual analog channels, with their channels and settings.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
+    "name": "analog.stats",
+    "summary": "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",
     "safety": "read",
     "lease": false,
     "longRunning": false,

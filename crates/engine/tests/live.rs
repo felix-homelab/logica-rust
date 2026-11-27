@@ -276,7 +276,7 @@ fn notes(c: &Value) -> Vec<String> {
 fn two_analysers_capture_into_one_capture_lined_up_by_a_shared_clock() {
     let (mut e, a, b) = two(250.0);
     run(&mut e, &Actor::User, "device.list", json!({}));
-    let all: Vec<u32> = (0..13).collect();
+    let all: Vec<u32> = (0..22).collect();
     configure(&mut e, &Actor::User, &a, &all, 4_000_000);
     configure(&mut e, &Actor::User, &b, &all, 4_000_000);
     let o = run(
@@ -293,11 +293,11 @@ fn two_analysers_capture_into_one_capture_lined_up_by_a_shared_clock() {
     let n = c["sampleCount"].as_u64().unwrap();
     assert!((3_950_000..=4_000_000).contains(&n), "{n}");
     let channels = c["channels"].as_array().unwrap();
-    assert_eq!(channels.len(), 26);
+    assert_eq!(channels.len(), 44);
     assert_eq!((channels[0]["index"].clone(), channels[0]["name"].clone()), (json!(0), json!("Bench: TX")));
     assert_eq!(
-        (channels[23]["index"].clone(), channels[23]["name"].clone()),
-        (json!(23), json!("Second: SYNC"))
+        (channels[32]["index"].clone(), channels[32]["name"].clone()),
+        (json!(32), json!("Second: SYNC"))
     );
     let n = notes(&c);
     assert!(

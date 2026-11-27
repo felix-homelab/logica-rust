@@ -61,6 +61,14 @@ fn sources_are_listed_with_their_channels_and_settings() {
     let keys: Vec<_> =
         pwm["settings"].as_array().unwrap().iter().map(|s| s["key"].as_str().unwrap()).collect();
     assert_eq!(keys, ["measure", "activeLevel", "expectedPeriod"]);
+    assert_eq!(pwm["presets"], json!([]));
+    // ADCs on SPI and I2C, with the chips they know
+    let spi = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "spi-adc").unwrap();
+    let ids: Vec<_> = spi["presets"].as_array().unwrap().iter().map(|p| p["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["mcp3201", "mcp3208"]);
+    assert_eq!(spi["roles"].as_array().unwrap().len(), 4);
+    let i2c = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "i2c-adc").unwrap();
+    assert_eq!(i2c["presets"][0]["settings"]["address"], 72.0);
 }
 
 #[test]
@@ -319,4 +327,251 @@ fn sessions_saved_before_virtual_channels_existed_still_open() {
     let old = json!({ "decoders": {}, "markers": [], "groups": {}, "hidden": [] });
     let s: logica_engine::state::SavedSession = serde_json::from_value(old).unwrap();
     assert!(s.analog.is_empty());
+}
+
+#[test]
+fn values_at_the_cursors() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let none = run(&mut e, "analog.at", json!({ "capture": c, "at": [0] }));
+    assert_eq!(none["channels"], json!([]), "no channels, nothing to read");
+    let id = add(&mut e, duty(&c));
+    let rate = capture(&mut e, &c)["sampleRateHz"].as_f64().unwrap();
+    let mid = (rate * 0.5) as u64;
+    let o = run(&mut e, "analog.at", json!({ "capture": c, "at": [mid, 0] }));
+    let ch = &o["channels"][0];
+    assert_eq!(
+        (ch["analog"].as_str().unwrap(), ch["name"].as_str().unwrap(), ch["unit"].as_str().unwrap()),
+        (id.as_str(), "PWM level", "%")
+    );
+    assert!(ch["step"].is_null(), "a duty has no code steps");
+    // in the order asked: half a second in it reads 30 %; before the first period, nothing
+    assert_eq!(ch["values"][0]["sample"], mid);
+    assert!(close(ch["values"][0]["value"].as_f64().unwrap(), 30.0, 1.0), "{ch}");
+    assert!(ch["values"][0]["code"].is_null());
+    assert!(ch["values"][1]["value"].is_null(), "{ch}");
+    let (code, msg) = fail(&mut e, "analog.at", json!({ "capture": c, "at": [] }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert_eq!(msg, "Give 1 to 16 samples to read the values at.");
+    let (_, msg) = fail(&mut e, "analog.at", json!({ "capture": c, "at": vec![1u64; 17] }));
+    assert!(msg.contains("1 to 16"), "{msg}");
+}
+
+#[test]
+fn numbers_over_a_range_in_the_channels_unit() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let mut input = duty(&c);
+    // 0 to 5 V with a 0.1 V trim: 30 % reads 1.6 V
+    input["scaling"] = json!({ "kind": "range", "low": 0, "high": 5, "offset": 0.1 });
+    input["unit"] = json!("V");
+    let id = add(&mut e, input);
+    let st = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id }));
+    assert_eq!(st["unit"], "V");
+    for k in ["min", "max", "mean", "rms"] {
+        assert!(close(st[k].as_f64().unwrap(), 1.6, 0.02), "{k}: {st}");
+    }
+    assert!(st["peakToPeak"].as_f64().unwrap() < 0.02, "{st}");
+    assert!(st["count"].as_u64().unwrap() > 100);
+    // the time before the first period has no value
+    let covered = st["covered"].as_f64().unwrap();
+    assert!(covered > 0.9 && covered < 1.0, "{covered}");
+    // a range before the first value has no numbers, and that is no error
+    let early = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id, "from": 0, "to": 1 }));
+    assert!(early["mean"].is_null() && early["min"].is_null(), "{early}");
+    assert_eq!(early["covered"], 0.0);
+    let (code, msg) =
+        fail(&mut e, "analog.stats", json!({ "capture": c, "analog": id, "from": 10, "to": 10 }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains("empty"), "{msg}");
+    let (code, _) = fail(&mut e, "analog.stats", json!({ "capture": c, "analog": "nope" }));
+    assert_eq!(code, ErrorCode::NotFound);
+}
+
+#[test]
+fn values_are_exported_as_csv() {
+    let dir = std::env::temp_dir().join(format!("logica-engine-csv-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let mut duty_in = duty(&c);
+    duty_in["name"] = json!("Fan, duty");
+    let a = add(&mut e, duty_in);
+    let f = add(
+        &mut e,
+        json!({ "capture": c, "source": "pwm", "roles": { "signal": 0 },
+        "settings": { "measure": "frequency" }, "scaling": { "kind": "linear", "gain": 1 }, "name": "Fan speed" }),
+    );
+    let path = dir.join("fan.csv");
+    let o = run(&mut e, "analog.export", json!({ "capture": c, "path": path, "analogs": [a, f] }));
+    let text = std::fs::read_to_string(&path).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    // a quoted name with a comma; no code columns, since a duty and a frequency are no codes
+    assert_eq!(lines[0], "time_s,sample,\"Fan, duty (%)\",Fan speed (Hz)");
+    assert_eq!(o["rows"].as_u64().unwrap() as usize, lines.len() - 1);
+    assert_eq!(o["bytes"].as_u64().unwrap(), text.len() as u64);
+    // both channels have a value from the same periods, so every row holds both
+    let row: Vec<&str> = lines[1].split(',').collect();
+    assert_eq!(row.len(), 4);
+    assert!(
+        close(row[2].parse::<f64>().unwrap(), 30.0, 1.0)
+            && close(row[3].parse::<f64>().unwrap(), 1000.0, 20.0),
+        "{}",
+        lines[1]
+    );
+    let rate = capture(&mut e, &c)["sampleRateHz"].as_f64().unwrap();
+    let sample: f64 = row[1].parse().unwrap();
+    assert!(close(row[0].parse::<f64>().unwrap(), sample / rate, 1e-9));
+    // a range from the middle starts with the values held there
+    let mid = (rate * 0.5) as u64;
+    let o = run(&mut e, "analog.export", json!({ "capture": c, "path": path, "from": mid, "to": mid + 10 }));
+    let text = std::fs::read_to_string(&path).unwrap();
+    let first = text.lines().nth(1).unwrap();
+    assert!(first.starts_with(&format!("{},{mid},", mid as f64 / rate)), "{first}");
+    assert!(o["rows"].as_u64().unwrap() >= 1);
+    // writing a file is recorded but not undone
+    let entry = run(&mut e, "session.get", json!({}))["recent"][0].clone();
+    assert_eq!(entry["done"]["command"], "analog.export");
+    let (code, msg) = fail(&mut e, "history.undo", json!({ "entry": entry["id"] }));
+    assert_eq!(code, ErrorCode::NotUndoable, "{msg}");
+    // refusals that say what to do
+    let (code, msg) =
+        fail(&mut e, "analog.export", json!({ "capture": c, "path": dir.join("no/such/dir/x.csv") }));
+    assert_eq!(code, ErrorCode::Failed);
+    assert!(msg.contains("could not be written"), "{msg}");
+    let (code, _) = fail(&mut e, "analog.export", json!({ "capture": c, "path": path, "analogs": ["nope"] }));
+    assert_eq!(code, ErrorCode::NotFound);
+    let c2 = open_mystery_d(&mut e);
+    let (_, msg) = fail(&mut e, "analog.export", json!({ "capture": c2, "path": path }));
+    assert!(msg.contains("no virtual analog channel to export"), "{msg}");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_channel_reads_from_a_decoder_and_follows_it() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let d = run(&mut e, "decoder.add", json!({ "capture": c, "protocol": "pwm", "roles": { "signal": 0 } }))
+        ["decoder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // no channels given: they come from the decoder
+    let o = run(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": d,
+        "scaling": { "kind": "range", "low": 0, "high": 100 } }),
+    );
+    let id = o["analog"]["id"].as_str().unwrap().to_string();
+    assert_eq!(o["analog"]["config"]["decoder"], d.as_str());
+    assert_eq!(o["analog"]["config"]["roles"]["signal"], 0);
+    let mean = |e: &mut Engine| {
+        run(e, "analog.stats", json!({ "capture": c, "analog": id }))["mean"].as_f64().unwrap()
+    };
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    // the decoder counts the low time now: the channel follows, and an undo takes it back
+    run(
+        &mut e,
+        "decoder.update",
+        json!({ "capture": c, "decoder": d, "settings": { "activeLevel": "low" } }),
+    );
+    assert!(close(mean(&mut e), 70.0, 1.0), "{}", mean(&mut e));
+    run(&mut e, "history.undo", json!({}));
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    // the decoder goes: the channel keeps working and says why; back with undo, the note goes
+    run(&mut e, "decoder.remove", json!({ "capture": c, "decoder": d }));
+    assert!(close(mean(&mut e), 30.0, 1.0));
+    let notes = capture(&mut e, &c)["analog"][0]["notes"].to_string();
+    assert!(notes.contains("was removed"), "{notes}");
+    run(&mut e, "history.undo", json!({}));
+    let notes = capture(&mut e, &c)["analog"][0]["notes"].to_string();
+    assert!(!notes.contains("was removed"), "{notes}");
+    // a decoder the source cannot read, and one that is not there
+    let spi = run(
+        &mut e,
+        "decoder.add",
+        json!({ "capture": c, "protocol": "spi",
+        "roles": { "clk": 5, "cs": 3, "mosi": 6, "miso": 2 } }),
+    )["decoder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (code, msg) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": spi,
+        "scaling": { "kind": "range", "low": 0, "high": 1 } }),
+    );
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains("is read by the source spi-adc"), "{msg}");
+    let (code, _) = fail(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "pwm", "roles": {}, "decoder": "nope",
+        "scaling": { "kind": "range", "low": 0, "high": 1 } }),
+    );
+    assert_eq!(code, ErrorCode::NotFound);
+    // an ADC on the SPI decoder takes its channels and mode
+    let o = run(
+        &mut e,
+        "analog.add",
+        json!({ "capture": c, "source": "spi-adc", "roles": {}, "decoder": spi,
+        "settings": { "bits": 8 }, "scaling": { "kind": "range", "low": 0, "high": 3.3 } }),
+    );
+    assert_eq!(o["analog"]["config"]["roles"]["clk"], 5);
+    assert_eq!(o["analog"]["config"]["settings"]["bits"], 8.0);
+    // changing such a channel keeps the decoder's bus settings
+    let adc = o["analog"]["id"].as_str().unwrap().to_string();
+    let u = run(
+        &mut e,
+        "analog.update",
+        json!({ "capture": c, "analog": adc, "settings": { "bits": 10 }, "replaceSettings": true }),
+    );
+    assert_eq!(u["analog"]["config"]["settings"]["mode"], "0");
+    assert_eq!(u["analog"]["config"]["settings"]["bits"], 10.0);
+    // the sources say which decoders they read and which settings then come from them
+    let s = run(&mut e, "analog.sources", json!({}));
+    let spi = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "spi-adc").unwrap().clone();
+    assert_eq!(spi["decoders"], json!(["spi"]));
+    assert_eq!(spi["decoderSettings"], json!(["mode", "bitOrder", "wordSize", "csPolarity"]));
+    let pwm = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "pwm").unwrap().clone();
+    assert_eq!(pwm["decoderSettings"], json!(["activeLevel"]));
+}
+
+#[test]
+fn a_live_capture_at_one_gigasample_a_second() {
+    // the virtual analyser sends transitions, so a fast rate costs little: 0.2 s at 1 GS/s
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let at = listener.local_addr().unwrap().to_string();
+    let mut cfg = logica_vla::config::Config::example();
+    cfg.seed = Some(9);
+    cfg.listen.clone_from(&at);
+    std::thread::spawn(move || logica_vla::server::serve(listener, cfg, Arc::new(|_: &str| {})));
+    let mut e = Engine::new(EngineConfig { vla_addresses: vec![at.clone()], ..EngineConfig::default() });
+    let dev = format!("vla/{at}");
+    run(&mut e, "device.connect", json!({ "device": dev }));
+    run(
+        &mut e,
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [12], "sampleRateHz": 1e9, "samples": 200_000_000u64, "mode": "stream" } }),
+    );
+    let c = run(&mut e, "capture.start", json!({ "device": dev, "wait": false }))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    poll_until(&mut e, |e| capture(e, &c)["state"] == "complete");
+    assert_eq!(capture(&mut e, &c)["sampleCount"], 200_000_000u64);
+    // the SINE level (10 % to 90 % once a second): a fifth of a second of it rises from the middle
+    let id = add(
+        &mut e,
+        json!({ "capture": c, "source": "pwm", "roles": { "signal": 12 },
+        "scaling": { "kind": "range", "low": 0, "high": 100 } }),
+    );
+    let st = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id }));
+    assert!(st["count"].as_u64().unwrap() >= 195, "{st}");
+    assert!(
+        close(st["min"].as_f64().unwrap(), 50.0, 1.0) && close(st["max"].as_f64().unwrap(), 88.0, 2.0),
+        "{st}"
+    );
 }

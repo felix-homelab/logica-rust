@@ -143,8 +143,11 @@ export type ErrorCode = ("cancelled" | "invalid-input" | "not-found" | "busy" | 
 export interface Contract {
 inputs: {
 "analog.add": AnalogAddIn
+"analog.at": AnalogAtIn
+"analog.export": AnalogExportIn
 "analog.remove": AnalogRef
 "analog.sources": Nothing
+"analog.stats": AnalogStatsIn
 "analog.update": AnalogUpdateIn
 "analog.values": AnalogValuesIn
 "analysis.bytes": BytesIn
@@ -191,8 +194,11 @@ render: RenderIn
 }
 outputs: {
 "analog.add": AnalogOut
+"analog.at": AnalogAtOut
+"analog.export": AnalogExportOut
 "analog.remove": Nothing
 "analog.sources": AnalogSourcesOut
+"analog.stats": AnalogStatsOut
 "analog.update": AnalogOut
 "analog.values": AnalogValuesOut
 "analysis.bytes": ByteAnalysis
@@ -245,6 +251,12 @@ historyEntry: HistoryEntry
 export interface AnalogAddIn {
 capture: string
 /**
+ * A decoder of the capture to read from (SPI and I2C for the ADC sources, PWM for the PWM
+ * level): its channels and bus settings are used instead of `roles`, and follow it when it
+ * changes.
+ */
+decoder?: (string | null)
+/**
  * Row height in pixels, 40 to 800 (160 unless given).
  */
 height?: (number | null)
@@ -280,9 +292,47 @@ source: string
 style?: (AnalogStyle | null)
 unit?: (string | null)
 }
+export interface AnalogAtIn {
+/**
+ * Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.
+ */
+at: number[]
+capture: string
+}
+export interface AnalogExportIn {
+/**
+ * The channels, in this order; all of the capture's when absent.
+ */
+analogs?: (string[] | null)
+capture: string
+/**
+ * The range; the whole capture when absent.
+ */
+from?: (number | null)
+/**
+ * Where to write the CSV file, on the machine running the engine.
+ */
+path: string
+/**
+ * Exclusive.
+ */
+to?: (number | null)
+}
 export interface AnalogRef {
 analog: string
 capture: string
+}
+export interface AnalogStatsIn {
+analog: string
+capture: string
+/**
+ * The range; the whole capture when absent.
+ */
+from?: (number | null)
+/**
+ * Exclusive.
+ */
+to?: (number | null)
 }
 export interface AnalogUpdateIn {
 analog: string
@@ -789,6 +839,10 @@ step?: (number | null)
  */
 export interface AnalogConfig {
 /**
+ * The decoder it reads from, if any: its channels and bus settings follow that decoder's.
+ */
+decoder?: (string | null)
+/**
  * Height of its row in the waveform, in pixels (40 to 800).
  */
 height?: number
@@ -829,15 +883,97 @@ kind: PointKind
  */
 unit?: (string | null)
 }
+export interface AnalogAtOut {
+channels: AnalogAtChannel[]
+}
+/**
+ * One channel's values at the asked samples, in its unit.
+ */
+export interface AnalogAtChannel {
+analog: string
+name: string
+/**
+ * One step of the code in the unit, where the source reads codes.
+ */
+step?: (number | null)
+unit: string
+/**
+ * In the order asked; `value` is absent where the channel has none (before its first value,
+ * in a gap).
+ */
+values: AnalogPoint[]
+}
+/**
+ * A value in the channel's unit from `sample` on; `value` is absent in a gap.
+ */
+export interface AnalogPoint {
+/**
+ * The raw code, where the source reads codes.
+ */
+code?: (number | null)
+sample: number
+value?: (number | null)
+}
+export interface AnalogExportOut {
+bytes: number
+path: string
+/**
+ * Rows of values, without the header.
+ */
+rows: number
+}
 export interface AnalogSourcesOut {
 sources: AnalogSourceEntry[]
 }
 export interface AnalogSourceEntry {
+/**
+ * Its settings that then come from the decoder (the bus's own).
+ */
+decoderSettings: string[]
+/**
+ * Decoder protocols it can read from instead of its own channels (`spi`, `i2c`, `pwm`).
+ */
+decoders: string[]
 help: string
 id: string
 name: string
+/**
+ * Chips it knows (ADC presets): settings, scaling and, for several inputs, one channel each.
+ */
+presets: AdcPreset[]
 roles: RoleSpec[]
 settings: SettingSpec[]
+}
+export interface AdcPreset {
+help: string
+high: number
+id: string
+/**
+ * For an ADC with several inputs: one virtual channel each.
+ */
+inputs?: PresetInput[]
+/**
+ * The scaling's lowest and highest value, and the unit.
+ */
+low: number
+name: string
+settings: {
+[k: string]: SettingValue
+}
+/**
+ * The source it fills (`spi-adc`, `i2c-adc`).
+ */
+source: string
+unit: string
+}
+/**
+ * One input of a multiplexed ADC: its name and the settings that select it.
+ */
+export interface PresetInput {
+name: string
+settings: {
+[k: string]: SettingValue
+}
 }
 /**
  * A channel a protocol needs.
@@ -857,6 +993,31 @@ help?: (string | null)
 key: string
 kind: SettingKind
 label: string
+}
+/**
+ * A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it
+ * holds; gaps do not count.
+ */
+export interface AnalogStatsOut {
+analog: string
+/**
+ * Values that start in the range.
+ */
+count: number
+/**
+ * The share of the range that has a value.
+ */
+covered: number
+from: number
+max?: (number | null)
+mean?: (number | null)
+min?: (number | null)
+name: string
+peakToPeak?: (number | null)
+rms?: (number | null)
+step?: (number | null)
+to: number
+unit: string
 }
 export interface AnalogValuesOut {
 /**
@@ -895,17 +1056,6 @@ gap: boolean
 held?: (number | null)
 max?: (number | null)
 min?: (number | null)
-}
-/**
- * A value in the channel's unit from `sample` on; `value` is absent in a gap.
- */
-export interface AnalogPoint {
-/**
- * The raw code, where the source reads codes.
- */
-code?: (number | null)
-sample: number
-value?: (number | null)
 }
 /**
  * A problem in the range: a stretch without a value or with a doubtful one, and why.
@@ -1049,6 +1199,10 @@ channel: number
  * Pulse widths grouped, narrowest first.
  */
 clusters: WidthCluster[]
+/**
+ * Regular periods with a changing duty; only when it is not [`Self::periodic`].
+ */
+dutyLevel?: (DutyLevel | null)
 edgeCount: number
 firstEdge?: (number | null)
 /**
@@ -1087,6 +1241,34 @@ low: number
 max: number
 mean: number
 min: number
+}
+/**
+ * A PWM that carries a level: periods of the same length, a high time that changes (a fan, a
+ * dimmer, a DAC by PWM). Clocks and steady PWM are [`Periodicity`] instead.
+ */
+export interface DutyLevel {
+/**
+ * The signal never pauses between its first and last edge and spans most of the window.
+ */
+continuous: boolean
+dutyMax: number
+dutyMean: number
+/**
+ * Lowest and highest duty, ignoring the outer 2 % of periods, and the mean.
+ */
+dutyMin: number
+/**
+ * Average rising-to-rising period, in samples.
+ */
+periodSamples: number
+/**
+ * Periods measured.
+ */
+periods: number
+/**
+ * Fraction of periods within a few percent of the typical one.
+ */
+regularity: number
 }
 export interface Narrowest {
 count: number

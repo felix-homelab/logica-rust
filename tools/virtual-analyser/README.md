@@ -9,7 +9,7 @@ hardware.
 ## Run it
 
 ```
-cargo run -p logica-vla                          # the built-in mix on thirteen channels (CH11, CH12: PWM levels), real time
+cargo run -p logica-vla                          # the built-in mix on 22 channels (CH11, CH12: PWM levels; CH13–21: MCP3201, MCP3208, ADS1115), real time
 cargo run -p logica-vla -- --config tools/virtual-analyser/examples/busy-sensors.json
 cargo run -p logica-vla -- --seed 42             # the same signals in every capture
 cargo run -p logica-vla -- --print-config        # the built-in configuration as a starting point
@@ -30,7 +30,7 @@ A JSON file; everything but `signals` has a default:
 | `name` | `Bench` | Shown as "Virtual analyser: Bench" (also `--name`) |
 | `listen` | `127.0.0.1:7171` | Address to listen on |
 | `channelCount` | 8 | Channels 0 to n−1; those no signal uses stay low |
-| `sampleRatesHz` | 1, 4, 10, 25, 100 MS/s | Rates offered; a rate too slow for a signal is left out |
+| `sampleRatesHz` | 1, 4, 10, 25, 100, 250, 500, 1000 MS/s | Rates offered (samples per second); a rate too slow for a signal is left out. The analyser sends transitions, not samples, so a fast rate costs little |
 | `seed` | none | The same seed gives the same signals; without one, each capture differs |
 | `speed` | 1 | 1 is real time, 0 as fast as Logica takes the data |
 | `tileMs` | 20 | Signal time per batch sent |
@@ -47,6 +47,7 @@ Signals (`kind`), each on its own channels:
 | `clock` | `channel`, `name`, `frequencyHz` |
 | `noise` | `channel`, `name`, `meanUs` (200): random changes about that far apart |
 | `shared` | `channel`, `name` (SYNC), `frequencyHz` (100): a clock on the computer's time, so analysers on one computer see the same edges, each at its own samples |
+| `adc` | `chip` (`mcp3201`, `mcp3208`, `ads1115`), its pins (MCP3201: `clk`, `cs`, `miso`; MCP3208: also `mosi`; ADS1115: `scl`, `sda`), `clockHz` (250 kHz), `sampleHz` (1000; the MCP3208's inputs share it), `sinePeriodMs` (1000), `range` ([0.1, 0.9]): an ADC sending a sine over that share of full scale (the MCP3208's eight inputs 45° apart), in the format of its preset in Logica |
 
 `everyMs` is the pause between bursts, picked at random between the two numbers. Mistakes are
 explained before anything listens (`--check` only checks). Examples are in `examples/`.

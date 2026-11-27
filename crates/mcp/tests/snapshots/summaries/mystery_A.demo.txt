@@ -1,4 +1,4 @@
-open_file: Opened c1 "mystery_A.demo": 40,000,008 samples at 40 MHz (1 s), channels CH0, CH1.
+open_file: Opened c1 "mystery_A.demo": 40,000,008 samples at 40 MS/s (1 s), channels CH0, CH1.
 
 summarize:
 UART: data on CH0; baud 38400, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.

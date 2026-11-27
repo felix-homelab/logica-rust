@@ -5,4 +5,4 @@ pub mod scale;
 pub mod series;
 
 pub use scale::{Encoding, PointKind, ScaleError, Scaling, code_of_fraction, fraction_of_code};
-pub use series::{Envelope, Point, SeriesError, ValueSeries};
+pub use series::{Envelope, Point, SeriesError, SeriesStats, ValueSeries};

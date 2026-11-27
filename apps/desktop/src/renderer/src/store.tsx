@@ -104,6 +104,8 @@ function busyLabel(command: string, input: unknown): string | null {
     case 'analog.add':
     case 'analog.update':
       return 'Computing values…';
+    case 'analog.export':
+      return 'Exporting…';
     default:
       return null;
   }

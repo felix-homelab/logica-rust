@@ -15,6 +15,24 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   a stopped PWM reads 0 % or 100 % with a reason).
 - Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
   live following, saving in `.lacap`.
+- PDM / sigma-delta: sinc³ CIC with decimation 2 to 1024, rising or falling clock edge. No
+  virtual analyser signal for it yet.
+- Parallel bus: up to 16 bits, on a clock edge with an enable, or settled words without a clock;
+  ADC0804 preset. No virtual analyser signal for it yet.
+- Serial ADC: `spi-adc` and `i2c-adc` (a layer running the bus decoder inside itself), presets
+  MCP3201, MCP3208 (8 inputs) and ADS1115, chosen in the dialog's settings step; the virtual
+  analyser sends an MCP3201 sine on CH13 to CH15.
+- Virtual analyser: MCP3201, MCP3208 (8 inputs) and ADS1115 signals (CH13 to CH21); rates up to
+  1 GS/s, tried live in an engine test (0.2 s, 200 million samples).
+- From a decoder: a channel can read from an SPI, I2C or PWM decoder and follows it.
+- Export: `analog.export` writes one CSV table (sample and hold across channels); a button in the
+  channel list with the system's save dialog.
+- Measurements: `analog.stats` (time-weighted mean and RMS, extremes, peak to peak, coverage) in
+  the Measurements panel and as the `measure` tool's `analog` action.
+- Cursors: the Measurements panel reads every virtual analog channel at cursors A and B (value,
+  raw code, the difference B − A, one step), through `analog.at`.
+- Detection: a PWM with a changing duty is a PWM carrying a level (`DutyLevel` in the channel
+  measurements), no longer UART; the analysis card offers "Add PWM level".
 - Window: a row per channel (160 pixels unless resized by dragging its bottom edge or in the
   dialog; the height is part of the definition, so it is saved and undoable) with a value axis,
   steps or a line, problems outlined; the channel list's "Virtual analog" section and a dialog in
@@ -22,11 +40,9 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
 
 ### Not done yet
 
-- The value, raw code and step at the cursor (doc 08) come with the measurements step.
 - The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
   and says which to use.
-- Serial ADC with presets, parallel bus, PDM, measurements, CSV export, search and math channels
-  (doc 11, M2a).
+- Search and math channels (doc 11, M2a).
 
 ## M2 Desktop app and viewer (November 2026)
 

@@ -1,8 +1,8 @@
 // The waveform's view arithmetic and the number formats the window shows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN, atEnd, following, liveView } from '../src/renderer/src/viewmath.ts';
-import { time, elapsed, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
+import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN, atEnd, following, liveView, adoptEngineView } from '../src/renderer/src/viewmath.ts';
+import { time, elapsed, hz, int, tick, tickStep, at, rate } from '../src/renderer/src/format.ts';
 
 test('ranges stay inside the capture and never get too small', () => {
   assert.deepEqual(clampRange({ from: -50, to: 50 }, 1000), { from: 0, to: 100 });
@@ -135,4 +135,41 @@ test('a running time keeps two decimals, so it does not jump while it counts', (
   // the same width from 10 s to 59.99 s
   const widths = new Set([10, 10.1, 11.11, 25.5, 59.99].map((t) => elapsed(t).length));
   assert.equal(widths.size, 1);
+});
+
+test("a session does not take back the person's own view; an agent's change does", () => {
+  const v = (mine, engine, seen, sending = false) => adoptEngineView({ mine, engine, seen, sending });
+  // a new tab takes the engine's view
+  assert.equal(v(null, 'e', null), true);
+  // the engine's view unchanged since last seen: the person's new cursor stays
+  assert.equal(v('mine+cursor', 'e', 'e'), false);
+  // never seen before (the first click on a tab): it stays too; this was the bug
+  assert.equal(v('mine+cursor', 'e', null), false);
+  // while the person's change is being sent, nothing replaces it
+  assert.equal(v('mine', 'agent', 'e', true), false);
+  // an agent moved the view: it differs from what was seen and from the person's
+  assert.equal(v('mine', 'agent', 'e'), true);
+  // the engine already shows the person's view: nothing to take
+  assert.equal(v('same', 'same', 'e'), false);
+});
+
+test('sample rates are samples per second, frequencies hertz', () => {
+  assert.equal(rate(1e9), '1 GS/s');
+  assert.equal(rate(100e6), '100 MS/s');
+  assert.equal(rate(250e3), '250 kS/s');
+  assert.equal(rate(12), '12 S/s');
+  assert.equal(rate(Number.NaN), '–');
+  assert.equal(hz(1e6), '1 MHz');
+});
+
+test('the wheel scrolls the channels; Ctrl zooms, Shift or a sideways swipe pans', async () => {
+  const { wheelAction } = await import('../src/renderer/src/viewmath.ts');
+  const w = (o) => wheelAction({ ctrlKey: false, metaKey: false, shiftKey: false, deltaX: 0, deltaY: 0, ...o });
+  assert.equal(w({ deltaY: 100 }), 'scroll');
+  assert.equal(w({ deltaY: 100, ctrlKey: true }), 'zoom');
+  assert.equal(w({ deltaY: -3, ctrlKey: true }), 'zoom', 'a trackpad pinch');
+  assert.equal(w({ deltaY: 100, metaKey: true }), 'zoom');
+  assert.equal(w({ deltaY: 100, shiftKey: true }), 'pan');
+  assert.equal(w({ deltaX: 40, deltaY: 5 }), 'pan', 'a sideways swipe');
+  assert.equal(w({ deltaX: 40, deltaY: 5, ctrlKey: true }), 'zoom');
 });

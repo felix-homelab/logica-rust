@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
 import { Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Status, Switch, TextField } from '@logica/ui';
 import { Activity, Check, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
-import { at, hz, int } from '../format';
+import { at, hz, int, rate } from '../format';
 import { isAgent, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
 import type { ViewState } from './Waveform';
@@ -183,6 +183,9 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
   const a = result?.capture === capture.id ? result.analysis : null;
   const has = (protocol: string, roles: Record<string, number | null>) =>
     capture.decoders.some((d) => d.config.protocol === protocol && JSON.stringify(d.config.roles) === JSON.stringify(roles));
+  // a PWM level on the same channel is there already
+  const hasLevel = (roles: Record<string, number | null>) =>
+    capture.analog.some((a) => a.config.source === 'pwm' && a.config.roles['signal'] === roles['signal']);
   return (
     <div className="sections">
       <div className="section section--bar">
@@ -245,6 +248,26 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
                 >
                   {has(d.protocolId, d.roles) ? 'Decoder added' : 'Add decoder'}
                 </Button>
+                {d.protocolId === 'pwm' && (
+                  // a PWM carries a level: show it as a curve (ADR 0010), duty in per cent
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={hasLevel(d.roles) ? <Check /> : <Activity />}
+                    disabled={hasLevel(d.roles)}
+                    onClick={() =>
+                      void run('analog.add', {
+                        capture: capture.id,
+                        source: 'pwm',
+                        roles: d.roles,
+                        scaling: { kind: 'range', low: 0, high: 100 },
+                        unit: '%',
+                      })
+                    }
+                  >
+                    {hasLevel(d.roles) ? 'PWM level added' : 'Add PWM level'}
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -377,6 +400,25 @@ function DecoderSettings({ capture, decoder: d, protocol: p }: { capture: Captur
           {n}
         </p>
       ))}
+      <TextField
+        // a new name from elsewhere (an agent, undo) replaces what the field shows
+        key={d.config.name}
+        label="Name"
+        defaultValue={d.config.name}
+        hint="Shown above its channels, in the decoded table and to agents."
+        onBlur={(e) => {
+          const name = e.target.value.trim();
+          if (name && name !== d.config.name) void run('decoder.update', { capture: capture.id, decoder: d.id, name });
+          else e.target.value = d.config.name;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            e.currentTarget.value = d.config.name;
+            e.currentTarget.blur();
+          }
+        }}
+      />
       <label className="lg-field">
         <span className="lg-field__label">Show data as</span>
         <select
@@ -404,6 +446,7 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
   const protocols = useProtocols();
   const [adding, setAdding] = useState('');
   const [roles, setRoles] = useState<Record<string, number | null>>({});
+  const [name, setName] = useState('');
   const byId = useMemo(() => new Map(protocols.map((p) => [p.id, p])), [protocols]);
   const chosen = byId.get(adding);
   return (
@@ -461,13 +504,25 @@ export function DecodersPanel({ capture }: { capture: CaptureInfo }) {
           </label>
         ))}
         {chosen && (
+          <TextField
+            label="Name (optional)"
+            value={name}
+            placeholder={chosen.name}
+            hint="Says what it is, such as EEPROM bus; the protocol's name otherwise."
+            onChange={(e) => setName(e.target.value)}
+          />
+        )}
+        {chosen && (
           <div className="row">
             <Button
               variant="primary"
               size="sm"
               icon={<Plus />}
               disabled={chosen.roles.some((r) => !r.optional && (roles[r.key] ?? null) === null)}
-              onClick={() => void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles })}
+              onClick={() => {
+                void run('decoder.add', { capture: capture.id, protocol: chosen.id, roles, ...(name.trim() ? { name: name.trim() } : {}) });
+                setName('');
+              }}
             >
               Add {chosen.name}
             </Button>
@@ -671,7 +726,7 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
               )}
             </div>
             <p className="muted">
-              {id} · {caps.channels.length} channels · up to {hz(Math.max(...caps.ratesHz))}
+              {id} · {caps.channels.length} channels · up to {rate(Math.max(...caps.ratesHz))}
             </p>
             <div className="row">
               {holder && holder !== 'user' && (

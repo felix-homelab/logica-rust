@@ -83,13 +83,13 @@ pub fn programs() -> Vec<Program> {
     let mut out = vec![
         Program {
             name: "mix".into(),
-            title: "UART, I2C, SPI and PWM on 8 channels at 100 MHz".into(),
+            title: "UART, I2C, SPI and PWM on 8 channels at 100 MS/s".into(),
             tile: mix_tile(),
             dense: None,
         },
         Program {
             name: "mix-dense".into(),
-            title: "UART, I2C, SPI and PWM at 100 MHz, with a 25 MHz stretch on channel 7".into(),
+            title: "UART, I2C, SPI and PWM at 100 MS/s, with a 25 MHz stretch on channel 7".into(),
             tile: mix_tile(),
             dense: Some((DENSE_START, DENSE_LEN)),
         },
@@ -186,7 +186,7 @@ impl Device for SyntheticDevice {
         self.caps.check(config).map_err(|e| {
             if config.sample_rate_hz != self.program.tile.rate {
                 DeviceError::new(format!(
-                    "The synthetic program \"{}\" runs at {} MHz; choose that rate.",
+                    "The synthetic program \"{}\" runs at {} MS/s; choose that rate.",
                     self.program.name,
                     self.program.tile.rate / 1e6
                 ))
@@ -358,7 +358,7 @@ mod tests {
         };
         assert_eq!(
             d.configure(&bad).unwrap_err().0,
-            "The synthetic program \"mix\" runs at 100 MHz; choose that rate."
+            "The synthetic program \"mix\" runs at 100 MS/s; choose that rate."
         );
         let mut sink = StoreSink::new(StoreTarget::memory());
         assert!(d.run(&mut sink, &StopSignal::new()).is_err(), "not configured");
