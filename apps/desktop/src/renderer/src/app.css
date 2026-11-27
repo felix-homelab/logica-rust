@@ -485,6 +485,10 @@ legend {
 .channels__group + .channels__group {
   margin-top: var(--space-2);
 }
+/* "Add virtual analog channel" before there is one: in line with the channel names */
+.channels__add {
+  padding: var(--space-2) var(--space-3);
+}
 .channels__group-head {
   display: flex;
   align-items: center;

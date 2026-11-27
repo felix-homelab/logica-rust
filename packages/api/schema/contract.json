@@ -17,6 +17,617 @@
       ],
       "type": "object"
     },
+    "AnalogAddIn": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "type": "string"
+        },
+        "height": {
+          "description": "Row height in pixels, 40 to 800 (160 unless given).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Chosen by the engine; redo and undo use the id it had.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "scaling": {
+          "$ref": "#/$defs/Scaling",
+          "description": "For a fraction (an ADC code, a PWM duty): `{ \"kind\": \"range\", \"low\", \"high\", \"offset\" }`;\nfor a measured quantity (Hz, s): `{ \"kind\": \"linear\", \"gain\", \"offset\" }`."
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "source": {
+          "description": "The source's id (`analog.sources`).",
+          "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnalogStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "source",
+        "roles",
+        "scaling"
+      ],
+      "type": "object"
+    },
+    "AnalogBucket": {
+      "description": "One bucket in the channel's unit.",
+      "properties": {
+        "count": {
+          "description": "Values starting in the bucket.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "gap": {
+          "description": "Whether a gap starts in it.",
+          "type": "boolean"
+        },
+        "held": {
+          "description": "The value held at the bucket's start.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "count",
+        "gap"
+      ],
+      "type": "object"
+    },
+    "AnalogConfig": {
+      "description": "A virtual analog channel's definition: what `analog.add` takes, an undo restores and a\n`.lacap` saves.",
+      "properties": {
+        "height": {
+          "default": 160,
+          "description": "Height of its row in the waveform, in pixels (40 to 800).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "scaling": {
+          "$ref": "#/$defs/Scaling"
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "source": {
+          "description": "The source's id (`analog.sources` lists them).",
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/AnalogStyle",
+          "default": "step"
+        },
+        "unit": {
+          "default": "",
+          "description": "The unit of its values, such as `V` or `%`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "roles",
+        "scaling",
+        "name"
+      ],
+      "type": "object"
+    },
+    "AnalogOut": {
+      "properties": {
+        "analog": {
+          "$ref": "#/$defs/AnalogSummary"
+        }
+      },
+      "required": [
+        "analog"
+      ],
+      "type": "object"
+    },
+    "AnalogPoint": {
+      "description": "A value in the channel's unit from `sample` on; `value` is absent in a gap.",
+      "properties": {
+        "code": {
+          "description": "The raw code, where the source reads codes.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sample": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "value": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sample"
+      ],
+      "type": "object"
+    },
+    "AnalogProblem": {
+      "description": "A problem in the range: a stretch without a value or with a doubtful one, and why.",
+      "properties": {
+        "end": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "start": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "message"
+      ],
+      "type": "object"
+    },
+    "AnalogRef": {
+      "additionalProperties": false,
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture",
+        "analog"
+      ],
+      "type": "object"
+    },
+    "AnalogSourceEntry": {
+      "properties": {
+        "help": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/RoleSpec"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/SettingSpec"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "help",
+        "roles",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "AnalogSourcesOut": {
+      "properties": {
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/AnalogSourceEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "type": "object"
+    },
+    "AnalogStyle": {
+      "description": "How a channel is drawn: the value held until the next point, or a line between points.",
+      "enum": [
+        "step",
+        "line"
+      ],
+      "type": "string"
+    },
+    "AnalogSummary": {
+      "description": "What `session.get` says about a virtual analog channel.",
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/AnalogConfig"
+        },
+        "id": {
+          "type": "string"
+        },
+        "live": {
+          "description": "Still following a running capture.",
+          "type": "boolean"
+        },
+        "max": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "description": "Lowest and highest value, in the channel's unit.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "output": {
+          "$ref": "#/$defs/SourceOutput"
+        },
+        "points": {
+          "description": "Entries in the series (values and gaps).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "problemCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "checksum": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "frame-error": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "glitch": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "incomplete": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "parity-error": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "protocol": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stuffing": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "timing": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "step": {
+          "description": "One step of the code in the channel's unit, where the points are codes.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "config",
+        "output",
+        "points",
+        "problemCounts",
+        "notes",
+        "live"
+      ],
+      "type": "object"
+    },
+    "AnalogUpdateIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replaceSettings": {
+          "default": false,
+          "type": "boolean"
+        },
+        "roles": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "scaling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scaling"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettingValue"
+          },
+          "description": "Merged into the current settings, unless `replaceSettings` is set.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnalogStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "analog"
+      ],
+      "type": "object"
+    },
+    "AnalogValuesIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "buckets": {
+          "description": "How many buckets the range is drawn in (1 to 8192): points when there are at most two per\nbucket, else one envelope per bucket.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to": {
+          "description": "Exclusive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capture",
+        "analog",
+        "from",
+        "to",
+        "buckets"
+      ],
+      "type": "object"
+    },
+    "AnalogValuesOut": {
+      "properties": {
+        "bucket": {
+          "description": "Samples per bucket.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "buckets": {
+          "items": {
+            "$ref": "#/$defs/AnalogBucket"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "held": {
+          "description": "The value held at `from`, from a point before it.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/AnalogPoint"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "problems": {
+          "description": "At most 1,000.",
+          "items": {
+            "$ref": "#/$defs/AnalogProblem"
+          },
+          "type": "array"
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bucket",
+        "unit",
+        "problems"
+      ],
+      "type": "object"
+    },
     "Bus": {
       "properties": {
         "channels": {
@@ -475,6 +1086,13 @@
     },
     "CaptureSummary": {
       "properties": {
+        "analog": {
+          "description": "Virtual analog channels (ADR 0010).",
+          "items": {
+            "$ref": "#/$defs/AnalogSummary"
+          },
+          "type": "array"
+        },
         "artefact": {
           "description": "Samples left out of analysis (a start-up artefact).",
           "maxItems": 2,
@@ -585,6 +1203,7 @@
         "notes",
         "channels",
         "decoders",
+        "analog",
         "markers",
         "view",
         "savedDecoders",
@@ -1618,6 +2237,21 @@
       ],
       "type": "object"
     },
+    "Encoding": {
+      "description": "How a raw ADC code stands for a fraction of full scale.",
+      "oneOf": [
+        {
+          "const": "unsigned",
+          "description": "Straight binary: 0 is the bottom of the range. Offset binary is this with a negative `low`.",
+          "type": "string"
+        },
+        {
+          "const": "twosComplement",
+          "description": "Two's complement: the top bit is the sign. The most negative code is the bottom of the\nrange and 0 its middle, so `low` and `high` are the ends of a bipolar range.",
+          "type": "string"
+        }
+      ]
+    },
     "ErrorCode": {
       "oneOf": [
         {
@@ -1734,6 +2368,27 @@
             "event",
             "capture",
             "decoder"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A virtual analog channel was added, changed, removed or computed further. Also after undo\nand redo.",
+          "properties": {
+            "analog": {
+              "type": "string"
+            },
+            "capture": {
+              "type": "string"
+            },
+            "event": {
+              "const": "analog.updated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "capture",
+            "analog"
           ],
           "type": "object"
         },
@@ -2996,6 +3651,21 @@
       ],
       "type": "object"
     },
+    "PointKind": {
+      "description": "What a source's points mean, so the scaling that fits them can be checked.",
+      "oneOf": [
+        {
+          "const": "fraction",
+          "description": "A fraction of full scale: an ADC code, a duty cycle, a bit density.",
+          "type": "string"
+        },
+        {
+          "const": "quantity",
+          "description": "A measured quantity with a unit of its own: a frequency, a period, a pulse width.",
+          "type": "string"
+        }
+      ]
+    },
     "Problem": {
       "properties": {
         "code": {
@@ -3590,6 +4260,62 @@
       ],
       "type": "object"
     },
+    "Scaling": {
+      "description": "The linear step from a source's points to values in the channel's unit.",
+      "oneOf": [
+        {
+          "description": "For fractions: `low + fraction × (high − low) + offset`. `low` and `high` are the ends of\nthe source's full scale (for an ADC its reference voltages); the offset is a calibration\ntrim. Following ADC datasheets, the highest code reads one step below `high`.",
+          "properties": {
+            "high": {
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "range",
+              "type": "string"
+            },
+            "low": {
+              "format": "double",
+              "type": "number"
+            },
+            "offset": {
+              "default": 0.0,
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "low",
+            "high"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "For measured quantities: `quantity × gain + offset`.",
+          "properties": {
+            "gain": {
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "linear",
+              "type": "string"
+            },
+            "offset": {
+              "default": 0.0,
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "gain"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "SearchIn": {
       "additionalProperties": false,
       "properties": {
@@ -3873,6 +4599,38 @@
         "synthetic"
       ],
       "type": "string"
+    },
+    "SourceOutput": {
+      "description": "What the points of a source mean with given settings.",
+      "properties": {
+        "bits": {
+          "description": "Bits of the code behind a fraction, for the raw code and the step size; `None` when the\nfraction is not a code (a PWM duty).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "encoding": {
+          "$ref": "#/$defs/Encoding"
+        },
+        "kind": {
+          "$ref": "#/$defs/PointKind"
+        },
+        "unit": {
+          "description": "The unit of a measured quantity (`Hz`, `s`); `None` for fractions.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "encoding"
+      ],
+      "type": "object"
     },
     "Span": {
       "description": "A half-open stretch of samples; fractional ends come from averaged periods.",
@@ -4398,6 +5156,81 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "apiVersion": "1.0",
   "commands": {
+    "analog.add": {
+      "input": {
+        "$ref": "#/$defs/AnalogAddIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogOut"
+      },
+      "safety": "read",
+      "summary": "Add a virtual analog channel computed from digital channels (source, roles, settings, scaling); undo removes it.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "analog.remove": {
+      "input": {
+        "$ref": "#/$defs/AnalogRef"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "safety": "read",
+      "summary": "Remove a virtual analog channel; undo restores it with the same id.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "analog.sources": {
+      "input": {
+        "$ref": "#/$defs/Nothing"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogSourcesOut"
+      },
+      "safety": "read",
+      "summary": "The sources of virtual analog channels, with their channels and settings.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "analog.update": {
+      "input": {
+        "$ref": "#/$defs/AnalogUpdateIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogOut"
+      },
+      "safety": "read",
+      "summary": "Change a virtual analog channel's source, channels, settings, scaling, name, unit or style.",
+      "undo": {
+        "kind": "inverse"
+      }
+    },
+    "analog.values": {
+      "input": {
+        "$ref": "#/$defs/AnalogValuesIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogValuesOut"
+      },
+      "safety": "read",
+      "summary": "Values of a virtual analog channel in a range, in its unit: points, or an envelope per bucket, with problems.",
+      "undo": {
+        "kind": "query"
+      }
+    },
     "analysis.bytes": {
       "input": {
         "$ref": "#/$defs/BytesIn"

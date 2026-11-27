@@ -14,6 +14,56 @@ export interface CommandSpec {
 
 export const COMMANDS: readonly CommandSpec[] = [
   {
+    "name": "analog.add",
+    "summary": "Add a virtual analog channel computed from digital channels (source, roles, settings, scaling); undo removes it.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "inverse"
+    }
+  },
+  {
+    "name": "analog.remove",
+    "summary": "Remove a virtual analog channel; undo restores it with the same id.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "inverse"
+    }
+  },
+  {
+    "name": "analog.sources",
+    "summary": "The sources of virtual analog channels, with their channels and settings.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
+    "name": "analog.update",
+    "summary": "Change a virtual analog channel's source, channels, settings, scaling, name, unit or style.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "inverse"
+    }
+  },
+  {
+    "name": "analog.values",
+    "summary": "Values of a virtual analog channel in a range, in its unit: points, or an envelope per bucket, with problems.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
     "name": "analysis.bytes",
     "summary": "What a run of bytes might mean: text, hidden text, Modbus, checksums, BCD, 16-bit pairs.",
     "safety": "read",

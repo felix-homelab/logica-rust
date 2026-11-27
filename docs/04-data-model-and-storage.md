@@ -30,6 +30,7 @@
 | state | capturing, complete, aborted |
 | artefact | a start-up artefact excluded from analysis (DLA captures) |
 | saved decoders | decoder settings found in an imported file; shown for comparison, never used by detection |
+| virtual analog channels | definitions of channels computed from the digital data (below, ADR 0010) |
 
 ## Transitions, chunked (ADR 0004)
 
@@ -92,6 +93,31 @@ are without loading them.
 - Stored per decoder in append-only pages of 64k frames, each with a `[min start, max end]` index
   for windowed queries and paging (MCP `get_decoded` uses page cursors).
 - Problems are also indexed by code, for "jump to next error".
+
+## Value series (virtual analog channels, ADR 0010)
+
+- A virtual analog channel belongs to a capture: id, name, colour, unit, source with its channels
+  and settings (doc 06), scaling, drawing style (step or line), and for a math channel its
+  expression. Only this definition is session state; the values are derived.
+- Its values are a **value series** (`core::analog`): what the source emitted, as entries of a
+  sample index (`u64`, strictly increasing) and a number (`f64`, the fraction of full scale or the
+  measured quantity), in pages of 64k entries so a long series grows without copying. Scaling is
+  applied when the series is read, so changing `low`, `high`, `offset` or `gain` costs nothing; the
+  raw code of an ADC is computed back from the fraction when it is shown.
+- A value holds until the next entry. A gap is an entry of its own (stored as NaN) that says there
+  is no value from its sample on (where a source left a point out, at the ends of segments), so
+  drawing, measurements and math channels never bridge it.
+- **LOD** per bucket of 2^16 samples, only for buckets that hold an entry: value count, minimum,
+  maximum and whether a gap starts in it. An envelope query (value held at the start, count,
+  minimum, maximum, gap) for any stretch reads whole buckets from the LOD and the ends from the
+  entries, so it is exact for any bucket size.
+- A series is held in memory, 16 bytes per entry (a PWM at 1 kHz for an hour: about 58 MB; a PDM
+  microphone at 48 kHz for an hour: about 2.8 GB). Values can always be computed again, so a series
+  too long for memory will drop pages and recompute them from a source snapshot rather than write
+  them to the backing; until then, very long PDM series are the known limit.
+- Problems a source reports are kept with the channel in the engine, like a decoder's.
+- A series follows a live capture like a live decode and is computed again when a capture is
+  opened or a definition changes; it is not written to `.lacap` (doc 09).
 
 ## Storage
 

@@ -2,19 +2,36 @@
 // Command API version 1.0.
 
 /**
- * How a decoder's data values are written out for people (the waveform's text row, doc 08).
- */
-export type DataFormat = ("ascii" | "hex" | "decimal" | "binary")
-/**
  * A setting's value: a number, a choice (text) or a switch.
  */
 export type SettingValue = (boolean | number | string)
-export type FrameKind = ("data" | "address" | "start" | "repeated-start" | "stop" | "ack" | "nack" | "break" | "reset" | "presence" | "field" | "command" | "sample" | "cycle" | "info")
-export type CaptureMode = ("buffer" | "stream")
+/**
+ * How a channel is drawn: the value held until the next point, or a line between points.
+ */
+export type AnalogStyle = ("step" | "line")
 /**
  * Input of commands that take nothing.
  */
 export type Nothing = Record<string, never>
+/**
+ * The linear step from a source's points to values in the channel's unit.
+ */
+export type Scaling = ({
+high: number
+kind: "range"
+low: number
+offset?: number
+} | {
+gain: number
+kind: "linear"
+offset?: number
+})
+/**
+ * How a decoder's data values are written out for people (the waveform's text row, doc 08).
+ */
+export type DataFormat = ("ascii" | "hex" | "decimal" | "binary")
+export type FrameKind = ("data" | "address" | "start" | "repeated-start" | "stop" | "ack" | "nack" | "break" | "reset" | "presence" | "field" | "command" | "sample" | "cycle" | "info")
+export type CaptureMode = ("buffer" | "stream")
 /**
  * Who sent a command: user, agent:<client name> or cli.
  */
@@ -47,15 +64,14 @@ export type Direction = ("rising" | "falling" | "any")
  */
 export type Level = ("low" | "high")
 export type Unit = ("s" | "ms" | "us" | "ns" | "samples")
-export type FindingId = ("text" | "transformed-text" | "modbus" | "checksum-sum" | "checksum-xor" | "bcd" | "all-ff" | "all00" | "none")
-export type Tone = ("info" | "warn")
-export type NoteLevel = ("info" | "warning")
 /**
- * Where a capture came from.
+ * How a raw ADC code stands for a fraction of full scale.
  */
-export type SourceKind = ("device" | "file" | "synthetic")
-export type CaptureState = ("capturing" | "complete" | "aborted")
-export type Origin = ("built-in" | "custom")
+export type Encoding = ("unsigned" | "twosComplement")
+/**
+ * What a source's points mean, so the scaling that fits them can be checked.
+ */
+export type PointKind = ("fraction" | "quantity")
 export type SettingKind = ({
 default: number
 kind: "number"
@@ -71,6 +87,15 @@ options: [string, string][]
 default: boolean
 kind: "boolean"
 })
+export type FindingId = ("text" | "transformed-text" | "modbus" | "checksum-sum" | "checksum-xor" | "bcd" | "all-ff" | "all00" | "none")
+export type Tone = ("info" | "warn")
+export type NoteLevel = ("info" | "warning")
+/**
+ * Where a capture came from.
+ */
+export type SourceKind = ("device" | "file" | "synthetic")
+export type CaptureState = ("capturing" | "complete" | "aborted")
+export type Origin = ("built-in" | "custom")
 /**
  * Sent to every attached client (doc 03).
  */
@@ -88,6 +113,10 @@ stopped: boolean
 capture: string
 decoder: string
 event: "decoder.updated"
+} | {
+analog: string
+capture: string
+event: "analog.updated"
 } | {
 actor: Actor
 capture: string
@@ -113,6 +142,11 @@ export type ErrorCode = ("cancelled" | "invalid-input" | "not-found" | "busy" | 
 
 export interface Contract {
 inputs: {
+"analog.add": AnalogAddIn
+"analog.remove": AnalogRef
+"analog.sources": Nothing
+"analog.update": AnalogUpdateIn
+"analog.values": AnalogValuesIn
 "analysis.bytes": BytesIn
 "analysis.detect": RangeIn
 "capture.close": CaptureRef
@@ -156,6 +190,11 @@ render: RenderIn
 "waveform.get": WaveformIn
 }
 outputs: {
+"analog.add": AnalogOut
+"analog.remove": Nothing
+"analog.sources": AnalogSourcesOut
+"analog.update": AnalogOut
+"analog.values": AnalogValuesOut
 "analysis.bytes": ByteAnalysis
 "analysis.detect": CaptureAnalysis
 "capture.close": Nothing
@@ -202,6 +241,82 @@ event: Event
 error: CommandError
 invocation: Invocation
 historyEntry: HistoryEntry
+}
+export interface AnalogAddIn {
+capture: string
+/**
+ * Row height in pixels, 40 to 800 (160 unless given).
+ */
+height?: (number | null)
+/**
+ * Chosen by the engine; redo and undo use the id it had.
+ */
+id?: (string | null)
+name?: (string | null)
+roles: {
+[k: string]: number | null
+}
+/**
+ * For a fraction (an ADC code, a PWM duty): `{ "kind": "range", "low", "high", "offset" }`;
+ * for a measured quantity (Hz, s): `{ "kind": "linear", "gain", "offset" }`.
+ */
+scaling: ({
+high: number
+kind: "range"
+low: number
+offset?: number
+} | {
+gain: number
+kind: "linear"
+offset?: number
+})
+settings?: {
+[k: string]: SettingValue
+}
+/**
+ * The source's id (`analog.sources`).
+ */
+source: string
+style?: (AnalogStyle | null)
+unit?: (string | null)
+}
+export interface AnalogRef {
+analog: string
+capture: string
+}
+export interface AnalogUpdateIn {
+analog: string
+capture: string
+height?: (number | null)
+name?: (string | null)
+replaceSettings?: boolean
+roles?: ({
+[k: string]: number | null
+} | null)
+scaling?: (Scaling | null)
+/**
+ * Merged into the current settings, unless `replaceSettings` is set.
+ */
+settings?: ({
+[k: string]: SettingValue
+} | null)
+source?: (string | null)
+style?: (AnalogStyle | null)
+unit?: (string | null)
+}
+export interface AnalogValuesIn {
+analog: string
+/**
+ * How many buckets the range is drawn in (1 to 8192): points when there are at most two per
+ * bucket, else one envelope per bucket.
+ */
+buckets: number
+capture: string
+from: number
+/**
+ * Exclusive.
+ */
+to: number
 }
 export interface BytesIn {
 bytes?: (number[] | null)
@@ -629,6 +744,177 @@ from: number
  */
 to: number
 }
+export interface AnalogOut {
+analog: AnalogSummary
+}
+/**
+ * What `session.get` says about a virtual analog channel.
+ */
+export interface AnalogSummary {
+config: AnalogConfig
+id: string
+/**
+ * Still following a running capture.
+ */
+live: boolean
+max?: (number | null)
+/**
+ * Lowest and highest value, in the channel's unit.
+ */
+min?: (number | null)
+notes: string[]
+output: SourceOutput
+/**
+ * Entries in the series (values and gaps).
+ */
+points: number
+problemCounts: {
+checksum?: number
+"frame-error"?: number
+glitch?: number
+incomplete?: number
+"parity-error"?: number
+protocol?: number
+stuffing?: number
+timing?: number
+}
+/**
+ * One step of the code in the channel's unit, where the points are codes.
+ */
+step?: (number | null)
+}
+/**
+ * A virtual analog channel's definition: what `analog.add` takes, an undo restores and a
+ * `.lacap` saves.
+ */
+export interface AnalogConfig {
+/**
+ * Height of its row in the waveform, in pixels (40 to 800).
+ */
+height?: number
+name: string
+roles: {
+[k: string]: number | null
+}
+scaling: Scaling
+settings?: {
+[k: string]: SettingValue
+}
+/**
+ * The source's id (`analog.sources` lists them).
+ */
+source: string
+/**
+ * How a channel is drawn: the value held until the next point, or a line between points.
+ */
+style?: ("step" | "line")
+/**
+ * The unit of its values, such as `V` or `%`.
+ */
+unit?: string
+}
+/**
+ * What the points of a source mean with given settings.
+ */
+export interface SourceOutput {
+/**
+ * Bits of the code behind a fraction, for the raw code and the step size; `None` when the
+ * fraction is not a code (a PWM duty).
+ */
+bits?: (number | null)
+encoding: Encoding
+kind: PointKind
+/**
+ * The unit of a measured quantity (`Hz`, `s`); `None` for fractions.
+ */
+unit?: (string | null)
+}
+export interface AnalogSourcesOut {
+sources: AnalogSourceEntry[]
+}
+export interface AnalogSourceEntry {
+help: string
+id: string
+name: string
+roles: RoleSpec[]
+settings: SettingSpec[]
+}
+/**
+ * A channel a protocol needs.
+ */
+export interface RoleSpec {
+help: string
+key: string
+label: string
+/**
+ * Short noun for setup messages: "the data line" in "Choose a channel for the data line."
+ */
+noun: string
+optional: boolean
+}
+export interface SettingSpec {
+help?: (string | null)
+key: string
+kind: SettingKind
+label: string
+}
+export interface AnalogValuesOut {
+/**
+ * Samples per bucket.
+ */
+bucket: number
+buckets?: (AnalogBucket[] | null)
+from: number
+/**
+ * The value held at `from`, from a point before it.
+ */
+held?: (number | null)
+points?: (AnalogPoint[] | null)
+/**
+ * At most 1,000.
+ */
+problems: AnalogProblem[]
+to: number
+unit: string
+}
+/**
+ * One bucket in the channel's unit.
+ */
+export interface AnalogBucket {
+/**
+ * Values starting in the bucket.
+ */
+count: number
+/**
+ * Whether a gap starts in it.
+ */
+gap: boolean
+/**
+ * The value held at the bucket's start.
+ */
+held?: (number | null)
+max?: (number | null)
+min?: (number | null)
+}
+/**
+ * A value in the channel's unit from `sample` on; `value` is absent in a gap.
+ */
+export interface AnalogPoint {
+/**
+ * The raw code, where the source reads codes.
+ */
+code?: (number | null)
+sample: number
+value?: (number | null)
+}
+/**
+ * A problem in the range: a stretch without a value or with a doubtful one, and why.
+ */
+export interface AnalogProblem {
+end: number
+message: string
+start: number
+}
 export interface ByteAnalysis {
 bytes: number[]
 findings: Finding[]
@@ -842,6 +1128,10 @@ id: string
 running: boolean
 }
 export interface CaptureSummary {
+/**
+ * Virtual analog channels (ADR 0010).
+ */
+analog: AnalogSummary[]
 /**
  * Samples left out of analysis (a start-up artefact).
  * 
@@ -1278,25 +1568,6 @@ name: string
 origin: Origin
 roles: RoleSpec[]
 settings: SettingSpec[]
-}
-/**
- * A channel a protocol needs.
- */
-export interface RoleSpec {
-help: string
-key: string
-label: string
-/**
- * Short noun for setup messages: "the data line" in "Choose a channel for the data line."
- */
-noun: string
-optional: boolean
-}
-export interface SettingSpec {
-help?: (string | null)
-key: string
-kind: SettingKind
-label: string
 }
 export interface ProtocolInfoOut {
 info: ProtocolInfo

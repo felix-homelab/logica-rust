@@ -6,6 +6,7 @@
 
 #![cfg_attr(test, allow(clippy::cast_possible_truncation))]
 
+pub mod analog;
 pub mod capture;
 pub mod device;
 pub mod import;

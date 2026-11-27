@@ -101,6 +101,9 @@ function busyLabel(command: string, input: unknown): string | null {
       return 'Decoding…';
     case 'search.run':
       return 'Searching…';
+    case 'analog.add':
+    case 'analog.update':
+      return 'Computing values…';
     default:
       return null;
   }

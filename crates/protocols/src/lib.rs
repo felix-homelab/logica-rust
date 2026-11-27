@@ -4,6 +4,7 @@
 //! Signal Detective (`../signal-detective`) is the behavioural reference (decision D12): its
 //! heuristics, evidence texts and knowledge are followed; its code is not ported.
 
+pub mod analog;
 pub mod analyse;
 pub mod buses;
 pub mod bytes;

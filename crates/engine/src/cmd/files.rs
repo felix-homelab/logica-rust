@@ -155,6 +155,19 @@ pub(crate) fn open(e: &mut Engine, _: &Ctx, i: FileOpenIn) -> Result<Done, Comma
         let d = super::decoders::decoder(e, cfg, result);
         e.capture_mut(&id)?.decoders.insert(did, d);
     }
+    for (aid, cfg) in session.analog {
+        e.reserve_id(&aid);
+        let c = e.capture_mut(&id)?;
+        match crate::analog::Analog::compute(cfg, &c.store, &c.meta) {
+            Ok(a) => {
+                c.analog.insert(aid, a);
+            }
+            Err(x) => c.meta.notes.push(logica_core::capture::Note {
+                level: logica_core::capture::NoteLevel::Warning,
+                message: format!("The saved virtual analog channel {aid} could not be restored: {x}"),
+            }),
+        }
+    }
     let c = e.capture_mut(&id)?;
     for m in session.markers {
         c.markers.insert(m.id.clone(), m);
@@ -215,6 +228,7 @@ pub(crate) fn save(e: &mut Engine, _: &Ctx, i: FileSaveIn) -> Result<Done, Comma
     }
     let session = SavedSession {
         decoders: c.decoders.iter().map(|(id, d)| (id.clone(), d.config.clone())).collect(),
+        analog: c.analog.iter().map(|(id, a)| (id.clone(), a.config.clone())).collect(),
         markers: c.markers.values().cloned().collect(),
         groups: c.groups.clone(),
         hidden: c.hidden.iter().copied().collect(),

@@ -137,6 +137,8 @@ pub struct Capture {
     /// Whether the store reads from `path` itself (an opened or saved `.lacap`).
     pub backed_by_path: bool,
     pub decoders: BTreeMap<String, Decoder>,
+    /// Virtual analog channels (ADR 0010).
+    pub analog: BTreeMap<String, crate::analog::Analog>,
     pub markers: BTreeMap<String, Marker>,
     pub view: View,
     /// Bus groups: name to physical channels.
@@ -210,6 +212,8 @@ pub struct CaptureSummary {
     pub notes: Vec<Note>,
     pub channels: Vec<ChannelEntry>,
     pub decoders: Vec<DecoderSummary>,
+    /// Virtual analog channels (ADR 0010).
+    pub analog: Vec<crate::analog::AnalogSummary>,
     pub markers: Vec<Marker>,
     pub view: View,
     /// Decoder settings found in the file: for comparison, never used by detection.
@@ -247,6 +251,7 @@ impl CaptureSummary {
                 })
                 .collect(),
             decoders: c.decoders.iter().map(|(id, d)| DecoderSummary::of(id, d)).collect(),
+            analog: c.analog.iter().map(|(id, a)| crate::analog::AnalogSummary::of(id, a)).collect(),
             markers: c.markers.values().cloned().collect(),
             view: c.view.clone(),
             saved_decoders: c.meta.saved_decoders.clone(),
@@ -260,6 +265,9 @@ impl CaptureSummary {
 #[serde(rename_all = "camelCase")]
 pub struct SavedSession {
     pub decoders: BTreeMap<String, DecoderConfig>,
+    /// Virtual analog channel definitions; their values are computed again on open (doc 09).
+    #[serde(default)]
+    pub analog: BTreeMap<String, crate::analog::AnalogConfig>,
     pub markers: Vec<Marker>,
     pub groups: BTreeMap<String, Vec<u32>>,
     pub hidden: Vec<u32>,

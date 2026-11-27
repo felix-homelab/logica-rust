@@ -290,6 +290,7 @@ impl Engine {
                 path,
                 backed_by_path: backed,
                 decoders: BTreeMap::new(),
+                analog: BTreeMap::new(),
                 markers: BTreeMap::new(),
                 view: crate::state::View { from: 0, to, ..Default::default() },
                 groups: BTreeMap::new(),
@@ -579,6 +580,8 @@ impl Engine {
                 updated.push(id.clone());
             }
         }
+        let analog: Vec<String> =
+            c.analog.iter_mut().filter_map(|(id, a)| a.advance_live(&c.store).then(|| id.clone())).collect();
         if samples != r.reported {
             r.reported = samples;
             let fraction = (r.samples > 0).then(|| (samples as f64 / r.samples as f64).min(1.0));
@@ -586,6 +589,9 @@ impl Engine {
         }
         for decoder in updated {
             self.emit(Event::DecoderUpdated { capture: r.capture.clone(), decoder });
+        }
+        for analog in analog {
+            self.emit(Event::AnalogUpdated { capture: r.capture.clone(), analog });
         }
     }
 
@@ -669,8 +675,16 @@ impl Engine {
                 updated.push(id.clone());
             }
         }
+        let analog: Vec<String> = c
+            .analog
+            .iter_mut()
+            .filter_map(|(id, a)| a.finish_live(&c.store, end).then(|| id.clone()))
+            .collect();
         for decoder in updated {
             self.emit(Event::DecoderUpdated { capture: capture.into(), decoder });
+        }
+        for analog in analog {
+            self.emit(Event::AnalogUpdated { capture: capture.into(), analog });
         }
         self.emit(Event::CaptureDone { capture: capture.into(), samples: end, stopped });
         self.changed();

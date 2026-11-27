@@ -68,10 +68,12 @@ There is one engine per desktop (ADR 0007). When the app is not running, `logica
 
 ```
 crates/
-  core/        data model, chunked capture store, LOD, measurements, file import and export,
-               `.lacap`, device and driver traits, ingest. No I/O of its own.
+  core/        data model, chunked capture store, LOD, measurements, value series and scaling
+               of virtual analog channels, file import and export, `.lacap`, device and driver
+               traits, ingest. No I/O of its own.
   protocols/   bus grouping, detectors, streaming decoders, stacking, register maps, custom
-               protocols, queries, byte analyser, protocol knowledge, signal generators. No I/O.
+               protocols, virtual analog sources and ADC presets, queries, byte analyser,
+               protocol knowledge, signal generators. No I/O.
   fileio/      the random-access file interface of `core` on real files (`std::fs`), for the
                engine, the CLI, tests and benchmarks
   drivers/     synthetic, vla (the virtual analyser), fnirsi-dla, fx2lafw (each with a
@@ -116,11 +118,13 @@ and build for WebAssembly, so they stay testable and usable anywhere.
   Outside the app, only through MCP (ADR 0006): curated tools plus `run_command`, which runs any
   command by name with the same validation (doc 07).
 - Command groups: `session.*`, `device.*`, `capture.*`, `file.*`, `view.*`, `analysis.*`,
-  `measure.*`, `decoder.*`, `search.*`, `marker.*`, `channel.*`, `output.*`, `history.*`, `lease.*`.
+  `measure.*`, `decoder.*`, `analog.*` (virtual analog channels, ADR 0010), `search.*`, `marker.*`,
+  `channel.*`, `output.*`, `history.*`, `lease.*`.
 - **Events** go to every attached client: `capture.progress`, `capture.done`, `decoder.updated`
-  (also on undo, redo, open and close), `view.changed`, `lease.changed`, `device.disconnected`,
-  `command.executed`, and `state.changed`, which tells a window to read the session again after any
-  recorded command, undo, redo or lease change, so it needs no handler per event.
+  and `analog.updated` (also on undo, redo, open and close), `view.changed`, `lease.changed`,
+  `device.disconnected`, `command.executed`, and `state.changed`, which tells a window to read the
+  session again after any recorded command, undo, redo or lease change, so it needs no handler per
+  event.
 - Versioned: `apiVersion` in the handshake; additive changes only within a major version.
 - Errors carry a code (`invalid-input`, `not-found`, `busy`, `failed`, …) and a message written
   for the person or agent, saying what to do.
@@ -131,6 +135,7 @@ and build for WebAssembly, so they stay testable and usable anywhere.
 driver ── raw blocks (packed samples / per-channel bits / transitions) ──▶ ingest threads
    ingest: unpack → per-channel transitions → chunk store → LOD
         └─▶ streaming decoders (fed as chunks arrive) ──▶ annotation store
+        └─▶ virtual analog sources (the same way) ──▶ scaling ──▶ value series
         └─▶ events (progress, new range available) ──▶ clients
 ```
 

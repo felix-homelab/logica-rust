@@ -27,10 +27,10 @@ file to the running app, or starts the app with it).
 
 | Format | Notes |
 |---|---|
-| `.lacap` (native) | Everything: data, decoders with settings, markers, notes, agent annotations |
+| `.lacap` (native) | Everything: data, decoders with settings, virtual analog channels, markers, notes, agent annotations |
 | sigrok `.sr` | Opens in PulseView |
 | VCD | Opens in GTKWave and most tools |
-| CSV | Transitions only, or decoded packets |
+| CSV | Transitions only, decoded packets, or the values of virtual analog channels (time in seconds, sample index, value, raw code; one file per channel, or one table of several channels lined up by sample and hold) |
 | Saleae binary v0 | For further analysis in Saleae's ecosystem |
 | Decoded data | CSV or JSON of packets per decoder |
 
@@ -62,10 +62,13 @@ index       raw-deflate JSON (camelCase keys): format "lacap", version [major, m
             size (2^24), sample count, initial level per channel (needed when there are no
             chunks), capture metadata (channels, segments, notes, …), where each channel table
             blob is ([offset, length] per channel), and the session state saved with the capture
-            (decoder instances, markers, range notes)
+            (decoder instances, virtual analog channel definitions, markers, range notes)
 footer      u64 index offset, u64 index length, u32 CRC-32 of index, u32 reserved, "LACAPEND"
 ```
 
+- Virtual analog channels (ADR 0010) are saved as their definitions only; their values are computed
+  again on open, so they need no blob type and no version change. An older Logica ignores the key
+  and drops it when it saves the file again.
 - CRC-32 is the ZIP/zlib one (polynomial 0xEDB88320). 64-bit values stay below 2^53. Opening reads
   the footer, the index and one table per channel; chunks and fine LODs are read by offset when
   needed, with their CRC checked; a bad one is reported by name ("Chunk 3 of channel 2 … is
