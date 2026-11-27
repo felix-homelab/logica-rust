@@ -117,10 +117,12 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 | Source | Reads | Settings | Sample time |
 |---|---|---|---|
 | Serial ADC | packets of an SPI or I2C decoder (a layer, see "Stacking") | stream (MOSI, MISO, or the I2C data read), bits to skip, bit count N, bit order, encoding; I2C address and register; an optional match filter (for example "MOSI bits 6..4 = 2" or the mux field of a config register) | the start of the transfer |
-| Parallel bus | edges of up to 32 channels, one per bit, bit 0 first | N follows the channels; latch on a clock or strobe edge (rising, falling, both) with an optional enable line, or without a clock once the word has been stable for a settle time (default 3 samples) | the latch edge, or the start of the stable word |
+| Parallel bus | edges of up to 16 channels, one per bit (D0 is the least significant) | N bits (D0 to D(N−1) each need a channel); latch on a clock or strobe edge (rising, falling, both) with an optional enable line (active low or high), or without a clock once every bit has stayed put for a settle time (default 3 samples) | the latch edge, or the start of the stable word (after its last changing bit) |
 | PWM | edges of one channel | value: duty, frequency, period, or the width of the active pulse; active level; expected period (when not given, the last period measured) | the start of each period (an edge into the active level) |
 | PDM / sigma-delta | a data and a clock channel | clock edge; sinc³ CIC decimation ratio R (default 64); the effective resolution is shown | the end of each output word |
 
+- **Parallel words that do not settle** are left out without a problem: bits a few samples apart
+  (skew) produce them on every change, so the note only counts them.
 - **Presets.** ADCs are described as data (`crates/protocols/data/adc/presets.json`), checked
   in tests against their source's settings; `analog.sources` lists them with their source. A
   preset fills the source's settings and the scaling, and for a multiplexed ADC it names the
@@ -135,7 +137,7 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
   ```
 
   First presets: MCP3201, MCP3208 (8 inputs, selected on MOSI), ADS1115 (I2C, pointer register
-  0, two's complement); the parallel ADC0804 comes with the parallel source.
+  0, two's complement), ADC0804 (parallel, RD as strobe, CS as enable).
 - **I2C registers.** Many I2C ADCs (ADS1115) write a register pointer in one transaction and read
   it in the next, so the I2C ADC remembers the pointer last written to each address and keeps
   only reads of the chosen register.
@@ -145,9 +147,8 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
   count as toggling. A period across the quiet stretch is not measured.
 - **Problems.** A point that cannot be made is left out and a problem frame covers the stretch,
   with the decoders' problem codes and a message that says why: `incomplete` for a short transfer
-  ("The SPI transfer has 8 bits; the sample needs bits 3 to 14"), `protocol` for a NACK, `glitch`
-  for a parallel word that does not settle ("The word changed before it was stable for 3
-  samples"), `incomplete` while a PDM filter fills (the first 3 × R bits), `timing` for a PWM that
+  ("The SPI transfer has 8 bits; the sample needs bits 3 to 14"), `protocol` for a NACK,
+  `incomplete` while a PDM filter fills (the first 3 × R bits), `timing` for a PWM that
   stopped ("The line stayed high for longer than two periods (200 µs), so it reads 100 %.").
   Problems are searchable and counted like decoder problems.
 - **Math channels** take other virtual channels and a typed JSON expression (`add`, `sub`, `mul`,

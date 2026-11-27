@@ -66,5 +66,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - App: the virtual analog dialog offers the ADC chips a source knows: choosing one fills the
   settings and the scaling, and for an ADC with several inputs it adds one channel per input. The
   virtual analyser sends an MCP3201 sine on CH13 to CH15 to try it. (#27)
+- Virtual analog channels from a parallel bus of up to 16 bits, read on a clock or strobe edge
+  (with an enable line), or without a clock once the word stays put, so skewed bits give no false
+  values; with a preset for the ADC0804. (#28)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

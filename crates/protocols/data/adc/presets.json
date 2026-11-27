@@ -103,5 +103,20 @@
     "low": -4.096,
     "high": 4.096,
     "unit": "V"
+  },
+  {
+    "id": "adc0804",
+    "name": "ADC0804 (8 bits, parallel)",
+    "source": "parallel",
+    "help": "TI ADC0804 with its outputs on D0 to D7: the word is valid while RD is low and read as RD rises, so RD is the strobe and CS the enable (both active low). High is twice VREF/2, 5 V when VREF/2 is open.",
+    "settings": {
+      "bits": 8,
+      "latch": "rising",
+      "enableActive": "low",
+      "encoding": "unsigned"
+    },
+    "low": 0,
+    "high": 5,
+    "unit": "V"
   }
 ]

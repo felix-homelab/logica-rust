@@ -6,6 +6,7 @@
 //! for any decoder. A new source implements [`Source`] and is added to [`sources`]; nothing else
 //! changes.
 
+pub mod parallel;
 pub mod presets;
 pub mod pwm;
 pub mod serial;
@@ -70,6 +71,7 @@ pub fn sources() -> Vec<Box<dyn Source>> {
         Box::new(pwm::PwmSource::default()),
         Box::new(serial::SerialAdc::new(serial::Bus::Spi)),
         Box::new(serial::SerialAdc::new(serial::Bus::I2c)),
+        Box::new(parallel::ParallelSource::default()),
     ]
 }
 
