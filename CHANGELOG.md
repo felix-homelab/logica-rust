@@ -81,6 +81,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   settings and follow it when it changes. (#33)
 - App: decoders get a name of your own when added (the protocol's name otherwise) and can be
   renamed in their settings; undo takes a rename back. (#35)
+- Devices: the virtual analyser also plays an MCP3208 (eight inputs, read in turn) and an ADS1115
+  (I2C), next to the MCP3201, each sending sines in its preset's format (CH16 to CH21 of the
+  built-in mix), and offers rates up to 1000 MS/s (1 GS/s). (#36)
 
 ### Fixed
 

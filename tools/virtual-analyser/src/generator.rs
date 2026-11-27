@@ -5,7 +5,7 @@
 use logica_core::{Level, Sample};
 use logica_protocols::synth::{I2cTransfer, Lane, UartOptions, i2c_transaction, spi_frame, uart_send};
 
-use crate::config::{Adc, Config, I2c, Noise, Parity, Pwm, Shared, Signal, Spi, Uart};
+use crate::config::{Adc, Chip, Config, I2c, Noise, Parity, Pwm, Shared, Signal, Spi, Uart};
 use crate::rng::Rng;
 
 enum Source {
@@ -20,7 +20,11 @@ enum Source {
         wander: Option<Wander>,
     },
     Noise(Noise),
-    Adc(Adc),
+    /// An ADC and how many samples it sent (the MCP3208 reads its inputs in turn).
+    Adc {
+        a: Adc,
+        n: u64,
+    },
     /// Half-periods of a clock on the computer's time: half-period `k` starts at `k * half_ns`
     /// nanoseconds after 1970 and is high when `k` is even.
     Shared {
@@ -92,6 +96,65 @@ pub struct Generator {
     /// One lane per channel; a lane's edges are the ones not sent yet.
     lanes: Vec<Lane>,
     sources: Vec<Scheduled>,
+}
+
+/// One sample of an ADC at `t`: the `n`-th it sends, in its chip's format.
+fn adc_sample(lanes: &mut [Lane], a: &Adc, n: u64, t: f64) {
+    use logica_protocols::synth::{I2cTransfer, i2c_transaction, spi_frame};
+    let pin = |p: Option<u32>| p.expect("checked: the chip has its pins") as usize;
+    let [lo, hi] = a.range;
+    // the MCP3208's eight inputs are sines 45° apart
+    #[allow(clippy::cast_precision_loss)]
+    let phase = if a.chip == Chip::Mcp3208 { (n % 8) as f64 * std::f64::consts::TAU / 8.0 } else { 0.0 };
+    let level = (lo + hi) / 2.0
+        + (hi - lo) / 2.0 * (std::f64::consts::TAU * t * 1e3 / a.sine_period_ms + phase).sin();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let code12 = (level * 4096.0).round().clamp(0.0, 4095.0) as u16;
+    match a.chip {
+        Chip::Mcp3201 => {
+            // two sampling bits and a null bit, then the 12-bit code, in 16 clocks
+            let [clk, cs, miso] = lanes
+                .get_disjoint_mut([pin(a.clk), pin(a.cs), pin(a.miso)])
+                .expect("checked: three different channels");
+            spi_frame(
+                clk,
+                Some(cs),
+                None,
+                Some(miso),
+                t,
+                a.clock_hz,
+                0,
+                &[0, 0],
+                &(code12 << 1).to_be_bytes(),
+                true,
+            );
+        }
+        Chip::Mcp3208 => {
+            // DIN selects the input (single-ended) in bits 7 to 9; DOUT answers in bits 12 to 23
+            let input = u8::try_from(n % 8).unwrap_or(0);
+            let cmd = [0x06 | (input >> 2), (input & 3) << 6, 0];
+            let [h, l] = code12.to_be_bytes();
+            let [clk, cs, mosi, miso] = lanes
+                .get_disjoint_mut([pin(a.clk), pin(a.cs), pin(a.mosi), pin(a.miso)])
+                .expect("checked: four different channels");
+            spi_frame(clk, Some(cs), Some(mosi), Some(miso), t, a.clock_hz, 0, &cmd, &[0, h & 0x0F, l], true);
+        }
+        Chip::Ads1115 => {
+            // pointer 0 (the conversion), then two bytes, two's complement
+            #[allow(clippy::cast_possible_truncation)]
+            let code = ((level * 65536.0).round() - 32768.0).clamp(-32768.0, 32767.0) as i16;
+            let [scl, sda] =
+                lanes.get_disjoint_mut([pin(a.scl), pin(a.sda)]).expect("checked: two different channels");
+            let x = |read: bool, data: Vec<u8>| I2cTransfer { address: 0x48, read, data, nack: false };
+            i2c_transaction(
+                scl,
+                sda,
+                t,
+                a.clock_hz,
+                &[x(false, vec![0]), x(true, code.to_be_bytes().to_vec())],
+            );
+        }
+    }
 }
 
 fn pause(rng: &mut Rng, every_ms: [f64; 2]) -> f64 {
@@ -169,9 +232,12 @@ impl Generator {
                     (Source::Noise(n), first)
                 }
                 Signal::Adc(a) => {
-                    lanes[a.cs as usize] = Lane::high(rate);
+                    // chip select and the I2C lines rest high
+                    for ch in [a.cs, a.scl, a.sda].into_iter().flatten() {
+                        lanes[ch as usize] = Lane::high(rate);
+                    }
                     let first = 1.0 / a.sample_hz;
-                    (Source::Adc(a), first)
+                    (Source::Adc { a, n: 0 }, first)
                 }
                 Signal::Shared(Shared { channel, frequency_hz, .. }) => {
                     let half_ns = u128::from(logica_protocols::num::round(5e8 / frequency_hz).max(1));
@@ -256,29 +322,9 @@ impl Generator {
                         lane.set(t + high, Level::Low);
                         t + *period
                     }
-                    Source::Adc(a) => {
-                        let [lo, hi] = a.range;
-                        let level = (lo + hi) / 2.0
-                            + (hi - lo) / 2.0 * (std::f64::consts::TAU * t * 1e3 / a.sine_period_ms).sin();
-                        // a 12-bit code after two sampling bits and a null bit, in 16 clocks
-                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                        let code = (level * 4096.0).round().clamp(0.0, 4095.0) as u16;
-                        let word = (code << 1).to_be_bytes();
-                        let [clk, cs, miso] = lanes
-                            .get_disjoint_mut([a.clk as usize, a.cs as usize, a.miso as usize])
-                            .expect("checked: the ADC uses three different channels");
-                        logica_protocols::synth::spi_frame(
-                            clk,
-                            Some(cs),
-                            None,
-                            Some(miso),
-                            t,
-                            a.clock_hz,
-                            0,
-                            &[0, 0],
-                            &word,
-                            true,
-                        );
+                    Source::Adc { a, n } => {
+                        adc_sample(lanes, a, *n, t);
+                        *n += 1;
                         t + 1.0 / a.sample_hz
                     }
                     Source::Noise(n) => {
@@ -541,6 +587,53 @@ mod tests {
             let want = 0.5 + 0.4 * (std::f64::consts::TAU * t).sin();
             let got = p.x.unwrap();
             assert!((got - want).abs() <= 1.5 / 4096.0, "at {t} s: {got}, a sine gives {want}");
+        }
+    }
+
+    /// Reads `source` with `s` on the example's `chs` (roles in order) and returns the points.
+    fn read(source: &str, chs: &[(&str, u32)], s: &logica_protocols::types::Settings) -> Vec<(f64, f64)> {
+        use logica_protocols::analyse::{Sourcing, decode_store_with};
+        let (store, meta) = capture(&Config::example(), 4e6, 1.0, 0.02, 5);
+        let src = logica_protocols::analog::source(source).unwrap();
+        let r = decode_store_with(&Sourcing(src.as_ref()), &store, &meta, &roles(chs), s, Batching::Whole)
+            .unwrap();
+        assert!(r.frames.is_empty(), "{:?}", r.frames.first());
+        r.points.iter().map(|p| (p.sample as f64 / 4e6, p.x.unwrap())).collect()
+    }
+
+    #[test]
+    fn the_mcp3208_sends_eight_inputs_in_turn() {
+        // input 3 with the preset's filter: a sine shifted by 3 × 45°, an eighth of the samples
+        let s = settings(&[
+            ("skipBits", 12.0.into()),
+            ("bits", 12.0.into()),
+            ("matchStream", "mosi".into()),
+            ("matchSkip", 7.0.into()),
+            ("matchBits", 3.0.into()),
+            ("matchValue", 3.0.into()),
+        ]);
+        let pts = read("spi-adc", &[("clk", 16), ("cs", 17), ("mosi", 18), ("miso", 19)], &s);
+        assert!((120..=130).contains(&pts.len()), "{} samples of input 3 in a second", pts.len());
+        for (t, x) in pts {
+            let want = 0.5 + 0.4 * (std::f64::consts::TAU * t + 3.0 * std::f64::consts::TAU / 8.0).sin();
+            assert!((x - want).abs() <= 1.5 / 4096.0, "at {t} s: {x}, the sine gives {want}");
+        }
+    }
+
+    #[test]
+    fn the_ads1115_answers_through_its_pointer() {
+        let s = settings(&[
+            ("address", 72.0.into()),
+            ("register", 0.0.into()),
+            ("bits", 16.0.into()),
+            ("encoding", "twos".into()),
+        ]);
+        let pts = read("i2c-adc", &[("scl", 20), ("sda", 21)], &s);
+        assert!(pts.len() >= 995, "{} samples in a second", pts.len());
+        for (t, x) in pts {
+            let want = 0.5 + 0.4 * (std::f64::consts::TAU * t).sin();
+            // the code is taken at the start of the transaction, a little before the point
+            assert!((x - want).abs() <= 0.002, "at {t} s: {x}, the sine gives {want}");
         }
     }
 

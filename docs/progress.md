@@ -22,6 +22,8 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
 - Serial ADC: `spi-adc` and `i2c-adc` (a layer running the bus decoder inside itself), presets
   MCP3201, MCP3208 (8 inputs) and ADS1115, chosen in the dialog's settings step; the virtual
   analyser sends an MCP3201 sine on CH13 to CH15.
+- Virtual analyser: MCP3201, MCP3208 (8 inputs) and ADS1115 signals (CH13 to CH21); rates up to
+  1 GS/s, tried live in an engine test (0.2 s, 200 million samples).
 - From a decoder: a channel can read from an SPI, I2C or PWM decoder and follows it.
 - Export: `analog.export` writes one CSV table (sample and hold across channels); a button in the
   channel list with the system's save dialog.

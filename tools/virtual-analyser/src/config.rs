@@ -163,18 +163,56 @@ pub struct Noise {
     pub mean_us: f64,
 }
 
-/// An ADC like the MCP3201 on SPI (mode 0, most significant bit first): every sample is a
-/// 16-clock frame on CLK, CS and DOUT (MISO) with two sampling bits and a null bit, then the
-/// 12-bit code. The code follows a sine, for trying virtual analog channels.
+/// Which ADC an `adc` signal plays, each in the format of its preset in Logica.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Chip {
+    /// SPI mode 0 on CLK, CS and DOUT: 16 clocks, two sampling bits and a null bit, 12 bits.
+    #[default]
+    Mcp3201,
+    /// SPI mode 0 on CLK, CS, DIN and DOUT: 24 clocks; DIN selects one of 8 inputs in bits 7 to 9,
+    /// DOUT answers in bits 12 to 23. The inputs are read in turn.
+    Mcp3208,
+    /// I2C at 0x48 on SCL and SDA: pointer 0 written, then two bytes read, two's complement.
+    Ads1115,
+}
+
+impl Chip {
+    pub fn name(self) -> &'static str {
+        match self {
+            Chip::Mcp3201 => "MCP3201",
+            Chip::Mcp3208 => "MCP3208",
+            Chip::Ads1115 => "ADS1115",
+        }
+    }
+}
+
+/// A pin of an ADC by its name in the config, and the channel it is on.
+type Pin = (&'static str, Option<u32>);
+
+/// An ADC sending a sine, for trying virtual analog channels; `chip` sets its wiring and format.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Adc {
-    pub clk: u32,
-    pub cs: u32,
-    pub miso: u32,
+    #[serde(default)]
+    pub chip: Chip,
+    /// SPI chips: clock, chip select, data to the chip (MCP3208 only) and from it.
+    #[serde(default)]
+    pub clk: Option<u32>,
+    #[serde(default)]
+    pub cs: Option<u32>,
+    #[serde(default)]
+    pub mosi: Option<u32>,
+    #[serde(default)]
+    pub miso: Option<u32>,
+    /// I2C chips: clock and data.
+    #[serde(default)]
+    pub scl: Option<u32>,
+    #[serde(default)]
+    pub sda: Option<u32>,
     #[serde(default = "default_adc_clock")]
     pub clock_hz: f64,
-    /// Samples a second.
+    /// Samples a second (for the MCP3208, over all inputs together).
     #[serde(default = "default_adc_rate")]
     pub sample_hz: f64,
     /// The sine's period, in milliseconds.
@@ -183,6 +221,53 @@ pub struct Adc {
     /// The share of full scale the sine spans, low and high.
     #[serde(default = "default_adc_range")]
     pub range: [f64; 2],
+}
+
+impl Adc {
+    /// A chip with no pins yet and the default timing and sine.
+    pub fn default_for(chip: Chip) -> Self {
+        Adc {
+            chip,
+            clk: None,
+            cs: None,
+            mosi: None,
+            miso: None,
+            scl: None,
+            sda: None,
+            clock_hz: default_adc_clock(),
+            sample_hz: default_adc_rate(),
+            sine_period_ms: default_adc_sine(),
+            range: default_adc_range(),
+        }
+    }
+
+    /// Clocks one sample takes (an I2C sample: five bytes of nine clocks and the start, restart
+    /// and stop).
+    pub fn clocks(&self) -> f64 {
+        match self.chip {
+            Chip::Mcp3201 => 16.0,
+            Chip::Mcp3208 => 24.0,
+            Chip::Ads1115 => 48.0,
+        }
+    }
+
+    /// The pins the chip needs and the ones it must not have, by their names in the config.
+    fn pins(&self) -> (Vec<Pin>, Vec<Pin>) {
+        let all = [
+            ("clk", self.clk),
+            ("cs", self.cs),
+            ("mosi", self.mosi),
+            ("miso", self.miso),
+            ("scl", self.scl),
+            ("sda", self.sda),
+        ];
+        let needs: &[&str] = match self.chip {
+            Chip::Mcp3201 => &["clk", "cs", "miso"],
+            Chip::Mcp3208 => &["clk", "cs", "mosi", "miso"],
+            Chip::Ads1115 => &["scl", "sda"],
+        };
+        all.into_iter().partition(|(n, _)| needs.contains(n))
+    }
 }
 
 /// One generated signal and the channels it drives.
@@ -215,7 +300,7 @@ fn default_channel_count() -> u32 {
     8
 }
 fn default_rates() -> Vec<f64> {
-    vec![1e6, 4e6, 10e6, 25e6, 100e6]
+    vec![1e6, 4e6, 10e6, 25e6, 100e6, 250e6, 500e6, 1e9]
 }
 fn one() -> f64 {
     1.0
@@ -307,7 +392,16 @@ impl Signal {
             Signal::Noise(n) => vec![named(n.channel, &n.name, "NOISE")],
             Signal::Shared(s) => vec![named(s.channel, &s.name, "SYNC")],
             Signal::Adc(a) => {
-                vec![(a.clk, "ADC CLK".into()), (a.cs, "ADC CS".into()), (a.miso, "ADC DOUT".into())]
+                let label = |n: &str| match n {
+                    "mosi" => "DIN".to_string(),
+                    "miso" => "DOUT".to_string(),
+                    other => other.to_uppercase(),
+                };
+                a.pins()
+                    .0
+                    .into_iter()
+                    .filter_map(|(n, ch)| ch.map(|c| (c, format!("{} {}", a.chip.name(), label(n)))))
+                    .collect()
             }
         }
     }
@@ -394,9 +488,16 @@ impl Signal {
             Signal::Noise(n) => format!("random changes about every {} µs", n.mean_us),
             Signal::Shared(s) => format!("shared clock {} Hz (follows the computer's clock)", s.frequency_hz),
             Signal::Adc(a) => format!(
-                "SPI ADC (MCP3201) at {} kHz, {} samples a second, a sine from {} % to {} % of full scale every {} ms",
+                "{} ADC ({}) at {} kHz, {} samples a second, {} from {} % to {} % of full scale every {} ms",
+                if a.chip == Chip::Ads1115 { "I2C" } else { "SPI" },
+                match a.chip {
+                    Chip::Mcp3201 => "MCP3201",
+                    Chip::Mcp3208 => "MCP3208, 8 inputs in turn",
+                    Chip::Ads1115 => "ADS1115 at 0x48",
+                },
                 a.clock_hz / 1e3,
                 a.sample_hz,
+                if a.chip == Chip::Mcp3208 { "sines 45° apart" } else { "a sine" },
                 a.range[0] * 100.0,
                 a.range[1] * 100.0,
                 a.sine_period_ms
@@ -493,14 +594,14 @@ impl Config {
             .collect()
     }
 
-    /// The built-in configuration: one of each signal on sixteen channels, with two PWM levels (one
-    /// wandering at random, one a sine) and an SPI ADC sending a sine, to try virtual analog
-    /// channels on.
+    /// The built-in configuration: one of each signal on 22 channels, with two PWM levels (one
+    /// wandering at random, one a sine) and three ADCs (MCP3201, MCP3208, ADS1115) sending sines,
+    /// to try virtual analog channels on.
     pub fn example() -> Self {
         Config {
             name: default_name(),
             listen: default_listen(),
-            channel_count: 16,
+            channel_count: 22,
             sample_rates_hz: default_rates(),
             seed: None,
             speed: 1.0,
@@ -583,14 +684,19 @@ impl Config {
                     sine_period_ms: Some(1000.0),
                 }),
                 Signal::Adc(Adc {
-                    clk: 13,
-                    cs: 14,
-                    miso: 15,
-                    clock_hz: default_adc_clock(),
-                    sample_hz: default_adc_rate(),
-                    sine_period_ms: default_adc_sine(),
-                    range: default_adc_range(),
+                    clk: Some(13),
+                    cs: Some(14),
+                    miso: Some(15),
+                    ..Adc::default_for(Chip::Mcp3201)
                 }),
+                Signal::Adc(Adc {
+                    clk: Some(16),
+                    cs: Some(17),
+                    mosi: Some(18),
+                    miso: Some(19),
+                    ..Adc::default_for(Chip::Mcp3208)
+                }),
+                Signal::Adc(Adc { scl: Some(20), sda: Some(21), ..Adc::default_for(Chip::Ads1115) }),
             ],
         }
     }
@@ -699,12 +805,24 @@ fn signal_problems(s: &Signal) -> Vec<String> {
         Signal::Adc(a) => {
             if !positive(a.clock_hz) || !positive(a.sample_hz) || !positive(a.sine_period_ms) {
                 p.push("clockHz, sampleHz and sinePeriodMs must be above 0.".into());
-            } else if 17.0 * a.sample_hz >= a.clock_hz {
+            } else if (a.clocks() + 1.0) * a.sample_hz >= a.clock_hz {
                 p.push(format!(
-                    "sampleHz {} does not fit: a sample takes 16 clocks plus a pause, so clockHz must be above {}.",
+                    "sampleHz {} does not fit: a sample takes {} clocks plus a pause, so clockHz must be above {}.",
                     a.sample_hz,
-                    17.0 * a.sample_hz
+                    a.clocks(),
+                    (a.clocks() + 1.0) * a.sample_hz
                 ));
+            }
+            let (needs, not) = a.pins();
+            for (n, ch) in needs {
+                if ch.is_none() {
+                    p.push(format!("The {} needs {n}.", a.chip.name()));
+                }
+            }
+            for (n, ch) in not {
+                if ch.is_some() {
+                    p.push(format!("{n} is not a pin of the {}.", a.chip.name()));
+                }
             }
             if !(a.range[0] >= 0.0 && a.range[0] <= a.range[1] && a.range[1] < 1.0) {
                 p.push(format!(
@@ -730,7 +848,7 @@ mod tests {
         assert_eq!(back, c);
         // SPI at 500 kHz needs 4 MS/s, so 1 MS/s is left out
         assert_eq!(c.min_rate_hz(), 4e6);
-        assert_eq!(c.usable_rates(), vec![4e6, 10e6, 25e6, 100e6]);
+        assert_eq!(c.usable_rates(), vec![4e6, 10e6, 25e6, 100e6, 250e6, 500e6, 1e9]);
         assert_eq!(c.channel_names()[0], "TX");
         assert_eq!(c.channel_names()[6], "MISO");
     }
@@ -852,7 +970,35 @@ mod tests {
             "SPI ADC (MCP3201) at 250 kHz, 1000 samples a second, a sine from 10 % to 90 % of full scale every 1000 ms"
         );
         assert_eq!(c.signals[2].min_rate_hz(), 2e6);
-        assert_eq!(c.signals[2].channels()[2], (8, "ADC DOUT".to_string()));
+        assert_eq!(c.signals[2].channels()[2], (8, "MCP3201 DOUT".to_string()));
+    }
+
+    #[test]
+    fn each_adc_chip_has_its_pins() {
+        let c: Config = serde_json::from_str(
+            r#"{"channelCount":12,"signals":[
+                {"kind":"adc","chip":"mcp3208","clk":0,"cs":1,"miso":2},
+                {"kind":"adc","chip":"ads1115","scl":3,"sda":4,"clk":5},
+                {"kind":"adc","chip":"mcp3208","clk":6,"cs":7,"mosi":8,"miso":9,"sampleHz":20000},
+                {"kind":"adc","chip":"ads1115","scl":10,"sda":11}
+            ]}"#,
+        )
+        .unwrap();
+        let p = c.problems().join("\n");
+        assert!(p.contains("Signal 1: The MCP3208 needs mosi."), "{p}");
+        assert!(p.contains("Signal 2: clk is not a pin of the ADS1115."), "{p}");
+        assert!(p.contains("Signal 3: sampleHz 20000 does not fit: a sample takes 24 clocks"), "{p}");
+        assert!(!p.contains("Signal 4"), "{p}");
+        assert_eq!(
+            c.signals[3].channels(),
+            vec![(10, "ADS1115 SCL".to_string()), (11, "ADS1115 SDA".to_string())]
+        );
+        assert!(
+            c.signals[3].describe().starts_with("I2C ADC (ADS1115 at 0x48) at 250 kHz"),
+            "{}",
+            c.signals[3].describe()
+        );
+        assert!(c.signals[2].describe().contains("sines 45° apart"));
     }
 
     #[test]

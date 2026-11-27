@@ -538,3 +538,40 @@ fn a_channel_reads_from_a_decoder_and_follows_it() {
     let pwm = s["sources"].as_array().unwrap().iter().find(|s| s["id"] == "pwm").unwrap().clone();
     assert_eq!(pwm["decoderSettings"], json!(["activeLevel"]));
 }
+
+#[test]
+fn a_live_capture_at_one_gigasample_a_second() {
+    // the virtual analyser sends transitions, so a fast rate costs little: 0.2 s at 1 GS/s
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let at = listener.local_addr().unwrap().to_string();
+    let mut cfg = logica_vla::config::Config::example();
+    cfg.seed = Some(9);
+    cfg.listen.clone_from(&at);
+    std::thread::spawn(move || logica_vla::server::serve(listener, cfg, Arc::new(|_: &str| {})));
+    let mut e = Engine::new(EngineConfig { vla_addresses: vec![at.clone()], ..EngineConfig::default() });
+    let dev = format!("vla/{at}");
+    run(&mut e, "device.connect", json!({ "device": dev }));
+    run(
+        &mut e,
+        "device.configure",
+        json!({ "device": dev, "config": { "channels": [12], "sampleRateHz": 1e9, "samples": 200_000_000u64, "mode": "stream" } }),
+    );
+    let c = run(&mut e, "capture.start", json!({ "device": dev, "wait": false }))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    poll_until(&mut e, |e| capture(e, &c)["state"] == "complete");
+    assert_eq!(capture(&mut e, &c)["sampleCount"], 200_000_000u64);
+    // the SINE level (10 % to 90 % once a second): a fifth of a second of it rises from the middle
+    let id = add(
+        &mut e,
+        json!({ "capture": c, "source": "pwm", "roles": { "signal": 12 },
+        "scaling": { "kind": "range", "low": 0, "high": 100 } }),
+    );
+    let st = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id }));
+    assert!(st["count"].as_u64().unwrap() >= 195, "{st}");
+    assert!(
+        close(st["min"].as_f64().unwrap(), 50.0, 1.0) && close(st["max"].as_f64().unwrap(), 88.0, 2.0),
+        "{st}"
+    );
+}
