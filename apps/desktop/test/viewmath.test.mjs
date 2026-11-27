@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clampRange, zoomAt, pan, sampleToX, xToSample, snap, centreOn, MIN_SPAN, atEnd, following, liveView, adoptEngineView } from '../src/renderer/src/viewmath.ts';
-import { time, elapsed, hz, int, tick, tickStep, at } from '../src/renderer/src/format.ts';
+import { time, elapsed, hz, int, tick, tickStep, at, rate } from '../src/renderer/src/format.ts';
 
 test('ranges stay inside the capture and never get too small', () => {
   assert.deepEqual(clampRange({ from: -50, to: 50 }, 1000), { from: 0, to: 100 });
@@ -151,4 +151,13 @@ test("a session does not take back the person's own view; an agent's change does
   assert.equal(v('mine', 'agent', 'e'), true);
   // the engine already shows the person's view: nothing to take
   assert.equal(v('same', 'same', 'e'), false);
+});
+
+test('sample rates are samples per second, frequencies hertz', () => {
+  assert.equal(rate(1e9), '1 GS/s');
+  assert.equal(rate(100e6), '100 MS/s');
+  assert.equal(rate(250e3), '250 kS/s');
+  assert.equal(rate(12), '12 S/s');
+  assert.equal(rate(Number.NaN), '–');
+  assert.equal(hz(1e6), '1 MHz');
 });

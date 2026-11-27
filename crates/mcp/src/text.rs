@@ -111,7 +111,7 @@ pub fn capture_line(c: &Value) -> String {
         s(&c["id"]),
         s(&c["title"]),
         plural(samples, "sample", "samples"),
-        format::hz(rate),
+        format::rate(rate),
         format::time(c["seconds"].as_f64().unwrap_or(0.0)),
         channels.join(", ")
     )

@@ -212,7 +212,7 @@ pub(crate) fn configure(e: &mut Engine, ctx: &Ctx, i: DeviceConfigureIn) -> Resu
     d.samples = i.config.samples;
     d.rate_hz = i.config.sample_rate_hz;
     d.channels.clone_from(&i.config.channels);
-    let rate = logica_protocols::format::hz(i.config.sample_rate_hz);
+    let rate = logica_protocols::format::rate(i.config.sample_rate_hz);
     Ok(Done::never(
         out(&Nothing {}),
         format!("configured {} for {} samples at {rate}", i.device, i.config.samples),
@@ -299,8 +299,8 @@ fn check_together(
                 ErrorCode::InvalidInput,
                 format!(
                     "{id} is configured for {}, {first} for {}; one capture has one rate. Configure them alike.",
-                    logica_protocols::format::hz(r),
-                    logica_protocols::format::hz(rate)
+                    logica_protocols::format::rate(r),
+                    logica_protocols::format::rate(rate)
                 ),
             ));
         }

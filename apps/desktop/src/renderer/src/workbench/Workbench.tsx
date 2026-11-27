@@ -36,7 +36,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { bridge, client, mod } from '../bridge';
-import { at, elapsed, hz, int, time } from '../format';
+import { at, elapsed, int, rate as formatRate, time } from '../format';
 import { isAgent, useActive, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { adoptEngineView, centreOn, zoomAt } from '../viewmath';
 import { DEFAULTS, LIMITS, fitPanels } from '../panelsize';
@@ -351,7 +351,7 @@ export function Workbench() {
       id: `c-${c.id}`,
       group: 'Captures',
       title: c.title,
-      hint: `${int(c.sampleCount)} samples at ${hz(c.sampleRateHz)}`,
+      hint: `${int(c.sampleCount)} samples at ${formatRate(c.sampleRateHz)}`,
       run: () => void client.run('view.set', { capture: c.id, activate: true }).catch(() => {}),
     }));
     const marks: PaletteItem[] = (active?.markers ?? []).map((m) => ({
@@ -741,7 +741,7 @@ function StatusBar({ capture, view }: { capture: CaptureInfo; view: ViewState })
               ? `${device.info.model}: connected`
               : 'No device connected'}
       </span>
-      <span className="lg-num status__keep">{hz(rate)}</span>
+      <span className="lg-num status__keep">{formatRate(rate)}</span>
       <span className="lg-num status__fit">
         {time(view.from / rate)} – {time(view.to / rate)} ({int(view.to - view.from)} samples)
       </span>

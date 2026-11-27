@@ -47,6 +47,16 @@ export function hz(f: number): string {
   return `${sig(f, 4)} Hz`;
 }
 
+/** A sample rate: "100 MS/s", "1 GS/s". Samples per second, not a frequency, so never in Hz. */
+export function rate(sps: number): string {
+  if (!Number.isFinite(sps)) return '–';
+  const a = Math.abs(sps);
+  if (a >= 1e9) return `${sig(sps / 1e9, 4)} GS/s`;
+  if (a >= 1e6) return `${sig(sps / 1e6, 4)} MS/s`;
+  if (a >= 1e3) return `${sig(sps / 1e3, 4)} kS/s`;
+  return `${sig(sps, 4)} S/s`;
+}
+
 /** "12,000,000". */
 export function int(n: number): string {
   return Math.round(n).toLocaleString('en-US');

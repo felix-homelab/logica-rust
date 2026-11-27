@@ -79,16 +79,16 @@ export function samplesFor(c: Caps, rateHz: number, length: Length): number {
 }
 
 /** What stands in the way of capturing with this choice, one sentence each; empty when nothing does. */
-export function problems(c: Caps, choice: Choice, length: Length, hz: (f: number) => string): string[] {
+export function problems(c: Caps, choice: Choice, length: Length, rate: (sps: number) => string): string[] {
   const out: string[] = [];
   const n = choice.channels.length;
   if (n === 0) out.push('Choose at least one channel.');
   if (choice.title.trim() === '') out.push('Give the capture a name.');
   if (!length.untilStopped && !(length.seconds > 0)) out.push('Choose a length above zero seconds.');
   if (!c.ratesHz.some((r) => sameRate(r, choice.rateHz))) {
-    out.push(`${hz(choice.rateHz)} is not a rate this device offers; it offers ${c.ratesHz.map(hz).join(', ')}.`);
+    out.push(`${rate(choice.rateHz)} is not a rate this device offers; it offers ${c.ratesHz.map(rate).join(', ')}.`);
   } else if (n > 0 && choice.rateHz > maxRate(c, n)) {
-    out.push(`${hz(choice.rateHz)} is not available with ${n} channels; the most is ${hz(maxRate(c, n))}. Choose fewer channels or a lower rate.`);
+    out.push(`${rate(choice.rateHz)} is not available with ${n} channels; the most is ${rate(maxRate(c, n))}. Choose fewer channels or a lower rate.`);
   }
   if (!c.modes.includes(choice.mode)) out.push('This device cannot capture in that mode.');
   if (c.maxSamples != null && !length.untilStopped && length.seconds > 0 && samplesFor(c, choice.rateHz, length) > c.maxSamples) {

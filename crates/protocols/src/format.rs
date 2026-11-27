@@ -95,6 +95,24 @@ pub fn hz(f: f64) -> String {
     }
 }
 
+/// A sample rate: "100 MS/s", "1 GS/s", "250 kS/s". Samples per second, not a frequency, so it
+/// is never written in Hz.
+pub fn rate(sps: f64) -> String {
+    if !sps.is_finite() {
+        return "–".into();
+    }
+    let a = sps.abs();
+    if a >= 1e9 {
+        format!("{} GS/s", trim_zeros(fixed(sps / 1e9, 3)))
+    } else if a >= 1e6 {
+        format!("{} MS/s", trim_zeros(fixed(sps / 1e6, if a >= 1e7 { 1 } else { 3 })))
+    } else if a >= 1e3 {
+        format!("{} kS/s", trim_zeros(fixed(sps / 1e3, if a >= 1e4 { 1 } else { 2 })))
+    } else {
+        format!("{} S/s", trim_zeros(fixed(sps, 1)))
+    }
+}
+
 /// A duration with four significant digits: "8.68 µs", "1.5 ms", "20 ns".
 pub fn time(t: f64) -> String {
     if !t.is_finite() {
@@ -224,6 +242,13 @@ mod tests {
         assert_eq!(hz(1e6), "1 MHz");
         assert_eq!(hz(12.5e6), "12.5 MHz");
         assert_eq!(hz(50.0), "50 Hz");
+        // sample rates are samples per second, not a frequency
+        assert_eq!(rate(1e9), "1 GS/s");
+        assert_eq!(rate(100e6), "100 MS/s");
+        assert_eq!(rate(4e6), "4 MS/s");
+        assert_eq!(rate(250e3), "250 kS/s");
+        assert_eq!(rate(500.0), "500 S/s");
+        assert_eq!(rate(f64::NAN), "–");
         assert_eq!(int(115_200.0), "115,200");
         assert_eq!(int(999.0), "999");
         assert_eq!(int(1_234_567.4), "1,234,567");

@@ -78,7 +78,13 @@ pub struct CaptureConfig {
 }
 
 fn rate_text(hz: f64) -> String {
-    if hz >= 1e6 { format!("{} MS/s", hz / 1e6) } else { format!("{} kS/s", hz / 1e3) }
+    if hz >= 1e9 {
+        format!("{} GS/s", hz / 1e9)
+    } else if hz >= 1e6 {
+        format!("{} MS/s", hz / 1e6)
+    } else {
+        format!("{} kS/s", hz / 1e3)
+    }
 }
 
 impl Capabilities {

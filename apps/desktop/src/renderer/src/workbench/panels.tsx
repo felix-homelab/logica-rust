@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Input, Output } from '@logica/api';
 import { Button, Dialog, EmptyState, IconButton, Menu, MenuItem, Status, Switch, TextField } from '@logica/ui';
 import { Activity, Check, Eye, EyeOff, Palette, Plus, RefreshCw, Search as SearchIcon, SlidersHorizontal, Trash2, Usb, WandSparkles } from 'lucide-react';
-import { at, hz, int } from '../format';
+import { at, hz, int, rate } from '../format';
 import { isAgent, useDeviceWatch, useStore, who, type CaptureInfo } from '../store';
 import { FORMAT_LABEL, groupChannels, roleOf, type DataFormat } from '../lanes';
 import type { ViewState } from './Waveform';
@@ -726,7 +726,7 @@ export function DevicePanel({ onCapture }: { onCapture: () => void }) {
               )}
             </div>
             <p className="muted">
-              {id} · {caps.channels.length} channels · up to {hz(Math.max(...caps.ratesHz))}
+              {id} · {caps.channels.length} channels · up to {rate(Math.max(...caps.ratesHz))}
             </p>
             <div className="row">
               {holder && holder !== 'user' && (

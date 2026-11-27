@@ -135,7 +135,7 @@ async fn the_agent_scenario(mode: ClientLifecycleMode) {
 
     let (t, out) = ok(&client, "open_file", json!({ "path": fixture("mystery_C.demo") })).await;
     let c = out["capture"]["id"].as_str().unwrap().to_string();
-    assert!(t.starts_with(&format!("Opened {c} \"mystery_C.demo\": 10,000,008 samples at 10 MHz")), "{t}");
+    assert!(t.starts_with(&format!("Opened {c} \"mystery_C.demo\": 10,000,008 samples at 10 MS/s")), "{t}");
 
     // the summary leads with the answer
     let (t, out) = ok(&client, "summarize", json!({ "capture": c })).await;
@@ -389,7 +389,7 @@ async fn a_device_capture_waits_and_two_agents_meet_the_lease() {
         json!({ "action": "start", "device": "synthetic/mix", "config": config, "title": "mix" }),
     )
     .await;
-    assert!(t.starts_with("Captured c") && t.contains("3,000,000 samples at 100 MHz"), "{t}");
+    assert!(t.starts_with("Captured c") && t.contains("3,000,000 samples at 100 MS/s"), "{t}");
     assert_eq!(out["capture"]["sampleCount"], 3_000_000);
     assert_eq!(out["cancelled"], false);
 

@@ -376,9 +376,9 @@ impl Merger<'_> {
             let why = format!(
                 "{} captures at {}, {} at {}; one capture has one rate. Configure them alike.",
                 self.parts[k].label,
-                logica_protocols::format::hz(rates[k]),
+                logica_protocols::format::rate(rates[k]),
                 self.parts[0].label,
-                logica_protocols::format::hz(first)
+                logica_protocols::format::rate(first)
             );
             self.fail(why);
             return;
@@ -964,7 +964,7 @@ mod tests {
         let mut rec = Rec::default();
         let (devices, r) = run(members(vec![a, b], false), &mut rec, &StopSignal::new());
         assert_eq!(devices.len(), 2, "the devices come back");
-        assert!(r.unwrap_err().contains("B captures at 2 MHz, A at 1 MHz; one capture has one rate"));
+        assert!(r.unwrap_err().contains("B captures at 2 MS/s, A at 1 MS/s; one capture has one rate"));
 
         let a = fake("A", 0.0, 0.0);
         let mut b = fake("B", 0.0, 0.0);

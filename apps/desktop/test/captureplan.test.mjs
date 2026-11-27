@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { UNTIL_STOPPED_SECONDS, channelLabel, commonRates, configFor, defaultChoice, guessShared, problems, samplesFor, titleFor, togetherIssues, togetherProblems, captureSteps, currentStep, shortModel, togetherTitle } from '../src/renderer/src/captureplan.ts';
-import { hz } from '../src/renderer/src/format.ts';
+import { rate } from '../src/renderer/src/format.ts';
 
 const vla = {
   channels: [0, 1, 2],
@@ -58,7 +58,7 @@ test('the length comes to samples per channel; until stopped is a day or what th
 
 test('a good choice has no problems and becomes the configuration the engine takes', () => {
   const c = { ...defaultChoice(vla, 'Virtual analyser: Bench'), channels: [2, 0] };
-  assert.deepEqual(problems(vla, c, seconds(1), hz), []);
+  assert.deepEqual(problems(vla, c, seconds(1), rate), []);
   assert.deepEqual(configFor(vla, c, seconds(1)), { channels: [0, 2], sampleRateHz: 4e6, samples: 4e6, mode: 'stream' });
   const t = { ...defaultChoice(dla, 'DLA'), channels: [0], rateHz: 1e6, thresholdVolts: 1.6 };
   assert.equal(configFor(dla, t, seconds(0.5)).thresholdVolts, 1.6);
@@ -66,12 +66,12 @@ test('a good choice has no problems and becomes the configuration the engine tak
 
 test('problems are explained, one sentence each', () => {
   const base = { channels: [0, 1], rateHz: 10e6, mode: 'stream', thresholdVolts: null, title: 'Live: x' };
-  const say = (caps, c, len = seconds(1)) => problems(caps, { ...base, ...c }, len, hz);
+  const say = (caps, c, len = seconds(1)) => problems(caps, { ...base, ...c }, len, rate);
   assert.deepEqual(say(vla, { channels: [] }), ['Choose at least one channel.']);
   assert.deepEqual(say(vla, { title: '  ' }), ['Give the capture a name.']);
   assert.deepEqual(say(vla, {}, seconds(0)), ['Choose a length above zero seconds.']);
-  assert.match(say(vla, { rateHz: 1e6 })[0], /^1 MHz is not a rate this device offers; it offers 4 MHz, 10 MHz, 25 MHz\.$/);
-  assert.match(say(dla, { channels: [0, 1, 2, 3, 4], rateHz: 100e6 }, seconds(0.001))[0], /100 MHz is not available with 5 channels; the most is 25 MHz/);
+  assert.match(say(vla, { rateHz: 1e6 })[0], /^1 MS\/s is not a rate this device offers; it offers 4 MS\/s, 10 MS\/s, 25 MS\/s\.$/);
+  assert.match(say(dla, { channels: [0, 1, 2, 3, 4], rateHz: 100e6 }, seconds(0.001))[0], /100 MS\/s is not available with 5 channels; the most is 25 MS\/s/);
   assert.deepEqual(say(dla, { channels: [0, 1, 2, 3], rateHz: 100e6 }, seconds(0.001)), [], 'four channels may go faster');
   assert.match(say(dla, { rateHz: 1e6 }, seconds(2))[0], /holds at most 1,000,000 samples per channel, 1 s at this rate/);
   assert.deepEqual(say(dla, { rateHz: 1e6 }, { untilStopped: true, seconds: 0 }), [], 'until stopped fills the device');

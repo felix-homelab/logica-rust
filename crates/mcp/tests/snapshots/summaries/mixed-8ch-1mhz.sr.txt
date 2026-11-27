@@ -1,4 +1,4 @@
-open_file: Opened c1 "mixed-8ch-1mhz.sr": 30,000 samples at 1 MHz (30 ms), channels CH0 (TX), CH1 (PWM), CH2 (HIGH), CH3, CH4, CH5, CH6, CH7.
+open_file: Opened c1 "mixed-8ch-1mhz.sr": 30,000 samples at 1 MS/s (30 ms), channels CH0 (TX), CH1 (PWM), CH2 (HIGH), CH3, CH4, CH5, CH6, CH7.
 
 summarize:
 UART: data on CH0 (TX); baud 115200, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.

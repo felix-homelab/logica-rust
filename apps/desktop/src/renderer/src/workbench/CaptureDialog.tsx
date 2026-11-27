@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Dialog, Status, TextField } from '@logica/ui';
 import { Activity, Check, RefreshCw } from 'lucide-react';
-import { hz, int } from '../format';
+import { int, rate } from '../format';
 import { isAgent, useDeviceWatch, useStore, who } from '../store';
 import {
   captureSteps,
@@ -132,7 +132,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   const plans = selected.map((d) => ({ d, caps: d.capabilities as Caps, choice: choiceOf(d) }));
   // in one capture the devices' own tab names do not apply
-  const own = (p: (typeof plans)[number]) => problems(p.caps, asOne ? { ...p.choice, title } : p.choice, length, hz);
+  const own = (p: (typeof plans)[number]) => problems(p.caps, asOne ? { ...p.choice, title } : p.choice, length, rate);
   const joint = asOne ? togetherIssues(plans.map((p) => ({ model: p.d.info.model, caps: p.caps, choice: p.choice })), alignList, channelLabel) : [];
   const groupIssues = asOne ? [...joint.map((t) => t.text), ...(title.trim() === '' ? [NO_NAME] : [])] : [];
   const issues = [...new Set([...plans.flatMap(own), ...groupIssues])];
@@ -315,7 +315,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                       <strong>{d.info.model}</strong>
                       <span className="muted">
                         {' '}
-                        · {caps.channels.length} channels · up to {hz(Math.max(...caps.ratesHz))} · {d.info.id}
+                        · {caps.channels.length} channels · up to {rate(Math.max(...caps.ratesHz))} · {d.info.id}
                       </span>
                     </span>
                   </label>
@@ -410,7 +410,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   <select className="lg-input" value={rateShared ?? ''} onChange={(e) => setSharedRate(Number(e.target.value))}>
                     {rates.map((r) => (
                       <option key={r} value={r}>
-                        {hz(r)}
+                        {rate(r)}
                       </option>
                     ))}
                   </select>
@@ -521,7 +521,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                     <select className="lg-input" value={choice.rateHz} onChange={(e) => setChoice(d, { rateHz: Number(e.target.value) })}>
                       {caps.ratesHz.map((r) => (
                         <option key={r} value={r}>
-                          {hz(r)}
+                          {rate(r)}
                         </option>
                       ))}
                     </select>
@@ -551,7 +551,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                 )}
               </div>
               <p className="muted">
-                {choice.channels.length} of {caps.channels.length} channels at {hz(choice.rateHz)}
+                {choice.channels.length} of {caps.channels.length} channels at {rate(choice.rateHz)}
                 {length.untilStopped ? `, up to ${int(samples)} samples per channel` : `, ${int(samples)} samples per channel`}.
               </p>
               <Problems list={here} label={`Problems with ${d.info.model}`} />
@@ -585,7 +585,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                 <dt>{shortModel(p.d.info.model)}</dt>
                 <dd>
                   {asOne ? '' : `"${p.choice.title}": `}
-                  {p.choice.channels.length} of {p.caps.channels.length} channels at {hz(p.choice.rateHz)}
+                  {p.choice.channels.length} of {p.caps.channels.length} channels at {rate(p.choice.rateHz)}
                   {p.caps.modes.length > 1 ? `, ${p.choice.mode === 'stream' ? 'streamed' : 'into the device first'}` : ''}
                   {', '}
                   {length.untilStopped ? `up to ${int(samplesFor(p.caps, p.choice.rateHz, length))}` : int(samplesFor(p.caps, p.choice.rateHz, length))} samples per channel

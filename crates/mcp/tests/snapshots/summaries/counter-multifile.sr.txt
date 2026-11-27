@@ -1,4 +1,4 @@
-open_file: Opened c1 "counter-multifile.sr": 9,000,000 samples at 10 MHz (900 ms), channels CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7.
+open_file: Opened c1 "counter-multifile.sr": 9,000,000 samples at 10 MS/s (900 ms), channels CH0, CH1, CH2, CH3, CH4, CH5, CH6, CH7.
 
 summarize:
 I2S: sck on CH0, sd on CH1, ws on CH3; format i2s, leftWhen low, wordBits 4; confidence 60 %.

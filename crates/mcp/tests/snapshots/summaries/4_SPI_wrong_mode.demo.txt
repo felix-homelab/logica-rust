@@ -1,4 +1,4 @@
-open_file: Opened c1 "4_SPI_wrong_mode.demo": 50,000,008 samples at 50 MHz (1 s), channels CH3 (CLK), CH4 (MISO), CH5 (CS#), CH6 (MOSI).
+open_file: Opened c1 "4_SPI_wrong_mode.demo": 50,000,008 samples at 50 MS/s (1 s), channels CH3 (CLK), CH4 (MISO), CH5 (CS#), CH6 (MOSI).
 
 summarize:
 SPI: clk on CH3 (CLK), cs on CH5 (CS#), miso on CH4 (MISO), mosi on CH6 (MOSI); bitOrder msb, csPolarity low, mode 1, wordSize 8; confidence 100 %.

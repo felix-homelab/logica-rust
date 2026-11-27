@@ -1,4 +1,4 @@
-open_file: Opened c1 "selected-3of8.sr": 16 samples at 1 kHz (16 ms), channels CH0 (A), CH2 (B), CH5 (C).
+open_file: Opened c1 "selected-3of8.sr": 16 samples at 1 kS/s (16 ms), channels CH0 (A), CH2 (B), CH5 (C).
 
 summarize:
 No protocol was recognised.

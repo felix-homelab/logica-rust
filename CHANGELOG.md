@@ -85,6 +85,11 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   (I2C), next to the MCP3201, each sending sines in its preset's format (CH16 to CH21 of the
   built-in mix), and offers rates up to 1000 MS/s (1 GS/s). (#36)
 
+### Changed
+
+- Sample rates are written in samples per second (S/s, kS/s, MS/s, GS/s) in the window, MCP
+  answers and the CLI, so they are not mistaken for frequencies, which stay in Hz. (#37)
+
 ### Fixed
 
 - App: a cursor set just before the window read the session again (after adding a decoder or a

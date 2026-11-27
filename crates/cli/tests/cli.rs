@@ -236,7 +236,7 @@ fn inspect_reads_every_format() {
     let (code, out, err) = logica(&["inspect", &fixture("captures/mystery_C.demo")]);
     assert_eq!(code, EXIT_OK, "{err}");
     assert!(out.starts_with("mystery_C.demo\n"));
-    assert!(out.contains("10,000,008 samples at 10 MHz"), "{out}");
+    assert!(out.contains("10,000,008 samples at 10 MS/s"), "{out}");
     assert!(out.contains("Channels   2: CH4 (channel 4), CH5 (channel 5)"), "{out}");
 
     let (code, out, _) = logica(&["inspect", &fixture("formats/sr/mixed-8ch-1mhz.sr")]);

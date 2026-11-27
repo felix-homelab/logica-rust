@@ -1,4 +1,4 @@
-open_file: Opened c1 "2_UART_mystery_baud.demo": 40,000,008 samples at 40 MHz (1 s), channels CH0 (RX).
+open_file: Opened c1 "2_UART_mystery_baud.demo": 40,000,008 samples at 40 MS/s (1 s), channels CH0 (RX).
 
 summarize:
 UART: data on CH0 (RX); baud 57600, bitOrder lsb, dataBits 8, invert false, packetGap 35, parity none, stopBits 1; confidence 100 %.
