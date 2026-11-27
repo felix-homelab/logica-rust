@@ -52,5 +52,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   or a line and resized by dragging its bottom edge, and "Add virtual analog channel" in the
   channel list, with a dialog in steps for the source and its channel, its settings, the scaling,
   and the name and look. (#20)
+- Devices: the virtual analyser's PWM can carry a level: with `dutyRange` its duty glides from one
+  random value to the next, or with `sinePeriodMs` follows a sine. The built-in mix has one of
+  each, CH11 (LEVEL) and CH12 (SINE), for trying virtual analog channels without hardware. (#21)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

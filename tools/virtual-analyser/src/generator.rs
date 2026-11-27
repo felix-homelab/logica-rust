@@ -16,6 +16,8 @@ enum Source {
         channel: u32,
         period: f64,
         high: f64,
+        /// A duty that changes instead of staying at `high / period`.
+        wander: Option<Wander>,
     },
     Noise(Noise),
     /// Half-periods of a clock on the computer's time: half-period `k` starts at `k * half_ns`
@@ -26,6 +28,37 @@ enum Source {
         k: u128,
         clock: Clock,
     },
+}
+
+/// A changing duty: a glide from `from` to `to` between the times `start` and `end` (seconds),
+/// then on to a new random value in `range`; or, with `sine` (its period in seconds), a sine
+/// between the ends of `range`.
+struct Wander {
+    range: [f64; 2],
+    change_ms: [f64; 2],
+    sine: Option<f64>,
+    from: f64,
+    to: f64,
+    start: f64,
+    end: f64,
+}
+
+impl Wander {
+    /// The duty of the period starting at `t`.
+    fn duty(&mut self, rng: &mut Rng, t: f64) -> f64 {
+        let [lo, hi] = self.range;
+        if let Some(period) = self.sine {
+            return (lo + hi) / 2.0 + (hi - lo) / 2.0 * (std::f64::consts::TAU * t / period).sin();
+        }
+        while t >= self.end {
+            self.from = self.to;
+            self.to = rng.between(self.range[0], self.range[1]);
+            self.start = self.end;
+            self.end = self.start + pause(rng, self.change_ms);
+        }
+        let k = (t - self.start) / (self.end - self.start);
+        self.from + (self.to - self.from) * k.clamp(0.0, 1.0)
+    }
 }
 
 /// Where the capture sits on the computer's clock: sample 0 at `epoch_ns` (nanoseconds since
@@ -109,13 +142,26 @@ impl Generator {
                     (Source::Spi(sp), first)
                 }
                 // square waves rise after one period: a capture never has an edge at sample 0
-                Signal::Pwm(Pwm { channel, frequency_hz, duty, .. }) => {
+                Signal::Pwm(Pwm {
+                    channel,
+                    frequency_hz,
+                    duty,
+                    duty_range,
+                    change_ms,
+                    sine_period_ms,
+                    ..
+                }) => {
                     let period = 1.0 / frequency_hz;
-                    (Source::Square { channel, period, high: duty * period }, period)
+                    let wander = duty_range.map(|range| {
+                        let to = rng.between(range[0], range[1]);
+                        let sine = sine_period_ms.map(|ms| ms / 1e3);
+                        Wander { range, change_ms, sine, from: to, to, start: 0.0, end: 0.0 }
+                    });
+                    (Source::Square { channel, period, high: duty * period, wander }, period)
                 }
                 Signal::Clock(Pwm { channel, frequency_hz, .. }) => {
                     let period = 1.0 / frequency_hz;
-                    (Source::Square { channel, period, high: 0.5 * period }, period)
+                    (Source::Square { channel, period, high: 0.5 * period, wander: None }, period)
                 }
                 Signal::Noise(n) => {
                     let first = rng.exponential(n.mean_us * 1e-6);
@@ -194,10 +240,14 @@ impl Generator {
                         let end = spi_burst(lanes, sp, t, &mosi_bytes, &miso_bytes);
                         end + pause(rng, sp.every_ms)
                     }
-                    Source::Square { channel, period, high } => {
+                    Source::Square { channel, period, high, wander } => {
+                        let high = match wander {
+                            Some(w) => w.duty(rng, t) * *period,
+                            None => *high,
+                        };
                         let lane = &mut lanes[*channel as usize];
                         lane.set(t, Level::High);
-                        lane.set(t + *high, Level::Low);
+                        lane.set(t + high, Level::Low);
                         t + *period
                     }
                     Source::Noise(n) => {
@@ -381,13 +431,53 @@ mod tests {
     }
 
     #[test]
+    fn the_level_pwm_wanders_smoothly_inside_its_range() {
+        // channel 11 of the example: 1 kHz, duty between 5 % and 95 %
+        let (store, _) = capture(&Config::example(), 1e6, 3.0, 0.02, 5);
+        let e = store.edges_in(11, 0, store.sample_count()).unwrap();
+        let duties: Vec<f64> =
+            e.windows(3).step_by(2).map(|w| (w[1] - w[0]) as f64 / (w[2] - w[0]) as f64).collect();
+        assert!(duties.len() > 2900, "{} periods", duties.len());
+        let lo = duties.iter().copied().fold(f64::MAX, f64::min);
+        let hi = duties.iter().copied().fold(f64::MIN, f64::max);
+        assert!(lo >= 0.049 && hi <= 0.951, "duty from {lo} to {hi}");
+        assert!(hi - lo > 0.3, "it wanders: {lo} to {hi}");
+        // a glide takes at least 200 periods, so neighbours differ by little
+        let step = duties.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0, f64::max);
+        assert!(step < 0.01, "largest change between periods {step}");
+        // every period is still 1 ms
+        assert!(e.windows(3).step_by(2).all(|w| w[2] - w[0] == 1000));
+    }
+
+    #[test]
+    fn the_sine_pwm_draws_a_sine_between_its_ends() {
+        // channel 12 of the example: 1 kHz, duty a sine from 10 % to 90 % once a second
+        let (store, _) = capture(&Config::example(), 1e6, 2.0, 0.02, 5);
+        let e = store.edges_in(12, 0, store.sample_count()).unwrap();
+        for w in e.windows(3).step_by(2) {
+            let duty = (w[1] - w[0]) as f64 / (w[2] - w[0]) as f64;
+            let t = w[0] as f64 / 1e6;
+            let want = 0.5 + 0.4 * (std::f64::consts::TAU * t).sin();
+            // one sample of 1,000 a period
+            assert!((duty - want).abs() <= 0.0011, "at {t} s: {duty}, a sine gives {want}");
+        }
+        let duties: Vec<f64> =
+            e.windows(3).step_by(2).map(|w| (w[1] - w[0]) as f64 / (w[2] - w[0]) as f64).collect();
+        let lo = duties.iter().copied().fold(f64::MAX, f64::min);
+        let hi = duties.iter().copied().fold(f64::MIN, f64::max);
+        assert!(lo < 0.101 && hi > 0.899, "the whole range: {lo} to {hi}");
+    }
+
+    #[test]
     fn a_seed_repeats_and_batch_size_does_not_matter() {
         let c = Config::example();
         let (a, _) = capture(&c, 10e6, 0.3, 0.02, 99);
         let (b, _) = capture(&c, 10e6, 0.3, 0.0031, 99);
         let (d, _) = capture(&c, 10e6, 0.3, 0.02, 100);
         let edges = |s: &CaptureStore| {
-            (0..10).map(|k| s.edges_in(k, 0, s.sample_count()).unwrap()).collect::<Vec<_>>()
+            (0..c.channel_count as usize)
+                .map(|k| s.edges_in(k, 0, s.sample_count()).unwrap())
+                .collect::<Vec<_>>()
         };
         assert_eq!(edges(&a), edges(&b));
         assert_ne!(edges(&a), edges(&d), "another seed gives other data");
