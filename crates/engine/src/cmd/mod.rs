@@ -110,6 +110,7 @@ commands! {
     "analog.update": AnalogUpdateIn => AnalogOut = analog::update;
     "analog.remove": AnalogRef => Nothing = analog::remove;
     "analog.values": AnalogValuesIn => AnalogValuesOut = analog::values;
+    "analog.at": AnalogAtIn => AnalogAtOut = analog::at;
     "search.run": SearchIn => SearchOut = analysis::search;
     "marker.add": MarkerAddIn => MarkerOut = edit::marker_add;
     "marker.update": MarkerUpdateIn => MarkerOut = edit::marker_update;

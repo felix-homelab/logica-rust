@@ -143,6 +143,7 @@ export type ErrorCode = ("cancelled" | "invalid-input" | "not-found" | "busy" | 
 export interface Contract {
 inputs: {
 "analog.add": AnalogAddIn
+"analog.at": AnalogAtIn
 "analog.remove": AnalogRef
 "analog.sources": Nothing
 "analog.update": AnalogUpdateIn
@@ -191,6 +192,7 @@ render: RenderIn
 }
 outputs: {
 "analog.add": AnalogOut
+"analog.at": AnalogAtOut
 "analog.remove": Nothing
 "analog.sources": AnalogSourcesOut
 "analog.update": AnalogOut
@@ -279,6 +281,13 @@ settings?: {
 source: string
 style?: (AnalogStyle | null)
 unit?: (string | null)
+}
+export interface AnalogAtIn {
+/**
+ * Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.
+ */
+at: number[]
+capture: string
 }
 export interface AnalogRef {
 analog: string
@@ -829,6 +838,37 @@ kind: PointKind
  */
 unit?: (string | null)
 }
+export interface AnalogAtOut {
+channels: AnalogAtChannel[]
+}
+/**
+ * One channel's values at the asked samples, in its unit.
+ */
+export interface AnalogAtChannel {
+analog: string
+name: string
+/**
+ * One step of the code in the unit, where the source reads codes.
+ */
+step?: (number | null)
+unit: string
+/**
+ * In the order asked; `value` is absent where the channel has none (before its first value,
+ * in a gap).
+ */
+values: AnalogPoint[]
+}
+/**
+ * A value in the channel's unit from `sample` on; `value` is absent in a gap.
+ */
+export interface AnalogPoint {
+/**
+ * The raw code, where the source reads codes.
+ */
+code?: (number | null)
+sample: number
+value?: (number | null)
+}
 export interface AnalogSourcesOut {
 sources: AnalogSourceEntry[]
 }
@@ -895,17 +935,6 @@ gap: boolean
 held?: (number | null)
 max?: (number | null)
 min?: (number | null)
-}
-/**
- * A value in the channel's unit from `sample` on; `value` is absent in a gap.
- */
-export interface AnalogPoint {
-/**
- * The raw code, where the source reads codes.
- */
-code?: (number | null)
-sample: number
-value?: (number | null)
 }
 /**
  * A problem in the range: a stretch without a value or with a doubtful one, and why.

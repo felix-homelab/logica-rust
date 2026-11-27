@@ -84,3 +84,22 @@ export function valueLines(points: ValuePoint[], held: number | null | undefined
   }
   return lines;
 }
+
+export interface ReadValue {
+  value?: number | null;
+  code?: number | null;
+}
+
+/** A channel's value at a cursor, with its raw code where it has one. */
+export function readout(v: ReadValue | undefined, unit: string, step?: number | null): string {
+  if (v?.value === null || v?.value === undefined) return 'no value';
+  const code = v.code !== null && v.code !== undefined ? ` (code ${v.code})` : '';
+  return `${formatValue(v.value, unit, step)}${code}`;
+}
+
+/** The difference from A to B, when both have a value. */
+export function difference(a: ReadValue | undefined, b: ReadValue | undefined, unit: string, step?: number | null): string | null {
+  if (a?.value === null || a?.value === undefined || b?.value === null || b?.value === undefined) return null;
+  const d = b.value - a.value;
+  return `${d > 0 ? '+' : ''}${formatValue(d, unit, step)}`;
+}

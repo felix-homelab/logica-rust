@@ -151,6 +151,10 @@ pub const COMMANDS: &[CommandSpec] = &[
     ),
     edit("analog.remove", "Remove a virtual analog channel; undo restores it with the same id."),
     query(
+        "analog.at",
+        "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
+    ),
+    query(
         "analog.values",
         "Values of a virtual analog channel in a range, in its unit: points, or an envelope per bucket, with problems.",
     ),

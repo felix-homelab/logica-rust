@@ -264,6 +264,72 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalogAtIn {
+    pub capture: String,
+    /// Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.
+    pub at: Vec<Sample>,
+}
+
+/// One channel's values at the asked samples, in its unit.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogAtChannel {
+    pub analog: String,
+    pub name: String,
+    pub unit: String,
+    /// One step of the code in the unit, where the source reads codes.
+    pub step: Option<f64>,
+    /// In the order asked; `value` is absent where the channel has none (before its first value,
+    /// in a gap).
+    pub values: Vec<AnalogPoint>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogAtOut {
+    pub channels: Vec<AnalogAtChannel>,
+}
+
+/// The raw code behind a fraction, where the source reads codes.
+fn code_of(a: &crate::analog::Analog, x: f64) -> Option<i64> {
+    match (a.output.kind, a.output.bits) {
+        (PointKind::Fraction, Some(bits)) => code_of_fraction(x, bits, a.output.encoding),
+        _ => None,
+    }
+}
+
+pub(crate) fn at(e: &mut Engine, _: &Ctx, i: AnalogAtIn) -> Result<Done, CommandError> {
+    if i.at.is_empty() || i.at.len() > 16 {
+        return Err(err(ErrorCode::InvalidInput, "Give 1 to 16 samples to read the values at."));
+    }
+    let c = e.capture(&i.capture)?;
+    let channels = c
+        .analog
+        .iter()
+        .map(|(id, a)| AnalogAtChannel {
+            analog: id.clone(),
+            name: a.config.name.clone(),
+            unit: a.config.unit.clone(),
+            step: a.step(),
+            values: i
+                .at
+                .iter()
+                .map(|&s| {
+                    let x = a.series.value_at(s);
+                    AnalogPoint {
+                        sample: s,
+                        value: x.map(|x| a.config.scaling.apply(x)),
+                        code: x.and_then(|x| code_of(a, x)),
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(Done::query(out(&AnalogAtOut { channels })))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AnalogValuesIn {
     pub capture: String,
     pub analog: String,
@@ -336,10 +402,7 @@ pub(crate) fn values(e: &mut Engine, _: &Ctx, i: AnalogValuesIn) -> Result<Done,
     let bucket = (i.to - i.from).div_ceil(u64::from(i.buckets));
     let limit = 2 * i.buckets as usize;
     let raw: Vec<_> = a.series.points(i.from, i.to).take(limit + 1).collect();
-    let code = |x: f64| match (a.output.kind, a.output.bits) {
-        (PointKind::Fraction, Some(bits)) => code_of_fraction(x, bits, a.output.encoding),
-        _ => None,
-    };
+    let code = |x: f64| code_of(a, x);
     let (points, buckets) = if raw.len() <= limit {
         let pts = raw.iter().map(|p| AnalogPoint {
             sample: p.sample,

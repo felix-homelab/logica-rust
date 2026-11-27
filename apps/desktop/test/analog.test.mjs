@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatValue, tickCount, valueTickStep, valueLines, valueRange, valueTicks, valueY } from '../src/renderer/src/analogplot.ts';
+import { difference, formatValue, readout, tickCount, valueTickStep, valueLines, valueRange, valueTicks, valueY } from '../src/renderer/src/analogplot.ts';
 import { layoutRows, ROW_HEIGHT } from '../src/renderer/src/lanes.ts';
 import { analogNeeds, sessionLiveNeeds, waveformNeeds } from '../src/renderer/src/relevance.ts';
 
@@ -94,4 +94,14 @@ test('analog values are read again for their own capture only', () => {
   assert.equal(analogNeeds({ event: 'decoder.updated', capture: 'c1' }, 'c1'), false);
   assert.equal(waveformNeeds(up, 'c1'), false);
   assert.equal(sessionLiveNeeds(up), true);
+});
+
+test('cursor readouts give the value, the code where there is one, and the difference', () => {
+  assert.equal(readout({ value: 1.6304, code: 2048 }, 'V', 3.3 / 4096), '1.6304 V (code 2048)');
+  assert.equal(readout({ value: 30 }, '%', null), '30.000 %');
+  assert.equal(readout({}, '%'), 'no value');
+  assert.equal(readout(undefined, '%'), 'no value');
+  assert.equal(difference({ value: 20 }, { value: 30 }, '%', 1), '+10 %');
+  assert.equal(difference({ value: 30 }, { value: 20 }, '%', 1), '-10 %');
+  assert.equal(difference({ value: 30 }, {}, '%', 1), null);
 });

@@ -6,7 +6,8 @@ import { Button, EmptyState, Switch, TextField, VirtualList } from '@logica/ui';
 import { Undo2, Redo2 } from 'lucide-react';
 import { client } from '../bridge';
 import { at, hz, int, time } from '../format';
-import { activityNeeds, tableNeeds } from '../relevance';
+import { activityNeeds, analogNeeds, tableNeeds } from '../relevance';
+import { difference, formatValue, readout } from '../analogplot';
 import { isAgent, useEventCount, useStore, who, type CaptureInfo } from '../store';
 import type { ViewState } from './Waveform';
 
@@ -120,6 +121,24 @@ export function Measurements({ capture, view }: { capture: CaptureInfo; view: Vi
   }, [capture.id, channel, range?.[0], range?.[1]]);
   const a = view?.cursorA ?? null;
   const b = view?.cursorB ?? null;
+  // the virtual analog channels at the cursors (ADR 0010)
+  const analogChanges = useEventCount((e) => analogNeeds(e, capture.id));
+  const [values, setValues] = useState<Output<'analog.at'> | null>(null);
+  const cursors = [a, b].filter((s): s is number => s !== null);
+  useEffect(() => {
+    if (!capture.analog.length || !cursors.length) {
+      setValues(null);
+      return;
+    }
+    let stale = false;
+    void run('analog.at', { capture: capture.id, at: cursors }).then((v) => !stale && v && setValues(v));
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capture.id, a, b, capture.analog, analogChanges]);
+  const atA = a !== null ? 0 : -1;
+  const atB = b !== null ? cursors.length - 1 : -1;
   return (
     <div className="pad measure">
       <dl className="facts">
@@ -136,6 +155,19 @@ export function Measurements({ capture, view }: { capture: CaptureInfo; view: Vi
             </dd>
           </>
         )}
+        {values?.channels.map((ch) => (
+          <div key={ch.analog} className="facts__row">
+            <dt>{ch.name}</dt>
+            <dd className="lg-num">
+              {atA >= 0 && `A: ${readout(ch.values[atA], ch.unit, ch.step)}`}
+              {atA >= 0 && atB >= 0 && atA !== atB && ` · B: ${readout(ch.values[atB], ch.unit, ch.step)}`}
+              {atA < 0 && atB >= 0 && `B: ${readout(ch.values[atB], ch.unit, ch.step)}`}
+              {atA >= 0 && atB > atA && difference(ch.values[atA], ch.values[atB], ch.unit, ch.step) !== null &&
+                ` · B − A: ${difference(ch.values[atA], ch.values[atB], ch.unit, ch.step)}`}
+              {ch.step ? ` · one step ${formatValue(ch.step, ch.unit, ch.step / 10)}` : ''}
+            </dd>
+          </div>
+        ))}
         {view?.selection && (
           <>
             <dt>Selection</dt>

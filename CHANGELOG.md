@@ -58,5 +58,7 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Analysis: a PWM whose duty changes is recognised as a PWM carrying a level (it was taken for
   UART), with the range its duty moves in, and "Add PWM level" turns any PWM found into a virtual
   analog channel in one click. (#24)
+- App: the Measurements panel reads virtual analog channels at the cursors: the value, the raw
+  code, the difference from A to B and one step. (#25)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

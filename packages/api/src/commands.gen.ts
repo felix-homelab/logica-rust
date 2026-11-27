@@ -24,6 +24,16 @@ export const COMMANDS: readonly CommandSpec[] = [
     }
   },
   {
+    "name": "analog.at",
+    "summary": "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
     "name": "analog.remove",
     "summary": "Remove a virtual analog channel; undo restores it with the same id.",
     "safety": "read",

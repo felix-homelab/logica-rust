@@ -77,5 +77,11 @@ test('a PWM found by the analysis becomes a virtual analog channel in one click'
   await expect(list).toContainText('30');
   // once there, the analysis says so instead of adding a second one
   await expect(page.getByRole('button', { name: 'PWM level added' })).toBeDisabled();
+  // a cursor in the middle reads the level there
+  const canvas = page.locator('.wave__canvas');
+  const box = (await canvas.boundingBox())!;
+  await canvas.click({ position: { x: box.width * 0.6, y: 40 } });
+  await page.getByRole('tab', { name: 'Measurements' }).click();
+  await expect(page.getByText(/A: 30(\.\d+)? %/)).toBeVisible();
   await app.close();
 });

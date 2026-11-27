@@ -595,6 +595,7 @@
             "analog.add",
             "analog.update",
             "analog.remove",
+            "analog.at",
             "analog.values",
             "search.run",
             "marker.add",

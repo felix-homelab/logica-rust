@@ -15,6 +15,8 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   a stopped PWM reads 0 % or 100 % with a reason).
 - Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
   live following, saving in `.lacap`.
+- Cursors: the Measurements panel reads every virtual analog channel at cursors A and B (value,
+  raw code, the difference B − A, one step), through `analog.at`.
 - Detection: a PWM with a changing duty is a PWM carrying a level (`DutyLevel` in the channel
   measurements), no longer UART; the analysis card offers "Add PWM level".
 - Window: a row per channel (160 pixels unless resized by dragging its bottom edge or in the
@@ -24,7 +26,6 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
 
 ### Not done yet
 
-- The value, raw code and step at the cursor (doc 08) come with the measurements step.
 - The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
   and says which to use.
 - Serial ADC with presets, parallel bus, PDM, measurements, CSV export, search and math channels

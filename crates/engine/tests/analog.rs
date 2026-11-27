@@ -320,3 +320,31 @@ fn sessions_saved_before_virtual_channels_existed_still_open() {
     let s: logica_engine::state::SavedSession = serde_json::from_value(old).unwrap();
     assert!(s.analog.is_empty());
 }
+
+#[test]
+fn values_at_the_cursors() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let none = run(&mut e, "analog.at", json!({ "capture": c, "at": [0] }));
+    assert_eq!(none["channels"], json!([]), "no channels, nothing to read");
+    let id = add(&mut e, duty(&c));
+    let rate = capture(&mut e, &c)["sampleRateHz"].as_f64().unwrap();
+    let mid = (rate * 0.5) as u64;
+    let o = run(&mut e, "analog.at", json!({ "capture": c, "at": [mid, 0] }));
+    let ch = &o["channels"][0];
+    assert_eq!(
+        (ch["analog"].as_str().unwrap(), ch["name"].as_str().unwrap(), ch["unit"].as_str().unwrap()),
+        (id.as_str(), "PWM level", "%")
+    );
+    assert!(ch["step"].is_null(), "a duty has no code steps");
+    // in the order asked: half a second in it reads 30 %; before the first period, nothing
+    assert_eq!(ch["values"][0]["sample"], mid);
+    assert!(close(ch["values"][0]["value"].as_f64().unwrap(), 30.0, 1.0), "{ch}");
+    assert!(ch["values"][0]["code"].is_null());
+    assert!(ch["values"][1]["value"].is_null(), "{ch}");
+    let (code, msg) = fail(&mut e, "analog.at", json!({ "capture": c, "at": [] }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert_eq!(msg, "Give 1 to 16 samples to read the values at.");
+    let (_, msg) = fail(&mut e, "analog.at", json!({ "capture": c, "at": vec![1u64; 17] }));
+    assert!(msg.contains("1 to 16"), "{msg}");
+}

@@ -83,7 +83,8 @@ Tools change only deliberately (schema snapshot tests); a new capability first g
 `run_command` and earns its own tool when agents need it often. `compare` joins with capture
 comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
 exist, the tools are not offered. Virtual analog channels (ADR 0010) are created and changed with
-`run_command` (`analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`);
+`run_command` (`analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`,
+`analog.at`);
 the tools above include them where they read data. A tool that has several actions (`device`, `capture`, `measure`,
 `decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
 `oneOf`.
