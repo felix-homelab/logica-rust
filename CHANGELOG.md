@@ -63,5 +63,8 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Virtual analog channels from ADCs on SPI and I2C: a bit field of every transfer, unsigned or
   two's complement, with a filter for one input of a multiplexed ADC, and presets for the
   MCP3201, MCP3208 and ADS1115. (#26)
+- App: the virtual analog dialog offers the ADC chips a source knows: choosing one fills the
+  settings and the scaling, and for an ADC with several inputs it adds one channel per input. The
+  virtual analyser sends an MCP3201 sine on CH13 to CH15 to try it. (#27)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

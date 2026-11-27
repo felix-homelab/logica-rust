@@ -163,6 +163,28 @@ pub struct Noise {
     pub mean_us: f64,
 }
 
+/// An ADC like the MCP3201 on SPI (mode 0, most significant bit first): every sample is a
+/// 16-clock frame on CLK, CS and DOUT (MISO) with two sampling bits and a null bit, then the
+/// 12-bit code. The code follows a sine, for trying virtual analog channels.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Adc {
+    pub clk: u32,
+    pub cs: u32,
+    pub miso: u32,
+    #[serde(default = "default_adc_clock")]
+    pub clock_hz: f64,
+    /// Samples a second.
+    #[serde(default = "default_adc_rate")]
+    pub sample_hz: f64,
+    /// The sine's period, in milliseconds.
+    #[serde(default = "default_adc_sine")]
+    pub sine_period_ms: f64,
+    /// The share of full scale the sine spans, low and high.
+    #[serde(default = "default_adc_range")]
+    pub range: [f64; 2],
+}
+
 /// One generated signal and the channels it drives.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -179,6 +201,8 @@ pub enum Signal {
     /// A clock shared with other analysers on this computer (it follows the computer's clock), to
     /// line several up in one capture.
     Shared(Shared),
+    /// An SPI ADC sending a sine.
+    Adc(Adc),
 }
 
 fn default_name() -> String {
@@ -247,6 +271,18 @@ fn default_shared_hz() -> f64 {
 fn default_noise_us() -> f64 {
     200.0
 }
+fn default_adc_clock() -> f64 {
+    250e3
+}
+fn default_adc_rate() -> f64 {
+    1000.0
+}
+fn default_adc_sine() -> f64 {
+    1000.0
+}
+fn default_adc_range() -> [f64; 2] {
+    [0.1, 0.9]
+}
 
 /// Samples needed per shortest step of a signal (a quarter clock, a UART bit's eighth).
 const STEPS: f64 = 2.0;
@@ -270,6 +306,9 @@ impl Signal {
             Signal::Clock(p) => vec![named(p.channel, &p.name, "CLOCK")],
             Signal::Noise(n) => vec![named(n.channel, &n.name, "NOISE")],
             Signal::Shared(s) => vec![named(s.channel, &s.name, "SYNC")],
+            Signal::Adc(a) => {
+                vec![(a.clk, "ADC CLK".into()), (a.cs, "ADC CS".into()), (a.miso, "ADC DOUT".into())]
+            }
         }
     }
 
@@ -289,6 +328,7 @@ impl Signal {
             // random changes closer than a sample simply cancel
             Signal::Noise(_) => 0.0,
             Signal::Shared(s) => 2.0 * STEPS * s.frequency_hz,
+            Signal::Adc(a) => 4.0 * STEPS * a.clock_hz,
         }
     }
 
@@ -353,6 +393,14 @@ impl Signal {
             Signal::Clock(p) => format!("clock {} Hz", p.frequency_hz),
             Signal::Noise(n) => format!("random changes about every {} µs", n.mean_us),
             Signal::Shared(s) => format!("shared clock {} Hz (follows the computer's clock)", s.frequency_hz),
+            Signal::Adc(a) => format!(
+                "SPI ADC (MCP3201) at {} kHz, {} samples a second, a sine from {} % to {} % of full scale every {} ms",
+                a.clock_hz / 1e3,
+                a.sample_hz,
+                a.range[0] * 100.0,
+                a.range[1] * 100.0,
+                a.sine_period_ms
+            ),
         }
     }
 }
@@ -445,13 +493,14 @@ impl Config {
             .collect()
     }
 
-    /// The built-in configuration: one of each signal on thirteen channels, and two PWM levels to
-    /// try virtual analog channels on: one wandering at random, one a sine.
+    /// The built-in configuration: one of each signal on sixteen channels, with two PWM levels (one
+    /// wandering at random, one a sine) and an SPI ADC sending a sine, to try virtual analog
+    /// channels on.
     pub fn example() -> Self {
         Config {
             name: default_name(),
             listen: default_listen(),
-            channel_count: 13,
+            channel_count: 16,
             sample_rates_hz: default_rates(),
             seed: None,
             speed: 1.0,
@@ -532,6 +581,15 @@ impl Config {
                     duty_range: Some([0.1, 0.9]),
                     change_ms: default_change_ms(),
                     sine_period_ms: Some(1000.0),
+                }),
+                Signal::Adc(Adc {
+                    clk: 13,
+                    cs: 14,
+                    miso: 15,
+                    clock_hz: default_adc_clock(),
+                    sample_hz: default_adc_rate(),
+                    sine_period_ms: default_adc_sine(),
+                    range: default_adc_range(),
                 }),
             ],
         }
@@ -636,6 +694,23 @@ fn signal_problems(s: &Signal) -> Vec<String> {
         Signal::Shared(s) => {
             if !positive(s.frequency_hz) {
                 p.push("frequencyHz must be above 0.".into());
+            }
+        }
+        Signal::Adc(a) => {
+            if !positive(a.clock_hz) || !positive(a.sample_hz) || !positive(a.sine_period_ms) {
+                p.push("clockHz, sampleHz and sinePeriodMs must be above 0.".into());
+            } else if 17.0 * a.sample_hz >= a.clock_hz {
+                p.push(format!(
+                    "sampleHz {} does not fit: a sample takes 16 clocks plus a pause, so clockHz must be above {}.",
+                    a.sample_hz,
+                    17.0 * a.sample_hz
+                ));
+            }
+            if !(a.range[0] >= 0.0 && a.range[0] <= a.range[1] && a.range[1] < 1.0) {
+                p.push(format!(
+                    "range is [{}, {}]; give two shares of full scale from 0 to below 1, the first not above the second.",
+                    a.range[0], a.range[1]
+                ));
             }
         }
     }
@@ -756,6 +831,28 @@ mod tests {
         assert_eq!(c.signals[6].describe(), "PWM 1000 Hz, duty a sine between 20 % and 60 % every 250 ms");
         // the shortest pulse (10 % of 1 ms) sets the slowest faithful rate
         assert_eq!(c.signals[3].min_rate_hz(), STEPS * 1000.0 / 0.1);
+    }
+
+    #[test]
+    fn an_adc_is_checked_and_described() {
+        let c: Config = serde_json::from_str(
+            r#"{"channelCount":9,"signals":[
+                {"kind":"adc","clk":0,"cs":1,"miso":2,"clockHz":10000,"sampleHz":1000},
+                {"kind":"adc","clk":3,"cs":4,"miso":5,"range":[0.9,0.1]},
+                {"kind":"adc","clk":6,"cs":7,"miso":8}
+            ]}"#,
+        )
+        .unwrap();
+        let p = c.problems().join("\n");
+        assert!(p.contains("Signal 1: sampleHz 1000 does not fit"), "{p}");
+        assert!(p.contains("Signal 2: range is [0.9, 0.1]"), "{p}");
+        assert!(!p.contains("Signal 3"), "{p}");
+        assert_eq!(
+            c.signals[2].describe(),
+            "SPI ADC (MCP3201) at 250 kHz, 1000 samples a second, a sine from 10 % to 90 % of full scale every 1000 ms"
+        );
+        assert_eq!(c.signals[2].min_rate_hz(), 2e6);
+        assert_eq!(c.signals[2].channels()[2], (8, "ADC DOUT".to_string()));
     }
 
     #[test]

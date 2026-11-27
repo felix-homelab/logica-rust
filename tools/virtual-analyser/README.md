@@ -9,7 +9,7 @@ hardware.
 ## Run it
 
 ```
-cargo run -p logica-vla                          # the built-in mix on thirteen channels (CH11, CH12: PWM levels), real time
+cargo run -p logica-vla                          # the built-in mix on sixteen channels (CH11, CH12: PWM levels; CH13–15: an SPI ADC), real time
 cargo run -p logica-vla -- --config tools/virtual-analyser/examples/busy-sensors.json
 cargo run -p logica-vla -- --seed 42             # the same signals in every capture
 cargo run -p logica-vla -- --print-config        # the built-in configuration as a starting point
@@ -47,6 +47,7 @@ Signals (`kind`), each on its own channels:
 | `clock` | `channel`, `name`, `frequencyHz` |
 | `noise` | `channel`, `name`, `meanUs` (200): random changes about that far apart |
 | `shared` | `channel`, `name` (SYNC), `frequencyHz` (100): a clock on the computer's time, so analysers on one computer see the same edges, each at its own samples |
+| `adc` | `clk`, `cs`, `miso`, `clockHz` (250 kHz), `sampleHz` (1000), `sinePeriodMs` (1000), `range` ([0.1, 0.9]): an MCP3201 on SPI (mode 0) sending a sine over that share of full scale; read it with the MCP3201 preset |
 
 `everyMs` is the pause between bursts, picked at random between the two numbers. Mistakes are
 explained before anything listens (`--check` only checks). Examples are in `examples/`.

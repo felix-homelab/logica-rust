@@ -5,7 +5,7 @@
 use logica_core::{Level, Sample};
 use logica_protocols::synth::{I2cTransfer, Lane, UartOptions, i2c_transaction, spi_frame, uart_send};
 
-use crate::config::{Config, I2c, Noise, Parity, Pwm, Shared, Signal, Spi, Uart};
+use crate::config::{Adc, Config, I2c, Noise, Parity, Pwm, Shared, Signal, Spi, Uart};
 use crate::rng::Rng;
 
 enum Source {
@@ -20,6 +20,7 @@ enum Source {
         wander: Option<Wander>,
     },
     Noise(Noise),
+    Adc(Adc),
     /// Half-periods of a clock on the computer's time: half-period `k` starts at `k * half_ns`
     /// nanoseconds after 1970 and is high when `k` is even.
     Shared {
@@ -167,6 +168,11 @@ impl Generator {
                     let first = rng.exponential(n.mean_us * 1e-6);
                     (Source::Noise(n), first)
                 }
+                Signal::Adc(a) => {
+                    lanes[a.cs as usize] = Lane::high(rate);
+                    let first = 1.0 / a.sample_hz;
+                    (Source::Adc(a), first)
+                }
                 Signal::Shared(Shared { channel, frequency_hz, .. }) => {
                     let half_ns = u128::from(logica_protocols::num::round(5e8 / frequency_hz).max(1));
                     let now = clock.epoch_ns / half_ns;
@@ -249,6 +255,31 @@ impl Generator {
                         lane.set(t, Level::High);
                         lane.set(t + high, Level::Low);
                         t + *period
+                    }
+                    Source::Adc(a) => {
+                        let [lo, hi] = a.range;
+                        let level = (lo + hi) / 2.0
+                            + (hi - lo) / 2.0 * (std::f64::consts::TAU * t * 1e3 / a.sine_period_ms).sin();
+                        // a 12-bit code after two sampling bits and a null bit, in 16 clocks
+                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                        let code = (level * 4096.0).round().clamp(0.0, 4095.0) as u16;
+                        let word = (code << 1).to_be_bytes();
+                        let [clk, cs, miso] = lanes
+                            .get_disjoint_mut([a.clk as usize, a.cs as usize, a.miso as usize])
+                            .expect("checked: the ADC uses three different channels");
+                        logica_protocols::synth::spi_frame(
+                            clk,
+                            Some(cs),
+                            None,
+                            Some(miso),
+                            t,
+                            a.clock_hz,
+                            0,
+                            &[0, 0],
+                            &word,
+                            true,
+                        );
+                        t + 1.0 / a.sample_hz
                     }
                     Source::Noise(n) => {
                         let lane = &mut lanes[n.channel as usize];
@@ -485,6 +516,32 @@ mod tests {
         let bus = a.buses.iter().find(|b| b.bus.channels.contains(&7)).expect("a bus");
         assert_eq!(bus.chosen[0].protocol_id, "pwm");
         assert!(bus.chosen[0].evidence[0].text.contains("25.0 % duty"), "{:?}", bus.chosen[0].evidence);
+    }
+
+    #[test]
+    fn the_adc_sends_a_sine_that_the_spi_adc_source_reads_back() {
+        use logica_protocols::analyse::{Sourcing, decode_store_with};
+        let (store, meta) = capture(&Config::example(), 4e6, 1.0, 0.02, 5);
+        let src = logica_protocols::analog::source("spi-adc").unwrap();
+        let s = settings(&[("skipBits", 3.0.into()), ("bits", 12.0.into())]);
+        let r = decode_store_with(
+            &Sourcing(src.as_ref()),
+            &store,
+            &meta,
+            &roles(&[("clk", 13), ("cs", 14), ("miso", 15)]),
+            &s,
+            Batching::Whole,
+        )
+        .unwrap();
+        assert!(r.points.len() >= 998, "{} samples in a second at 1 kHz", r.points.len());
+        assert!(r.frames.is_empty(), "{:?}", r.frames.first());
+        for p in &r.points {
+            let t = p.sample as f64 / 4e6;
+            // the code was taken at the frame's start, a sample later than the point at most
+            let want = 0.5 + 0.4 * (std::f64::consts::TAU * t).sin();
+            let got = p.x.unwrap();
+            assert!((got - want).abs() <= 1.5 / 4096.0, "at {t} s: {got}, a sine gives {want}");
+        }
     }
 
     #[test]

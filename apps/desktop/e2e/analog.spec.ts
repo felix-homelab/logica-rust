@@ -2,7 +2,10 @@
 // built from the engine's sources, drawn as a row of their own, changed and undone like every edit.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { fixture, start } from './helpers';
+import { execFile, spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { Agent, fixture, repo, start } from './helpers';
 
 async function shot(page: Page, name: string): Promise<void> {
   if (process.env.LOGICA_SHOTS) await page.screenshot({ path: `${process.env.LOGICA_SHOTS}/${name}.png` });
@@ -84,4 +87,52 @@ test('a PWM found by the analysis becomes a virtual analog channel in one click'
   await page.getByRole('tab', { name: 'Measurements' }).click();
   await expect(page.getByText(/A: 30(\.\d+)? %/)).toBeVisible();
   await app.close();
+});
+
+test("an ADC on SPI from the virtual analyser, set up with the chip's preset", async () => {
+  test.setTimeout(300_000);
+  // the analyser's built-in mix sends an MCP3201 sine (10 % to 90 % of full scale) on CH13 to CH15
+  await promisify(execFile)('cargo', ['build', '-q', '-p', 'logica-vla'], { cwd: repo, timeout: 600_000 });
+  const proc = spawn(join(repo, 'target', 'debug', process.platform === 'win32' ? 'logica-vla.exe' : 'logica-vla'), ['--listen', '127.0.0.1:0', '--seed', '5'], { cwd: repo });
+  try {
+    const at = await new Promise<string>((resolve, reject) => {
+      let out = '';
+      proc.stdout?.on('data', (b: Buffer) => {
+        out += String(b);
+        const m = /Listening on (\S+)\./.exec(out);
+        if (m?.[1]) resolve(m[1]);
+      });
+      proc.on('exit', (code) => reject(new Error(`logica-vla ended (${code}): ${out}`)));
+    });
+    const { app, page, dataDir } = await start([], { env: { LOGICA_VLA: at } });
+    await expect(page.getByRole('button', { name: 'Capture live…', exact: true })).toBeVisible();
+    // a second of it, captured as an agent would
+    const agent = await Agent.connect(dataDir, 'test');
+    const cmd = (command: string, input: unknown) => agent.tool('run_command', { command, input });
+    await cmd('device.connect', { device: `vla/${at}` });
+    await cmd('device.configure', { device: `vla/${at}`, config: { channels: [13, 14, 15], sampleRateHz: 4e6, samples: 4_000_000, mode: 'stream' } });
+    await cmd('capture.start', { device: `vla/${at}`, title: 'ADC' });
+
+    await page.getByRole('complementary', { name: 'Channels' }).getByRole('button', { name: 'Add virtual analog channel' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add a virtual analog channel' });
+    await dialog.getByLabel('Source').selectOption({ label: 'ADC on SPI' });
+    await dialog.getByLabel(/^CLK/).selectOption('13');
+    await dialog.getByLabel(/^CS/).selectOption('14');
+    await dialog.getByLabel(/^MISO/).selectOption('15');
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    await dialog.getByLabel('ADC chip').selectOption({ label: 'MCP3201 (12 bits, SPI)' });
+    await expect(dialog.getByText(/two sampling bits and a null bit/)).toBeVisible();
+    await expect(dialog.getByLabel('Bits before the sample')).toHaveValue('3');
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    // the chip's scaling: 0 to 3.3 V
+    await expect(dialog.getByLabel('Highest value')).toHaveValue('3.3');
+    await expect(dialog.getByLabel('Unit')).toHaveValue('V');
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    await dialog.getByRole('button', { name: 'Add channel' }).click();
+    // 10 % to 90 % of 3.3 V
+    await expect(page.locator('#wave-description')).toContainText(/MCP3201 \(0\.3\d* V to 2\.9\d* V\)/, { timeout: 20_000 });
+    await app.close();
+  } finally {
+    proc.kill();
+  }
 });

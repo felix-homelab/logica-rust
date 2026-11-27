@@ -40,6 +40,9 @@ interface Form {
   unit: string;
   style: 'step' | 'line';
   height: string;
+  /** The chip chosen from the source's presets, and for several inputs 'all' or one's index. */
+  preset: string;
+  input: string;
 }
 
 const blank: Form = {
@@ -55,6 +58,8 @@ const blank: Form = {
   unit: '',
   style: 'step',
   height: '160',
+  preset: '',
+  input: 'all',
 };
 
 function formOf(a: AnalogInfo): Form {
@@ -72,6 +77,8 @@ function formOf(a: AnalogInfo): Form {
     unit: a.config.unit ?? '',
     style: a.config.style ?? 'step',
     height: String(a.config.height ?? 160),
+    preset: '',
+    input: 'all',
   };
 }
 
@@ -103,6 +110,24 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
   const [at, setAt] = useState(0);
   const set = (patch: Partial<Form>) => setF((old) => ({ ...old, ...patch }));
   const source = sources.find((s) => s.id === f.source);
+  const preset = source?.presets.find((p) => p.id === f.preset);
+  // a chip fills the settings and the scaling; its name stays a suggestion
+  const choosePreset = (id: string) => {
+    const p = source?.presets.find((x) => x.id === id);
+    if (!p) return set({ preset: '', input: 'all' });
+    const first = (p.inputs ?? [])[0];
+    set({
+      preset: id,
+      input: 'all',
+      settings: { ...(p.settings as Settings), ...((first?.settings ?? {}) as Settings) },
+      kind: 'range',
+      low: String(p.low),
+      high: String(p.high),
+      unit: p.unit,
+    });
+  };
+  const inputs = preset?.inputs ?? [];
+  const allInputs = !editing && inputs.length > 0 && f.input === 'all';
   const scaling = scalingOf(f);
   const height = Number(f.height);
   // what keeps each step from being finished, in words
@@ -128,9 +153,26 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
       scaling,
       style: f.style,
       height,
-      ...(f.name.trim() ? { name: f.name.trim() } : {}),
+      ...(f.name.trim() ? { name: f.name.trim() } : preset ? { name: preset.name.split(' (')[0]! } : {}),
       ...(f.unit.trim() ? { unit: f.unit.trim() } : {}),
     };
+    if (allInputs && preset) {
+      // one channel per input of the chip, each undoable on its own
+      const base = f.name.trim() || preset.name.split(' (')[0]!;
+      for (const input of inputs) {
+        const added = await run('analog.add', {
+          capture: capture.id,
+          source: source.id,
+          roles: f.roles,
+          settings: { ...f.settings, ...(input.settings as Settings) },
+          ...common,
+          name: `${base} ${input.name}`,
+        });
+        if (!added) return;
+      }
+      onClose();
+      return;
+    }
     const done = editing
       ? await run('analog.update', { capture: capture.id, analog: editing.id, source: source.id, roles: f.roles, settings: f.settings, replaceSettings: true, ...common })
       : await run('analog.add', { capture: capture.id, source: source.id, roles: f.roles, settings: f.settings, ...common });
@@ -252,6 +294,27 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
             )}
           </>
         )}
+        {step.id === 'settings' && !!source?.presets.length && (
+          <>
+            {select(
+              'preset',
+              'ADC chip',
+              f.preset,
+              choosePreset,
+              [['', 'Another chip: set the fields below'], ...source.presets.map((p): [string, string] => [p.id, p.name])],
+              preset?.help,
+            )}
+            {!editing &&
+              inputs.length > 0 &&
+              select(
+                'input',
+                'Inputs',
+                f.input,
+                (v) => set({ input: v, settings: { ...f.settings, ...((v === 'all' ? inputs[0]!.settings : inputs[Number(v)]!.settings) as Settings) } }),
+                [['all', `All ${inputs.length}, one channel each`], ...inputs.map((x, k): [string, string] => [String(k), x.name])],
+              )}
+          </>
+        )}
         {step.id === 'settings' &&
           (source?.settings.length ? (
             source.settings.map((s) => (
@@ -287,7 +350,7 @@ function AnalogDialog({ capture, sources, editing, onClose }: { capture: Capture
         )}
         {step.id === 'look' && (
           <>
-            <TextField label="Name" value={f.name} placeholder={source?.name ?? ''} onChange={(e) => set({ name: e.target.value })} />
+            <TextField label="Name" value={f.name} placeholder={preset?.name.split(' (')[0] ?? source?.name ?? ''} onChange={(e) => set({ name: e.target.value })} />
             {select(
               'style',
               'Draw as',

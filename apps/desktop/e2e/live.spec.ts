@@ -99,7 +99,7 @@ test('a live capture follows the newest data, decodes while it runs and stops', 
     await dialog.getByRole('button', { name: 'Next: Bench' }).click();
     await expect(dialog.getByRole('checkbox', { name: 'CH0 TX' })).toBeChecked();
     await dialog.getByRole('button', { name: 'Next: Check and start' }).click();
-    await expect(dialog).toContainText('13 of 13 channels');
+    await expect(dialog).toContainText('16 of 16 channels');
     await dialog.getByRole('button', { name: 'Start capture' }).click();
     await expect(dialog).toHaveCount(0);
     const bar = page.getByRole('group', { name: 'Live capture' });
@@ -188,14 +188,14 @@ test('several analysers capture together, each into its own tab, with settings c
     await bar.getByRole('button', { name: /Second/ }).click();
     await secondSettings.getByRole('checkbox', { name: 'CH0 TX' }).check();
     await secondSettings.getByRole('checkbox', { name: 'CH9 NOISE' }).check();
-    await expect(secondSettings).toContainText('2 of 13 channels');
+    await expect(secondSettings).toContainText('2 of 16 channels');
     const r = await new AxeBuilder({ page }).include('[role="dialog"]').setLegacyMode(true).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await shot(page, 'capture-dialog');
 
     await dialog.getByRole('button', { name: 'Next: Check and start' }).click();
     await expect(dialog).toContainText('Each device into its own tab');
-    await expect(dialog).toContainText('2 of 13 channels');
+    await expect(dialog).toContainText('2 of 16 channels');
     const go = dialog.getByRole('button', { name: 'Start 2 captures' });
     await go.click();
     await expect(dialog).toHaveCount(0);
