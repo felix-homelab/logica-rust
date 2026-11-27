@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@logica/api": "0.1.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "electron": "45.4.1",
