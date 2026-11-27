@@ -69,5 +69,7 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Virtual analog channels from a parallel bus of up to 16 bits, read on a clock or strobe edge
   (with an enable line), or without a clock once the word stays put, so skewed bits give no false
   values; with a preset for the ADC0804. (#28)
+- Virtual analog channels from PDM or sigma-delta bitstreams (PDM microphones, isolated ADCs),
+  filtered back into values by a sinc³ filter with a decimation ratio you choose. (#29)
 
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

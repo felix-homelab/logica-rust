@@ -7,6 +7,7 @@
 //! changes.
 
 pub mod parallel;
+pub mod pdm;
 pub mod presets;
 pub mod pwm;
 pub mod serial;
@@ -72,6 +73,7 @@ pub fn sources() -> Vec<Box<dyn Source>> {
         Box::new(serial::SerialAdc::new(serial::Bus::Spi)),
         Box::new(serial::SerialAdc::new(serial::Bus::I2c)),
         Box::new(parallel::ParallelSource::default()),
+        Box::new(pdm::PdmSource::default()),
     ]
 }
 

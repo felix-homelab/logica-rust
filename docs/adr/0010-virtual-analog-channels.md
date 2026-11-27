@@ -35,8 +35,10 @@ the command API, MCP or the window.
 - **Sources are streaming decoders.** They live in `protocols` and follow the decoder lifecycle of
   doc 06 (create, push, finish, drain, snapshot), so live capture, resume and the batching tests
   apply unchanged. Scaling and the value-series store live in `core`. Neither does I/O.
-- **Nothing is invented.** Input a source cannot turn into a value (a short frame, a NACK, a word
-  that never settles, a filter still filling) leaves a gap and a problem that says why.
+- **Nothing is invented.** Input a source cannot turn into a value (a short frame, a NACK, a PWM
+  that stopped) leaves a gap and a problem that says why. What every capture has (a filter
+  filling at the start, words between skewed bits) is left out too, and said once in a note
+  rather than counted as problems.
 - **Math channels** combine virtual channels with a typed JSON expression (like queries, doc 06).
   Inputs sampled at different times are combined by sample and hold: a point whenever any input has
   a new value, none before every input has one. A cycle is refused when the channel is created.

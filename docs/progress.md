@@ -15,6 +15,8 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   a stopped PWM reads 0 % or 100 % with a reason).
 - Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
   live following, saving in `.lacap`.
+- PDM / sigma-delta: sinc³ CIC with decimation 2 to 1024, rising or falling clock edge. No
+  virtual analyser signal for it yet.
 - Parallel bus: up to 16 bits, on a clock edge with an enable, or settled words without a clock;
   ADC0804 preset. No virtual analyser signal for it yet.
 - Serial ADC: `spi-adc` and `i2c-adc` (a layer running the bus decoder inside itself), presets
@@ -33,7 +35,7 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
 
 - The dialog does not know which scaling a source's settings need; the engine refuses a wrong one
   and says which to use.
-- PDM, measurements, CSV export, search and math channels (doc 11, M2a).
+- Measurements, CSV export, search and math channels (doc 11, M2a).
 
 ## M2 Desktop app and viewer (November 2026)
 
