@@ -72,4 +72,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Virtual analog channels from PDM or sigma-delta bitstreams (PDM microphones, isolated ADCs),
   filtered back into values by a sinc³ filter with a decimation ratio you choose. (#29)
 
+### Fixed
+
+- App: a cursor set just before the window read the session again (after adding a decoder or a
+  virtual channel, for example) is no longer taken back. (#30)
+
 [Unreleased]: https://github.com/felix-homelab/logica-rust/commits/main

@@ -89,3 +89,16 @@ export function liveView(prev: Range, next: Range, count: number, span: number |
   }
   return atEnd(next, count) ? { span: width, range: following(width, count) } : { span: null, range: clampRange(next, count) };
 }
+
+/**
+ * Whether a tab takes the engine's view from a new session (views as keys). The engine's view
+ * wins when someone else (an agent) changed it: it differs from the last one seen and from the
+ * window's own. The window's own view stays while a change of it is still being sent, and when
+ * the engine's view is merely the one seen before, so a session that arrives just after a click
+ * cannot take the cursor back.
+ */
+export function adoptEngineView(v: { mine: string | null; engine: string; seen: string | null; sending: boolean }): boolean {
+  if (v.mine === null) return true;
+  if (v.sending) return false;
+  return v.seen !== null && v.seen !== v.engine && v.mine !== v.engine;
+}

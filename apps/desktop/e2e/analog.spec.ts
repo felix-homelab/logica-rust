@@ -84,8 +84,9 @@ test('a PWM found by the analysis becomes a virtual analog channel in one click'
   const canvas = page.locator('.wave__canvas');
   const box = (await canvas.boundingBox())!;
   await canvas.click({ position: { x: box.width * 0.6, y: 40 } });
+  await expect(page.locator('#wave-description')).toContainText('Cursor A at');
   await page.getByRole('tab', { name: 'Measurements' }).click();
-  await expect(page.getByText(/A: 30(\.\d+)? %/)).toBeVisible();
+  await expect(page.getByText(/A: 30(\.\d+)? %/)).toBeVisible({ timeout: 10_000 });
   await app.close();
 });
 
