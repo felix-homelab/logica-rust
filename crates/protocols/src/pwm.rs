@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use logica_core::measure::DutyLevel;
 use logica_core::{Level, Sample};
 
 use crate::format::{self, pct};
@@ -85,6 +86,13 @@ fn detect(ctx: &DetectContext<'_>, specs: &[SettingSpec]) -> DetectorOutput {
     let mut out = DetectorOutput::default();
     for ch in &ctx.channels {
         let reject = |because: String| Rejection { protocol_id: "pwm".into(), because };
+        if let (None, Some(d)) = (&ctx.m(ch.index).periodic, &ctx.m(ch.index).duty_level) {
+            match level(ctx, ch.index, d, specs) {
+                Ok(det) => out.detections.push(det),
+                Err(because) => out.rejections.push(reject(because)),
+            }
+            continue;
+        }
         let Some(p) = &ctx.m(ch.index).periodic else {
             out.rejections.push(reject(format!("the pulses on channel {} are not evenly spaced", ch.index)));
             continue;
@@ -172,6 +180,78 @@ fn detect(ctx: &DetectContext<'_>, specs: &[SettingSpec]) -> DetectorOutput {
         });
     }
     out
+}
+
+/// A PWM whose duty changes: it carries a level, which a virtual analog channel shows as a curve.
+fn level(
+    ctx: &DetectContext<'_>,
+    channel: u32,
+    d: &DutyLevel,
+    specs: &[SettingSpec],
+) -> Result<Detection, String> {
+    if !d.continuous && d.periods < 20 {
+        return Err(format!(
+            "channel {channel} has only {} even periods, too few for a PWM level",
+            d.periods
+        ));
+    }
+    let rate = ctx.sample_rate_hz;
+    let period_s = d.period_samples / rate;
+    let alone = ctx.bus.channels.len() == 1;
+    let mut ev = vec![
+        evidence(
+            format!(
+                "Channel {channel} repeats every {} ({}), but its high time changes: the duty moves between {} and {} (on average {}).",
+                format::time(period_s),
+                format::hz(rate / d.period_samples),
+                pct(d.duty_min, 1),
+                pct(d.duty_max, 1),
+                pct(d.duty_mean, 1)
+            ),
+            true,
+        ),
+        evidence(
+            format!(
+                "{} % of periods are the same length{}.",
+                (d.regularity * 100.0).round(),
+                if d.continuous { ", and it never pauses" } else { "" }
+            ),
+            d.regularity > 0.9,
+        ),
+        evidence(
+            "A PWM whose duty changes carries a level, as for a fan, a dimmer or a DAC made from PWM. Add a virtual analog channel (PWM level) to see that level as a curve.",
+            true,
+        ),
+    ];
+    if alone {
+        ev.push(evidence("No other channel is busy with it, so it is not a bus clock.", true));
+    } else {
+        ev.push(evidence("Other channels are busy at the same moments, so this may belong to a bus.", false));
+    }
+    Ok(Detection {
+        protocol_id: "pwm".into(),
+        channels: vec![channel],
+        roles: roles(&[("signal", Some(channel))]),
+        settings: SettingSpec::with_defaults(specs, &Settings::new()),
+        notes: [
+            ("role:signal".to_string(), note(0.9, format!("Channel {channel} is the repeating pulse."))),
+            ("activeLevel".to_string(), note(0.7, "Duty is normally the high time divided by the period.")),
+        ]
+        .into_iter()
+        .collect(),
+        confidence: clamp01(
+            if alone { 0.65 } else { 0.35 } + 0.25 * d.regularity + if d.continuous { 0.1 } else { 0.0 },
+        ),
+        evidence: ev,
+        warnings: if d.period_samples < 20.0 {
+            vec![format!(
+                "Only {} samples per period, so the duty reading is coarse.",
+                format::fixed(d.period_samples, 1)
+            )]
+        } else {
+            vec![]
+        },
+    })
 }
 
 pub struct Pwm {

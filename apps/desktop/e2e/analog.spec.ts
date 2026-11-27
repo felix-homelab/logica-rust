@@ -66,3 +66,16 @@ test('a PWM level is added as a virtual analog channel, rescaled and undone', as
   await expect(page.locator('#wave-description')).not.toContainText('Virtual analog');
   await app.close();
 });
+
+test('a PWM found by the analysis becomes a virtual analog channel in one click', async () => {
+  const { app, page } = await start([fixture('captures/mystery_D.demo')]);
+  const add = page.getByRole('button', { name: 'Add PWM level' });
+  await expect(add).toBeVisible({ timeout: 20_000 });
+  await add.click();
+  const list = page.getByRole('complementary', { name: 'Channels' }).getByRole('region', { name: 'Virtual analog channels' });
+  await expect(list).toContainText('PWM level');
+  await expect(list).toContainText('30');
+  // once there, the analysis says so instead of adding a second one
+  await expect(page.getByRole('button', { name: 'PWM level added' })).toBeDisabled();
+  await app.close();
+});

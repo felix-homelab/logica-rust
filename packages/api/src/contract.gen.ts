@@ -1049,6 +1049,10 @@ channel: number
  * Pulse widths grouped, narrowest first.
  */
 clusters: WidthCluster[]
+/**
+ * Regular periods with a changing duty; only when it is not [`Self::periodic`].
+ */
+dutyLevel?: (DutyLevel | null)
 edgeCount: number
 firstEdge?: (number | null)
 /**
@@ -1087,6 +1091,34 @@ low: number
 max: number
 mean: number
 min: number
+}
+/**
+ * A PWM that carries a level: periods of the same length, a high time that changes (a fan, a
+ * dimmer, a DAC by PWM). Clocks and steady PWM are [`Periodicity`] instead.
+ */
+export interface DutyLevel {
+/**
+ * The signal never pauses between its first and last edge and spans most of the window.
+ */
+continuous: boolean
+dutyMax: number
+dutyMean: number
+/**
+ * Lowest and highest duty, ignoring the outer 2 % of periods, and the mean.
+ */
+dutyMin: number
+/**
+ * Average rising-to-rising period, in samples.
+ */
+periodSamples: number
+/**
+ * Periods measured.
+ */
+periods: number
+/**
+ * Fraction of periods within a few percent of the typical one.
+ */
+regularity: number
 }
 export interface Narrowest {
 count: number

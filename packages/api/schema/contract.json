@@ -1363,6 +1363,18 @@
           },
           "type": "array"
         },
+        "dutyLevel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DutyLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Regular periods with a changing duty; only when it is not [`Self::periodic`]."
+        },
         "edgeCount": {
           "format": "uint64",
           "minimum": 0,
@@ -2189,6 +2201,54 @@
         "any"
       ],
       "type": "string"
+    },
+    "DutyLevel": {
+      "description": "A PWM that carries a level: periods of the same length, a high time that changes (a fan, a\ndimmer, a DAC by PWM). Clocks and steady PWM are [`Periodicity`] instead.",
+      "properties": {
+        "continuous": {
+          "description": "The signal never pauses between its first and last edge and spans most of the window.",
+          "type": "boolean"
+        },
+        "dutyMax": {
+          "format": "double",
+          "type": "number"
+        },
+        "dutyMean": {
+          "format": "double",
+          "type": "number"
+        },
+        "dutyMin": {
+          "description": "Lowest and highest duty, ignoring the outer 2 % of periods, and the mean.",
+          "format": "double",
+          "type": "number"
+        },
+        "periodSamples": {
+          "description": "Average rising-to-rising period, in samples.",
+          "format": "double",
+          "type": "number"
+        },
+        "periods": {
+          "description": "Periods measured.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regularity": {
+          "description": "Fraction of periods within a few percent of the typical one.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "periodSamples",
+        "regularity",
+        "dutyMin",
+        "dutyMax",
+        "dutyMean",
+        "periods",
+        "continuous"
+      ],
+      "type": "object"
     },
     "EdgeOut": {
       "properties": {

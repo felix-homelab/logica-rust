@@ -183,6 +183,9 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
   const a = result?.capture === capture.id ? result.analysis : null;
   const has = (protocol: string, roles: Record<string, number | null>) =>
     capture.decoders.some((d) => d.config.protocol === protocol && JSON.stringify(d.config.roles) === JSON.stringify(roles));
+  // a PWM level on the same channel is there already
+  const hasLevel = (roles: Record<string, number | null>) =>
+    capture.analog.some((a) => a.config.source === 'pwm' && a.config.roles['signal'] === roles['signal']);
   return (
     <div className="sections">
       <div className="section section--bar">
@@ -245,6 +248,26 @@ export function AnalysisPanel({ capture, expert, view }: { capture: CaptureInfo;
                 >
                   {has(d.protocolId, d.roles) ? 'Decoder added' : 'Add decoder'}
                 </Button>
+                {d.protocolId === 'pwm' && (
+                  // a PWM carries a level: show it as a curve (ADR 0010), duty in per cent
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={hasLevel(d.roles) ? <Check /> : <Activity />}
+                    disabled={hasLevel(d.roles)}
+                    onClick={() =>
+                      void run('analog.add', {
+                        capture: capture.id,
+                        source: 'pwm',
+                        roles: d.roles,
+                        scaling: { kind: 'range', low: 0, high: 100 },
+                        unit: '%',
+                      })
+                    }
+                  >
+                    {hasLevel(d.roles) ? 'PWM level added' : 'Add PWM level'}
+                  </Button>
+                )}
               </div>
             </div>
           ))}

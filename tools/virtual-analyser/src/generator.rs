@@ -469,6 +469,25 @@ mod tests {
     }
 
     #[test]
+    fn the_pwm_levels_are_detected_as_pwm_carrying_a_level() {
+        let (store, meta) = capture(&Config::example(), 4e6, 2.0, 0.02, 5);
+        let a =
+            logica_protocols::analyse::analyse_capture(&store, &meta, &logica_protocols::registry()).unwrap();
+        for ch in [11, 12] {
+            let bus = a.buses.iter().find(|b| b.bus.channels.contains(&ch)).expect("a bus");
+            let d = bus.chosen.first().unwrap_or_else(|| panic!("CH{ch}: nothing chosen"));
+            assert_eq!(d.protocol_id, "pwm", "CH{ch}: {:?}", bus.chosen);
+            let text: Vec<&str> = d.evidence.iter().map(|e| e.text.as_str()).collect();
+            assert!(text.iter().any(|t| t.contains("the duty moves between")), "{text:?}");
+            assert!(text.iter().any(|t| t.contains("virtual analog channel")), "{text:?}");
+        }
+        // the steady PWM on CH7 is still a plain PWM
+        let bus = a.buses.iter().find(|b| b.bus.channels.contains(&7)).expect("a bus");
+        assert_eq!(bus.chosen[0].protocol_id, "pwm");
+        assert!(bus.chosen[0].evidence[0].text.contains("25.0 % duty"), "{:?}", bus.chosen[0].evidence);
+    }
+
+    #[test]
     fn a_seed_repeats_and_batch_size_does_not_matter() {
         let c = Config::example();
         let (a, _) = capture(&c, 10e6, 0.3, 0.02, 99);

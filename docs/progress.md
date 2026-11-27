@@ -15,6 +15,8 @@ ADR 0010; pull requests #15, #17, #18, #19, #20 (issue #16).
   a stopped PWM reads 0 % or 100 % with a reason).
 - Engine: `analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`, undo,
   live following, saving in `.lacap`.
+- Detection: a PWM with a changing duty is a PWM carrying a level (`DutyLevel` in the channel
+  measurements), no longer UART; the analysis card offers "Add PWM level".
 - Window: a row per channel (160 pixels unless resized by dragging its bottom edge or in the
   dialog; the height is part of the definition, so it is saved and undoable) with a value axis,
   steps or a line, problems outlined; the channel list's "Virtual analog" section and a dialog in
