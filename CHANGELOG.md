@@ -84,6 +84,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 - Devices: the virtual analyser also plays an MCP3208 (eight inputs, read in turn) and an ADS1115
   (I2C), next to the MCP3201, each sending sines in its preset's format (CH16 to CH21 of the
   built-in mix), and offers rates up to 1000 MS/s (1 GS/s). (#36)
+- Search finds virtual analog values: where a channel crosses a level, rising or falling, or
+  stretches where it stays above, below or between levels, optionally for longer than a time; in a
+  query it also filters other hits by the value at their start. (#38)
 
 ### Changed
 

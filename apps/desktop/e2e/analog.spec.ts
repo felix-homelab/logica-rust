@@ -182,3 +182,29 @@ test('a virtual channel reads from a decoder and follows it when the decoder cha
   await expect(page.locator('#wave-description')).toContainText(/PWM level \(70(\.\d+)? %/, { timeout: 10_000 });
   await app.close();
 });
+
+test('search finds where a virtual analog channel stays above a level, and where it crosses one', async () => {
+  const { app, page } = await start([fixture('captures/mystery_D.demo')]);
+  // the steady 30 % PWM on CH0 as a channel
+  const add = page.getByRole('button', { name: 'Add PWM level' });
+  await expect(add).toBeVisible({ timeout: 20_000 });
+  await add.click();
+  await expect(page.getByRole('button', { name: 'PWM level added' })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Search' }).click();
+  await page.getByLabel('Find').selectOption('analog');
+  await page.getByLabel('Where it').selectOption('above');
+  const search = page.getByRole('button', { name: 'Search', exact: true });
+  // nothing to search for without a level
+  await expect(search).toBeDisabled();
+  await page.getByLabel('Level (%)').fill('20');
+  await search.click();
+  await expect(page.getByText('1 hits')).toBeVisible();
+  await expect(page.locator('.hits__item').first()).toContainText(/PWM level above 20 % for/);
+  // a level it never reaches is never crossed
+  await page.getByLabel('Where it').selectOption('crosses');
+  await page.getByLabel('Level (%)').fill('50');
+  await search.click();
+  await expect(page.getByText('No hits.')).toBeVisible();
+  await app.close();
+});

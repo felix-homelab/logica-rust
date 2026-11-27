@@ -177,7 +177,10 @@ emits points; the shared **scaling** in `core` turns them into values; doc 04 st
 - Search over edges ("pulse narrower than 100 ns on CH3", "CH2 high while CH5 rises"), over
   decoded content ("I2C NACK", "SPI MOSI starts with 9F", "UART text contains ERROR", "frames with
   problems") and over virtual analog values ("ADC 1 above 2.5 V", "crosses 1.65 V rising",
-  "PWM duty below 10 % for longer than 5 ms").
+  "PWM duty below 10 % for longer than 5 ms"): the query `analog` finds crossings of a level
+  (`crosses`, `direction`) or stretches above, below or between levels (`above`, `below`,
+  `longerThan`, `shorterThan`), compared in the channel's unit, a gap ending a stretch; inside
+  `all` it filters other hits by the value where they start.
 - Queries are a **typed JSON structure** defined in the command API contract, not a text grammar.
   The engine, the MCP `search` tool and triggers all take it; agents write it from the schema; the
   UI has a query builder that produces it:

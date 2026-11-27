@@ -468,6 +468,70 @@
       ],
       "type": "object"
     },
+    "AnalogQuery": {
+      "additionalProperties": false,
+      "description": "Values of a virtual analog channel, in its unit: where it crosses a level, or the stretches\nwhere it is above, below or between levels (a gap ends a stretch). As a filter inside `all`, the\nvalue at the start of a hit.",
+      "properties": {
+        "above": {
+          "description": "Find stretches above this value (both with `below`: between them).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "analog": {
+          "description": "A virtual analog channel id on the capture.",
+          "type": "string"
+        },
+        "below": {
+          "description": "Find stretches below this value.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "crosses": {
+          "description": "Find where the value passes this level.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Direction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "With `crosses`: which way (any by default)."
+        },
+        "longerThan": {
+          "description": "With `above` or `below`: only stretches longer or shorter than this, in seconds.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "shorterThan": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "analog"
+      ],
+      "type": "object"
+    },
     "AnalogRef": {
       "additionalProperties": false,
       "properties": {
@@ -4445,6 +4509,19 @@
           },
           "required": [
             "within"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A virtual analog channel's values (ADR 0010).",
+          "properties": {
+            "analog": {
+              "$ref": "#/$defs/AnalogQuery"
+            }
+          },
+          "required": [
+            "analog"
           ],
           "type": "object"
         }
