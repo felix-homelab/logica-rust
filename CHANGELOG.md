@@ -89,6 +89,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
 
 - **Breaking:** sample rates are written in samples per second (S/s, kS/s, MS/s, GS/s) in the window, MCP
   answers and the CLI, so they are not mistaken for frequencies, which stay in Hz. (#37)
+- App: the mouse wheel scrolls through the channels; Ctrl+wheel (Cmd on macOS) zooms and
+  Shift+wheel pans, so a capture with many channels can be scrolled without changing the zoom.
+  (#37)
 
 ### Fixed
 

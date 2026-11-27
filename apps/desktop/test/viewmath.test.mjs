@@ -161,3 +161,15 @@ test('sample rates are samples per second, frequencies hertz', () => {
   assert.equal(rate(Number.NaN), '–');
   assert.equal(hz(1e6), '1 MHz');
 });
+
+test('the wheel scrolls the channels; Ctrl zooms, Shift or a sideways swipe pans', async () => {
+  const { wheelAction } = await import('../src/renderer/src/viewmath.ts');
+  const w = (o) => wheelAction({ ctrlKey: false, metaKey: false, shiftKey: false, deltaX: 0, deltaY: 0, ...o });
+  assert.equal(w({ deltaY: 100 }), 'scroll');
+  assert.equal(w({ deltaY: 100, ctrlKey: true }), 'zoom');
+  assert.equal(w({ deltaY: -3, ctrlKey: true }), 'zoom', 'a trackpad pinch');
+  assert.equal(w({ deltaY: 100, metaKey: true }), 'zoom');
+  assert.equal(w({ deltaY: 100, shiftKey: true }), 'pan');
+  assert.equal(w({ deltaX: 40, deltaY: 5 }), 'pan', 'a sideways swipe');
+  assert.equal(w({ deltaX: 40, deltaY: 5, ctrlKey: true }), 'zoom');
+});

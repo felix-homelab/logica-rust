@@ -15,7 +15,7 @@ import { useEventCount, type CaptureInfo } from '../store';
 import { analogNeeds, waveformNeeds } from '../relevance';
 import { joinRun, layoutRows, runs, type Row } from '../lanes';
 import { formatValue, tickCount, valueTickStep, valueLines, valueRange, valueTicks, valueY } from '../analogplot';
-import { clampRange, pan, sampleToX, snap, xToSample, zoomAt, type Range } from '../viewmath';
+import { clampRange, pan, sampleToX, snap, wheelAction, xToSample, zoomAt, type Range } from '../viewmath';
 
 export interface ViewState extends Range {
   cursorA: number | null;
@@ -543,16 +543,28 @@ export function Waveform({
   };
   const set = (r: Partial<ViewState>) => onView({ ...view, ...r });
 
+  // the wheel scrolls through the channels like any list; Ctrl (Cmd on macOS) zooms, and a
+  // trackpad pinch arrives as Ctrl as well; Shift or a sideways swipe pans in time
   const onWheel = (e: WheelEvent<HTMLCanvasElement>) => {
-    const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey;
-    if (horizontal && !e.ctrlKey) {
-      const d = e.shiftKey ? e.deltaY : e.deltaX;
-      set(pan(view, d / plotW, count));
-    } else {
+    const action = wheelAction(e);
+    if (action === 'zoom') {
       const at01 = Math.min(1, Math.max(0, local(e) / plotW));
-      set(zoomAt(view, Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), at01, count));
+      set(zoomAt(view, Math.exp(e.deltaY * 0.01), at01, count));
+    } else if (action === 'pan') {
+      set(pan(view, (e.shiftKey ? e.deltaY : e.deltaX) / plotW, count));
     }
   };
+  // Ctrl+wheel would zoom the whole page; the canvas keeps it for the time axis. React's wheel
+  // listener is passive, so this one is added by hand.
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c) return;
+    const stop = (e: globalThis.WheelEvent) => {
+      if (wheelAction(e) !== 'scroll') e.preventDefault();
+    };
+    c.addEventListener('wheel', stop, { passive: false });
+    return () => c.removeEventListener('wheel', stop);
+  }, []);
 
   const edgesNear = (yPx: number): number[] => {
     const row = rows.find((r) => r.kind === 'channel' && yPx >= r.y && yPx < r.y + r.h);

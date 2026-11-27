@@ -19,7 +19,7 @@ Setup: `cargo run -p logica-vla` in one terminal (it prints its signals and `Lis
    OK\r\n" appear under CH0 and in the decoded table, which keeps growing.
 4. **Look back.** Drag the waveform to the right: the bar says you are looking back and the view
    stays put while data keeps arriving. "Follow" (or the End key) goes back to the newest data.
-   Zooming with the wheel while following keeps following.
+   Zooming with Ctrl+wheel while following keeps following.
 5. **Stop.** "Stop capture": the bar goes, the tab loses its badge, the capture keeps what arrived
    and says it was stopped (its notes), and it can be saved.
 6. **Gone.** Stop `logica-vla` with Ctrl+C during a capture: the capture ends with a warning that
@@ -86,7 +86,8 @@ palette, undo and axe (`npm run test:e2e`). These need a person:
    menu item shows its shortcut and the shortcut works.
 4. **Look.** Light and dark follow the system (Settings > Theme overrides it); the waveform stays
    dark in both; focus is visible when moving with Tab; nothing moves when reduced motion is on.
-5. **Waveform by hand.** Wheel and trackpad zoom and pan, pinch-zoom on a trackpad, click for
+5. **Waveform by hand.** The wheel scrolls the channels, Ctrl+wheel (Cmd on macOS) zooms,
+   Shift+wheel and a sideways trackpad swipe pan, pinch-zoom on a trackpad, click for
    cursor A, Alt+click for cursor B, Shift+drag to select; the measurements tab follows.
 6. **Settings.** Switching MCP off removes `logica.lock`; on again writes it with a new port.
 7. **An agent starts the app (S8, the owner's setup).** Quit Logica. On Windows, register

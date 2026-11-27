@@ -102,3 +102,14 @@ export function adoptEngineView(v: { mine: string | null; engine: string; seen: 
   if (v.sending) return false;
   return v.seen !== null && v.seen !== v.engine && v.mine !== v.engine;
 }
+
+/**
+ * What the wheel does over the waveform: Ctrl (Cmd on macOS, and a trackpad pinch) zooms the time
+ * axis, Shift or a mostly sideways swipe pans in time, and a plain wheel scrolls through the
+ * channels, so a capture with many channels can be scrolled without changing the zoom.
+ */
+export function wheelAction(e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; deltaX: number; deltaY: number }): 'zoom' | 'pan' | 'scroll' {
+  if (e.ctrlKey || e.metaKey) return 'zoom';
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return 'pan';
+  return 'scroll';
+}
