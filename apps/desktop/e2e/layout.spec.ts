@@ -175,7 +175,14 @@ test('each panel has one scroll bar, docked and as a drawer, at 100 % and 125 % 
       // the window in device pixels; the page then measures w x h CSS pixels
       await app.evaluate(({ BrowserWindow }, [dw, dh]) => BrowserWindow.getAllWindows()[0]?.setContentSize(dw!, dh!), [Math.round(w * zoom), Math.round(h * zoom)]);
       await expect.poll(() => page.evaluate(() => Math.round(window.innerWidth))).toBe(w);
-      if (drawer && !(await inspector.isVisible())) await page.getByRole('toolbar', { name: 'Capture' }).getByRole('button', { name: 'Inspector' }).click();
+      if (drawer) {
+        // the inspector becomes a drawer that starts closed. Wait for that before opening it: on a
+        // slow runner the window is still docked when the width is already right, and opening
+        // would be skipped, leaving the tabs hidden
+        await expect(inspector).toBeHidden();
+        await page.getByRole('toolbar', { name: 'Capture' }).getByRole('button', { name: 'Inspector' }).click();
+        await expect(inspector).toBeVisible();
+      }
       for (const tab of ['Analysis', 'Decoders', 'Search', 'Device']) {
         await inspector.getByRole('tab', { name: tab }).click();
         await page.waitForTimeout(100);
