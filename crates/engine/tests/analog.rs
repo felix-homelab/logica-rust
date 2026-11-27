@@ -356,3 +356,34 @@ fn values_at_the_cursors() {
     let (_, msg) = fail(&mut e, "analog.at", json!({ "capture": c, "at": vec![1u64; 17] }));
     assert!(msg.contains("1 to 16"), "{msg}");
 }
+
+#[test]
+fn numbers_over_a_range_in_the_channels_unit() {
+    let mut e = Engine::new(EngineConfig::default());
+    let c = open_mystery_d(&mut e);
+    let mut input = duty(&c);
+    // 0 to 5 V with a 0.1 V trim: 30 % reads 1.6 V
+    input["scaling"] = json!({ "kind": "range", "low": 0, "high": 5, "offset": 0.1 });
+    input["unit"] = json!("V");
+    let id = add(&mut e, input);
+    let st = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id }));
+    assert_eq!(st["unit"], "V");
+    for k in ["min", "max", "mean", "rms"] {
+        assert!(close(st[k].as_f64().unwrap(), 1.6, 0.02), "{k}: {st}");
+    }
+    assert!(st["peakToPeak"].as_f64().unwrap() < 0.02, "{st}");
+    assert!(st["count"].as_u64().unwrap() > 100);
+    // the time before the first period has no value
+    let covered = st["covered"].as_f64().unwrap();
+    assert!(covered > 0.9 && covered < 1.0, "{covered}");
+    // a range before the first value has no numbers, and that is no error
+    let early = run(&mut e, "analog.stats", json!({ "capture": c, "analog": id, "from": 0, "to": 1 }));
+    assert!(early["mean"].is_null() && early["min"].is_null(), "{early}");
+    assert_eq!(early["covered"], 0.0);
+    let (code, msg) =
+        fail(&mut e, "analog.stats", json!({ "capture": c, "analog": id, "from": 10, "to": 10 }));
+    assert_eq!(code, ErrorCode::InvalidInput);
+    assert!(msg.contains("empty"), "{msg}");
+    let (code, _) = fail(&mut e, "analog.stats", json!({ "capture": c, "analog": "nope" }));
+    assert_eq!(code, ErrorCode::NotFound);
+}

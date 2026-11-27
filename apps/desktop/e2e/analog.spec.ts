@@ -87,6 +87,10 @@ test('a PWM found by the analysis becomes a virtual analog channel in one click'
   await expect(page.locator('#wave-description')).toContainText('Cursor A at');
   await page.getByRole('tab', { name: 'Measurements' }).click();
   await expect(page.getByText(/A: 30(\.\d+)? %/)).toBeVisible({ timeout: 10_000 });
+  // and its numbers over the view
+  const numbers = page.getByRole('definition').filter({ hasText: /^mean 30(\.\d+)? %/ });
+  await expect(numbers).toBeVisible();
+  await expect(numbers).toContainText('RMS 30');
   await app.close();
 });
 

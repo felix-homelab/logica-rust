@@ -498,6 +498,24 @@ pub fn measure(caps: &Captures, capture: &str, action: &str, out: &Value) -> Str
             }
             t
         }
+        "analog" => {
+            let unit = s(&out["unit"]);
+            let v = |k: &str| out[k].as_f64().map(|x| format!("{} {unit}", format::sig(x, 4)));
+            let range = format!(
+                "{} from {} to {}",
+                s(&out["name"]),
+                caps.at(capture, out["from"].as_u64().unwrap_or(0)),
+                caps.at(capture, out["to"].as_u64().unwrap_or(0))
+            );
+            match (v("min"), v("max"), v("mean"), v("rms")) {
+                (Some(lo), Some(hi), Some(mean), Some(rms)) => format!(
+                    "{range}: {lo} to {hi}, mean {mean}, RMS {rms}; {} of the range has a value ({} values start in it).",
+                    format::pct(out["covered"].as_f64().unwrap_or(0.0), 0),
+                    out["count"].as_u64().unwrap_or(0)
+                ),
+                _ => format!("{range}: no value in this range."),
+            }
+        }
         "edges" => {
             let edges = arr(&out["edges"]);
             let mut t = format!("{}:\n", plural(edges.len() as u64, "edge", "edges"));

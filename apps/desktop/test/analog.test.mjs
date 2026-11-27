@@ -105,3 +105,13 @@ test('cursor readouts give the value, the code where there is one, and the diffe
   assert.equal(difference({ value: 30 }, { value: 20 }, '%', 1), '-10 %');
   assert.equal(difference({ value: 30 }, {}, '%', 1), null);
 });
+
+test('a range in one line', async () => {
+  const { analogSummary } = await import('../src/renderer/src/analogplot.ts');
+  assert.equal(
+    analogSummary({ unit: 'V', min: 1.6, max: 1.6, peakToPeak: 0, mean: 1.6, rms: 1.6, covered: 0.98, step: null }),
+    'mean 1.600 V · RMS 1.600 V · 1.600 V to 1.600 V · peak to peak 0.0000 V · values for 98 % of it',
+  );
+  assert.equal(analogSummary({ unit: '%', mean: 30, rms: 30, min: 29, max: 31, peakToPeak: 2, covered: 1, step: 1 }), 'mean 30 % · RMS 30 % · 29 % to 31 % · peak to peak 2 %');
+  assert.equal(analogSummary({ unit: 'V', covered: 0 }), 'no value in this range');
+});

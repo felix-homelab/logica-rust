@@ -71,6 +71,9 @@ and the virtual analyser; real hardware comes in 0.2.0. The installers are unsig
   values; with a preset for the ADC0804. (#28)
 - Virtual analog channels from PDM or sigma-delta bitstreams (PDM microphones, isolated ADCs),
   filtered back into values by a sinc³ filter with a decimation ratio you choose. (#29)
+- Measurements of virtual analog channels over the selection or the view: mean and RMS weighted
+  by time, minimum, maximum and peak to peak, in the Measurements panel and for agents through
+  the `measure` tool. (#31)
 
 ### Fixed
 

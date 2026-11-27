@@ -146,6 +146,7 @@ inputs: {
 "analog.at": AnalogAtIn
 "analog.remove": AnalogRef
 "analog.sources": Nothing
+"analog.stats": AnalogStatsIn
 "analog.update": AnalogUpdateIn
 "analog.values": AnalogValuesIn
 "analysis.bytes": BytesIn
@@ -195,6 +196,7 @@ outputs: {
 "analog.at": AnalogAtOut
 "analog.remove": Nothing
 "analog.sources": AnalogSourcesOut
+"analog.stats": AnalogStatsOut
 "analog.update": AnalogOut
 "analog.values": AnalogValuesOut
 "analysis.bytes": ByteAnalysis
@@ -292,6 +294,18 @@ capture: string
 export interface AnalogRef {
 analog: string
 capture: string
+}
+export interface AnalogStatsIn {
+analog: string
+capture: string
+/**
+ * The range; the whole capture when absent.
+ */
+from?: (number | null)
+/**
+ * Exclusive.
+ */
+to?: (number | null)
 }
 export interface AnalogUpdateIn {
 analog: string
@@ -932,6 +946,31 @@ help?: (string | null)
 key: string
 kind: SettingKind
 label: string
+}
+/**
+ * A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it
+ * holds; gaps do not count.
+ */
+export interface AnalogStatsOut {
+analog: string
+/**
+ * Values that start in the range.
+ */
+count: number
+/**
+ * The share of the range that has a value.
+ */
+covered: number
+from: number
+max?: (number | null)
+mean?: (number | null)
+min?: (number | null)
+name: string
+peakToPeak?: (number | null)
+rms?: (number | null)
+step?: (number | null)
+to: number
+unit: string
 }
 export interface AnalogValuesOut {
 /**

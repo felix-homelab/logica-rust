@@ -54,6 +54,16 @@ export const COMMANDS: readonly CommandSpec[] = [
     }
   },
   {
+    "name": "analog.stats",
+    "summary": "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",
+    "safety": "read",
+    "lease": false,
+    "longRunning": false,
+    "undo": {
+      "kind": "query"
+    }
+  },
+  {
     "name": "analog.update",
     "summary": "Change a virtual analog channel's source, channels, settings, scaling, name, unit or style.",
     "safety": "read",

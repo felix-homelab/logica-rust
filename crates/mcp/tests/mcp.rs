@@ -272,6 +272,29 @@ async fn tools_are_few_with_plain_object_schemas_and_change_only_deliberately() 
 }
 
 #[tokio::test]
+async fn an_agent_adds_a_pwm_level_and_measures_it() {
+    let (client, _, _) = connect(legacy()).await;
+    let (_, out) = ok(&client, "open_file", json!({ "path": fixture("mystery_D.demo") })).await;
+    let c = out["capture"]["id"].as_str().unwrap().to_string();
+    let (_, out) = ok(
+        &client,
+        "run_command",
+        json!({ "command": "analog.add", "input": { "capture": c, "source": "pwm", "roles": { "signal": 0 },
+                "scaling": { "kind": "range", "low": 0, "high": 100 }, "name": "Fan" } }),
+    )
+    .await;
+    let id = out["analog"]["id"].as_str().unwrap().to_string();
+    let (t, _) = ok(&client, "measure", json!({ "action": "analog", "capture": c, "analog": id })).await;
+    assert!(t.starts_with("Fan from "), "{t}");
+    assert!(t.contains("mean 30") && t.contains("RMS 30"), "{t}");
+    let (t, _) =
+        ok(&client, "measure", json!({ "action": "analog", "capture": c, "analog": id, "from": 0, "to": 1 }))
+            .await;
+    assert!(t.ends_with("no value in this range."), "{t}");
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
 async fn errors_are_instructions_the_agent_can_read() {
     let (client, _, _) = connect(legacy()).await;
     let m = err(&client, "summarize", json!({ "capture": "c9" })).await;

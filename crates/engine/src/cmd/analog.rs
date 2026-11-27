@@ -268,6 +268,81 @@ pub(crate) fn remove(e: &mut Engine, _: &Ctx, i: AnalogRef) -> Result<Done, Comm
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnalogStatsIn {
+    pub capture: String,
+    pub analog: String,
+    /// The range; the whole capture when absent.
+    pub from: Option<Sample>,
+    /// Exclusive.
+    pub to: Option<Sample>,
+}
+
+/// A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it
+/// holds; gaps do not count.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalogStatsOut {
+    pub analog: String,
+    pub name: String,
+    pub unit: String,
+    pub from: Sample,
+    pub to: Sample,
+    /// Values that start in the range.
+    pub count: u64,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub peak_to_peak: Option<f64>,
+    pub mean: Option<f64>,
+    pub rms: Option<f64>,
+    /// The share of the range that has a value.
+    pub covered: f64,
+    pub step: Option<f64>,
+}
+
+pub(crate) fn stats(e: &mut Engine, _: &Ctx, i: AnalogStatsIn) -> Result<Done, CommandError> {
+    let count = e.capture(&i.capture)?.store.sample_count();
+    let from = i.from.unwrap_or(0);
+    let to = i.to.unwrap_or(count);
+    if to <= from {
+        return Err(err(ErrorCode::InvalidInput, "The range is empty: `to` must be after `from`."));
+    }
+    let a = find(e, &AnalogRef { capture: i.capture.clone(), analog: i.analog.clone() })?;
+    let st = a.series.stats(from, to);
+    let s = &a.config.scaling;
+    let (min, max) = match (st.min, st.max) {
+        (Some(lo), Some(hi)) => {
+            let (lo, hi) = s.apply_range(lo, hi);
+            (Some(lo), Some(hi))
+        }
+        _ => (None, None),
+    };
+    // the mean scales like a value; the RMS of a + b·x needs the mean square too
+    let (a0, b) = (s.apply(0.0), s.apply(1.0) - s.apply(0.0));
+    let rms = match (st.mean, st.mean_square) {
+        (Some(m), Some(m2)) => Some((a0 * a0 + 2.0 * a0 * b * m + b * b * m2).max(0.0).sqrt()),
+        _ => None,
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let covered = st.covered as f64 / (to - from) as f64;
+    Ok(Done::query(out(&AnalogStatsOut {
+        analog: i.analog.clone(),
+        name: a.config.name.clone(),
+        unit: a.config.unit.clone(),
+        from,
+        to,
+        count: st.count,
+        peak_to_peak: min.zip(max).map(|(lo, hi)| hi - lo),
+        min,
+        max,
+        mean: st.mean.map(|m| s.apply(m)),
+        rms,
+        covered,
+        step: a.step(),
+    })))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AnalogAtIn {
     pub capture: String,
     /// Sample indices to read every virtual analog channel at (1 to 16), such as the cursors.

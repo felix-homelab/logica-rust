@@ -69,7 +69,7 @@ indices, so follow-up calls are exact.
 | `open_file` | read | Import a file from a path on the machine running the engine (doc 09) |
 | `save_capture` | read | Save as `.lacap`, or export as `.sr`, VCD, CSV, Saleae binary, decoded packets (CSV, JSON), or the values of virtual analog channels (CSV) |
 | `summarize` | read | Per-channel measurements, bus groups, detected protocols with confidence and evidence, virtual analog channels with their range and suggested ones, problems; for the whole capture or a time range; bounded length |
-| `measure` | read | `stats` (frequency, period, duty, pulse widths, edge counts for a channel and range), `edges` (edges of chosen channels in a range, capped and paged), `between` (time between two edges), `analog` (minimum, maximum, mean, RMS, peak to peak and point count of a virtual analog channel in a range, value at a time) |
+| `measure` | read | `stats` (frequency, period, duty, pulse widths, edge counts for a channel and range), `edges` (edges of chosen channels in a range, capped and paged), `between` (time between two edges), `analog` (minimum, maximum, mean and RMS weighted by time, peak to peak and value count of a virtual analog channel in a range; the value at a time is `analog.at` through `run_command`) |
 | `decoder` | read | `add` (protocol, roles, settings, layers, register map; or from a detection), `update` (returns how the problem counts changed), `remove` |
 | `get_decoded` | read | Packets or frames filtered by time range, kind, problem and text; paged. `explain: true` groups problems and explains likely causes from the symptom knowledge |
 | `search` | read | Query search over edges, decoded content and virtual analog values (doc 06); hits with times |
@@ -84,7 +84,7 @@ Tools change only deliberately (schema snapshot tests); a new capability first g
 comparison (M5) and `set_output` with the first device that has outputs (M3); until their commands
 exist, the tools are not offered. Virtual analog channels (ADR 0010) are created and changed with
 `run_command` (`analog.sources`, `analog.add`, `analog.update`, `analog.remove`, `analog.values`,
-`analog.at`);
+`analog.at`, `analog.stats`);
 the tools above include them where they read data. A tool that has several actions (`device`, `capture`, `measure`,
 `decoder`) has one object schema with an `action` field, because agent APIs refuse a top-level
 `oneOf`.

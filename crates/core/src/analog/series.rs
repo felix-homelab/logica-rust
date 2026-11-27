@@ -38,6 +38,21 @@ pub struct Envelope {
     pub gap: bool,
 }
 
+/// A stretch of a series as numbers, weighted by time: each value counts for as long as it holds.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SeriesStats {
+    /// Values that start inside the stretch.
+    pub count: u64,
+    /// Lowest and highest value in the stretch, including the one held at its start.
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    /// The time-weighted mean and mean square; `None` when no sample of the stretch has a value.
+    pub mean: Option<f64>,
+    pub mean_square: Option<f64>,
+    /// Samples of the stretch that have a value (gaps and the time before the first value do not).
+    pub covered: u64,
+}
+
 /// Why an entry cannot be added. Sources keep time order and emit finite numbers; this guards
 /// the store against a source that does not.
 #[derive(Clone, Debug, PartialEq)]
@@ -200,6 +215,51 @@ impl ValueSeries {
                 Some(self.envelope(a, a.saturating_add(bucket)))
             })
             .collect()
+    }
+
+    /// The numbers of the samples `from..to`: count, extremes, and the time-weighted mean and mean
+    /// square of the value held at each sample.
+    pub fn stats(&self, from: Sample, to: Sample) -> SeriesStats {
+        let mut st = SeriesStats::default();
+        let (mut sum, mut sum_sq) = (0.0, 0.0);
+        let mut cur = self.held_before(from);
+        let mut t = from;
+        let extremes = |x: f64, st: &mut SeriesStats| {
+            st.min = Some(st.min.map_or(x, |m| m.min(x)));
+            st.max = Some(st.max.map_or(x, |m| m.max(x)));
+        };
+        if let Some(x) = cur {
+            extremes(x, &mut st);
+        }
+        let mut hold = |cur: Option<f64>, a: Sample, b: Sample, st: &mut SeriesStats| {
+            if let Some(x) = cur
+                && b > a
+            {
+                // sample counts are far below 2^53, so exact as f64
+                #[allow(clippy::cast_precision_loss)]
+                let n = (b - a) as f64;
+                sum += x * n;
+                sum_sq += x * x * n;
+                st.covered += b - a;
+            }
+        };
+        for p in self.points(from, to) {
+            hold(cur, t, p.sample, &mut st);
+            if let Some(x) = p.x {
+                st.count += 1;
+                extremes(x, &mut st);
+            }
+            cur = p.x;
+            t = p.sample;
+        }
+        hold(cur, t, to.max(t), &mut st);
+        if st.covered > 0 {
+            #[allow(clippy::cast_precision_loss)]
+            let n = st.covered as f64;
+            st.mean = Some(sum / n);
+            st.mean_square = Some(sum_sq / n);
+        }
+        st
     }
 
     /// The envelope of the samples `from..to`.
@@ -376,6 +436,29 @@ mod tests {
         assert!(s.envelopes(0, 0, 5).is_empty());
         // Stretches that would pass the last sample index are left out, not wrapped.
         assert_eq!(s.envelopes(Sample::MAX - 10, 4, 5).len(), 3);
+    }
+
+    #[test]
+    fn stats_weigh_each_value_by_how_long_it_holds() {
+        let mut s = ValueSeries::new();
+        s.push(10, 1.0).unwrap();
+        s.push(20, 3.0).unwrap();
+        s.gap(30).unwrap();
+        s.push(40, 2.0).unwrap();
+        // 10..20 at 1, 20..30 at 3, a gap 30..40, 40..50 at 2
+        let st = s.stats(0, 50);
+        assert_eq!((st.count, st.min, st.max, st.covered), (3, Some(1.0), Some(3.0), 30));
+        assert_eq!(st.mean, Some(2.0));
+        assert_eq!(st.mean_square, Some((10.0 + 90.0 + 40.0) / 30.0));
+        // a stretch inside one value: held from before, nothing new
+        let st = s.stats(22, 28);
+        assert_eq!((st.count, st.min, st.max, st.mean, st.covered), (0, Some(3.0), Some(3.0), Some(3.0), 6));
+        // only a gap, or nothing at all: no numbers
+        let st = s.stats(31, 39);
+        assert_eq!((st.min, st.mean, st.covered), (None, None, 0));
+        assert_eq!(ValueSeries::new().stats(0, 100), SeriesStats::default());
+        // an empty stretch
+        assert_eq!(s.stats(25, 25).covered, 0);
     }
 
     #[test]

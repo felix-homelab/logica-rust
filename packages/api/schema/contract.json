@@ -456,6 +456,127 @@
       ],
       "type": "object"
     },
+    "AnalogStatsIn": {
+      "additionalProperties": false,
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "capture": {
+          "type": "string"
+        },
+        "from": {
+          "description": "The range; the whole capture when absent.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "Exclusive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capture",
+        "analog"
+      ],
+      "type": "object"
+    },
+    "AnalogStatsOut": {
+      "description": "A virtual analog channel over a range, in its unit. Mean and RMS weigh each value by how long it\nholds; gaps do not count.",
+      "properties": {
+        "analog": {
+          "type": "string"
+        },
+        "count": {
+          "description": "Values that start in the range.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "covered": {
+          "description": "The share of the range that has a value.",
+          "format": "double",
+          "type": "number"
+        },
+        "from": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "peakToPeak": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rms": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "step": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "to": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "analog",
+        "name",
+        "unit",
+        "from",
+        "to",
+        "count",
+        "covered"
+      ],
+      "type": "object"
+    },
     "AnalogStyle": {
       "description": "How a channel is drawn: the value held until the next point, or a line between points.",
       "enum": [
@@ -5427,6 +5548,21 @@
       },
       "safety": "read",
       "summary": "The sources of virtual analog channels, with their channels and settings.",
+      "undo": {
+        "kind": "query"
+      }
+    },
+    "analog.stats": {
+      "input": {
+        "$ref": "#/$defs/AnalogStatsIn"
+      },
+      "lease": false,
+      "longRunning": false,
+      "output": {
+        "$ref": "#/$defs/AnalogStatsOut"
+      },
+      "safety": "read",
+      "summary": "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",
       "undo": {
         "kind": "query"
       }

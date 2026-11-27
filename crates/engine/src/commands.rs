@@ -151,6 +151,10 @@ pub const COMMANDS: &[CommandSpec] = &[
     ),
     edit("analog.remove", "Remove a virtual analog channel; undo restores it with the same id."),
     query(
+        "analog.stats",
+        "A virtual analog channel over a range in its unit: minimum, maximum, peak to peak, mean and RMS (weighted by time), count.",
+    ),
+    query(
         "analog.at",
         "Every virtual analog channel's value, raw code and step at given samples, such as the cursors.",
     ),

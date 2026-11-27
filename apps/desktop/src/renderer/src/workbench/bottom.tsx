@@ -7,7 +7,7 @@ import { Undo2, Redo2 } from 'lucide-react';
 import { client } from '../bridge';
 import { at, hz, int, time } from '../format';
 import { activityNeeds, analogNeeds, tableNeeds } from '../relevance';
-import { difference, formatValue, readout } from '../analogplot';
+import { analogSummary, difference, formatValue, readout } from '../analogplot';
 import { isAgent, useEventCount, useStore, who, type CaptureInfo } from '../store';
 import type { ViewState } from './Waveform';
 
@@ -137,6 +137,25 @@ export function Measurements({ capture, view }: { capture: CaptureInfo; view: Vi
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capture.id, a, b, capture.analog, analogChanges]);
+  // each virtual analog channel over the selection or the view
+  const [analogStats, setAnalogStats] = useState<Output<'analog.stats'>[]>([]);
+  useEffect(() => {
+    if (!range || !capture.analog.length) {
+      setAnalogStats([]);
+      return;
+    }
+    let stale = false;
+    const t = window.setTimeout(() => {
+      void Promise.all(capture.analog.map((x) => run('analog.stats', { capture: capture.id, analog: x.id, from: range[0], to: range[1] }))).then(
+        (all) => !stale && setAnalogStats(all.filter((s): s is Output<'analog.stats'> => !!s)),
+      );
+    }, 150);
+    return () => {
+      stale = true;
+      window.clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capture.id, range?.[0], range?.[1], capture.analog, analogChanges]);
   const atA = a !== null ? 0 : -1;
   const atB = b !== null ? cursors.length - 1 : -1;
   return (
@@ -186,6 +205,16 @@ export function Measurements({ capture, view }: { capture: CaptureInfo; view: Vi
             ))}
           </select>
         </label>
+        {analogStats.length > 0 && (
+          <dl className="facts" aria-label="Virtual analog channels">
+            {analogStats.map((st) => (
+              <div key={st.analog} className="facts__row">
+                <dt>{st.name}</dt>
+                <dd className="lg-num">{analogSummary(st)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {stats && (
           <dl className="facts">
             <dt>Edges</dt>
